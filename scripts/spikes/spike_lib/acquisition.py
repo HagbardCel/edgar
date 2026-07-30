@@ -21,7 +21,6 @@ from spike_lib.quality import QualityIssue
 from spike_lib.sec import (
     SecClient,
     accession_archive_base,
-    accession_dashless,
     classify_source_and_role,
     extract_accession_record,
     normalize_cik,
@@ -320,7 +319,6 @@ class AcquisitionService:
         json_entries = _parse_index_json(index_json_fetch.content, archive_base)
 
         # Index HTML / headers
-        dashless = accession_dashless(accession)
         metadata_fetches = (
             (f"{accession}-index.html", "metadata/index.html", "index_html"),
             (
@@ -402,7 +400,7 @@ class AcquisitionService:
             )
 
         # Completeness checks
-        complete_name = f"{dashless}.txt"
+        complete_name = f"{accession}.txt"
         if draft.artifact_by_path(f"accession/{complete_name}") is None:
             draft.issues.append(
                 QualityIssue(

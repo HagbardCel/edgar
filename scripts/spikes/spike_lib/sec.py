@@ -152,8 +152,7 @@ def classify_source_and_role(
     document_type: str | None = None,
 ) -> tuple[str, str]:
     lower = filename.lower()
-    dashless = accession_dashless(accession).lower()
-    if lower == f"{dashless}.txt" or lower.endswith(f"{accession.lower()}.txt"):
+    if lower == f"{accession.lower()}.txt":
         return "filer_submitted", "complete_submission"
     if lower.endswith("-index.json") or lower == "index.json":
         return "sec_submission_metadata", "index_json"

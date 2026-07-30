@@ -53,7 +53,7 @@ Logical paths:
 | Discovery record | `metadata/discovery.json` |
 | External DTS deps | `external/{sha256_of_original_uri}/{sanitized_basename}` |
 
-Complete submission text is kept only under its original accession filename (for example `accession/{accession_dashless}.txt`) with `artifact_role = complete_submission`. Do not duplicate it under `metadata/`.
+Complete submission text is kept only under its original accession filename (for example `accession/{accession}.txt`) with `artifact_role = complete_submission`. Do not duplicate it under `metadata/`.
 
 ### Payload identity
 
