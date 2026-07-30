@@ -1,0 +1,519 @@
+# AGENTS.md
+
+## Project mission
+
+Build a reproducible, point-in-time-aware platform for SEC company filings.
+
+The system preserves immutable filing evidence; parses deterministic document structure and XBRL semantics; creates versioned canonical metrics; joins filings to historical securities and market outcomes; and supports reproducible quantitative and textual research.
+
+The current implementation phase is **Phase 1: immutable filing and semantic XBRL foundation**.
+
+Optimize for:
+
+- correctness
+- provenance
+- semantic fidelity
+- idempotency
+- offline replay
+- testability
+- conservative interpretation
+
+Do not optimize for breadth or ingestion speed before the relevant phase gate is satisfied.
+
+---
+
+## Read this first
+
+Before changing code:
+
+1. Read this file.
+2. Read `docs/phase-1-plan.md`.
+3. Read `docs/project-roadmap.md`.
+4. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.
+5. Read relevant ADRs.
+6. Inspect nearest tests and interfaces.
+7. Check the git diff before editing.
+8. Keep the change within the active phase unless the task explicitly changes scope.
+
+Priority when requirements conflict:
+
+1. source integrity and semantic correctness
+2. explicit user requirements
+3. documented invariants and tests
+4. ADRs
+5. existing conventions
+6. convenience
+
+Never infer success from plausible code. Run the relevant checks.
+
+---
+
+## Active Phase 1 scope
+
+Implement and maintain:
+
+- SEC discovery for `10-K`, `10-K/A`, `10-Q`, `10-Q/A`
+- immutable raw filing retrieval and manifests
+- issuer, filing, document, and artifact metadata
+- semantic HTML blocks
+- regulatory filing sections
+- XBRL concepts and schema attributes
+- labels and references
+- role and arcrole definitions
+- presentation, calculation, and definition relationships
+- contexts, dimensions, units, and facts
+- parser versions and quality issues
+- local PostgreSQL
+- deterministic offline fixtures
+- CLI workflows
+- optional local-LLM development experiments
+
+Do not add without explicit scope change:
+
+- canonical metric mappings
+- derived financial metrics
+- security-master or market data
+- research dataset generation
+- embeddings or vector databases
+- web applications
+- distributed queues
+- cloud infrastructure
+- production LLM dependencies
+- additional filing forms
+
+Phase 1 must preserve all evidence needed for Phase 2 metric mapping. It must not perform that mapping prematurely.
+
+---
+
+## Non-negotiable invariants
+
+### Source artifacts
+
+- Raw SEC artifacts are immutable.
+- Never overwrite verified bytes with different bytes.
+- Every artifact has a SHA-256 hash.
+- Write atomically using a temporary file and rename.
+- Store paths relative to the configured data root.
+- Parsing must work with network disabled.
+- Frozen fixtures change only through the explicit refresh workflow.
+
+### Identifiers
+
+- CIKs are zero-padded ten-digit strings.
+- Accession numbers use canonical dashed form.
+- Dashless accessions are derived only for archive paths.
+- Tickers are never issuer primary keys.
+- Do not manufacture missing identifiers.
+
+### Time
+
+Persist timezone-aware UTC timestamps and distinguish:
+
+- filing date
+- SEC acceptance timestamp
+- report-period end
+- retrieval time
+- parser-run time
+- later `known_at` and `superseded_at` semantics
+
+Never substitute one timestamp for another.
+
+### Numeric facts
+
+- Never use binary floating point for filed financial values.
+- Use Python `Decimal` and PostgreSQL `NUMERIC`.
+- Preserve raw and normalized values.
+- Preserve scale, sign, decimals, precision, unit, context, and dimensions.
+- Preserve nil facts.
+- Do not drop extension concepts.
+- Do not aggregate dimensional facts without an explicit policy.
+
+### XBRL semantics
+
+- Concept names and labels do not prove economic equivalence.
+- Preserve all available labels, references, statement roles, and relationship networks.
+- Preserve issuer extension relationships exactly as filed.
+- Do not collapse broader, narrower, component, proxy, non-GAAP, or segment measures into one metric.
+- Do not infer canonical financial metrics during Phase 1.
+- Do not remove apparently duplicate facts without preserving source occurrences or a documented equivalence relationship.
+- XBRL engine-specific objects must not escape the adapter boundary.
+
+### Parsed text
+
+- Preserve document order and source locators.
+- Do not rewrite substantive filing text.
+- Whitespace normalization is deterministic and tested.
+- Missing sections become quality issues, not inferred content.
+- Table-of-contents headings require explicit disambiguation.
+- Tables remain linked to their source locations.
+
+### Versioning and provenance
+
+Every parsed output must trace to:
+
+- accession
+- document
+- source artifact hash
+- source locator
+- parser version
+- ingestion run
+
+A parser behavior change that alters persisted output requires a version change.
+
+### Idempotency
+
+- Reruns do not duplicate canonical rows.
+- Enforce natural uniqueness in the database.
+- Use transactional repository methods and conflict handling.
+- Failed operations are not marked successful.
+- Raw artifacts are not deleted when derived parser outputs are replaced.
+
+---
+
+## Architecture boundaries
+
+```text
+CLI / orchestration
+        ↓
+application services
+        ↓
+domain models and protocols
+        ↓
+adapters: SEC HTTP, filesystem, PostgreSQL, Arelle, optional LLM
+```
+
+Rules:
+
+- Domain modules do not import CLI code.
+- Parsing code does not access the network.
+- SEC HTTP code does not write directly to database tables.
+- Filesystem writes go through the storage abstraction.
+- SQLAlchemy models are not the universal domain API.
+- Arelle objects stay inside the XBRL adapter.
+- Canonical ingestion/parsing modules do not import LLM implementations.
+- Notebooks are exploratory only; reusable logic belongs in `src/`.
+
+---
+
+## Local development commands
+
+Use repository commands when available:
+
+```bash
+make bootstrap
+make db-up
+make migrate
+make lint
+make typecheck
+make test
+make check
+make phase1-acceptance
+```
+
+Possible direct equivalents:
+
+```bash
+uv sync
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+uv run pytest
+uv run alembic upgrade head
+```
+
+Run targeted checks first, then the appropriate broader check.
+
+Never claim a command passed unless it was executed.
+
+---
+
+## Python standards
+
+- modern typed Python
+- annotations on public and non-trivial functions
+- small pure normalization/parsing functions
+- dataclasses or Pydantic models at boundaries
+- `pathlib.Path`
+- explicit timezone-aware datetimes
+- `Decimal` for financial numerics
+- enums/literals for stable vocabularies
+- no mutable defaults
+- no hidden import-time work
+- narrow exception handling
+- no unexplained type suppressions
+- no new dependency without justification
+- I/O at the edges
+- deterministic parsing logic where possible
+
+`pyproject.toml` is authoritative for tooling configuration.
+
+---
+
+## Database and migration rules
+
+- All schema changes use Alembic.
+- Do not edit an already applied migration; create a new migration.
+- Review generated migrations.
+- Name constraints and indexes.
+- Use natural uniqueness constraints for idempotency.
+- Use foreign keys unless explicitly documented otherwise.
+- Use one transaction per logical filing operation.
+- Avoid destructive cascades from issuer or filing tables.
+- Preserve raw artifacts independently of parser outputs.
+- Parser reruns are version-aware.
+- Add integration tests for schema changes.
+- Include downgrade logic unless intentionally irreversible.
+- Never reset non-test data without explicit authorization.
+
+---
+
+## SEC access rules
+
+All requests go through the shared SEC client, which provides:
+
+- identifying user agent
+- conservative request rate
+- bounded concurrency
+- timeouts
+- retries with backoff and jitter
+- caching
+- deterministic URL construction
+- observable failures
+
+Rules:
+
+- default below the SEC maximum
+- no live SEC calls in unit/default integration tests
+- live tests are opt-in and marked
+- no scattered `httpx` calls
+- use documented APIs/archive endpoints
+- no LLM or browser agent as downloader
+- download only bounded command scope
+
+---
+
+## Parser rules
+
+### HTML and sections
+
+- Parse the DOM; regex is not the primary HTML parser.
+- Regex may normalize heading/item patterns.
+- Preserve reading order and source XPath.
+- Treat headings, paragraphs, lists, tables, and footnotes distinctly.
+- Any boundary-changing heuristic needs fixture coverage.
+- Use form-specific section vocabularies.
+- Generate candidates, score them, and enforce sequence constraints.
+- Persist confidence and method.
+- Never fabricate section content.
+- No LLM in canonical Phase 1 section extraction.
+
+### XBRL
+
+- Use the XBRL adapter.
+- Preserve concepts, labels, references, role types, relationships, contexts, units, dimensions, and facts.
+- Preserve source taxonomy and linkbase artifacts.
+- Handle instant/duration contexts explicitly.
+- Store dimensions as structured data.
+- Preserve calculation weights and presentation order.
+- Preserve definition-network attributes such as `usable`, `closed`, and target roles.
+- Do not infer canonical metric identity from QName or label similarity.
+- Do not create canonical financial metrics in Phase 1.
+
+---
+
+## Metric semantics rules for later phases
+
+When Phase 2 begins:
+
+- metric definitions are versioned measurement contracts
+- mappings are typed relationships, not simple aliases
+- allowed relationship types include:
+  - equivalent
+  - issuer-equivalent
+  - narrower-than
+  - broader-than
+  - component-of
+  - derived-equivalent
+  - presentation-alias
+  - proxy-for
+  - incompatible
+  - unresolved
+- default to keeping facts separate
+- scope mappings globally, by accounting regime, industry, issuer, period, or filing
+- retain mapping rule, evidence, confidence, review status, and policy version
+- separate direct, derived, and proxy observations
+- expose mapping uncertainty to research datasets
+- no LLM may auto-approve an ambiguous mapping
+
+Do not implement these tables or workflows during Phase 1 unless the user explicitly advances the project phase.
+
+---
+
+## Testing rules
+
+A behavior change requires a test unless documentation-only.
+
+### Unit tests
+
+No network or database by default. Cover:
+
+- identifiers
+- SEC URL construction
+- manifests and hashes
+- rate limiting with fake time
+- HTML normalization
+- section candidates and sequence
+- taxonomy resources
+- relationship normalization
+- exact decimal parsing
+- stable hashes
+
+### Integration tests
+
+Use PostgreSQL and frozen artifacts. Cover:
+
+- migrations
+- repositories
+- rollback
+- offline replay
+- idempotency
+- text persistence
+- taxonomy-resource persistence
+- network reconstruction
+- context/unit/fact persistence
+- provenance queries
+
+### Fixtures and golden files
+
+- prefer small targeted fixtures
+- use full bundles only for end-to-end tests
+- every artifact is manifest-listed and hashed
+- golden updates are explicit and reviewed
+- never refresh expected outputs merely to make tests green
+- explain intentional count/output changes
+
+### Network tests
+
+- mark `network`
+- disable by default
+- respect SEC limits
+- never use for deterministic acceptance
+
+---
+
+## Local LLM policy
+
+Local LLMs are development assistants and experimental analyzers, not sources of truth.
+
+Permitted:
+
+- code generation with review/tests
+- code explanation
+- test-case proposals
+- diff review
+- candidate parser heuristics
+- structured diagnostic experiments
+- taxonomy-evidence summaries
+- candidate metric suggestions in later experimental workflows
+- documentation drafting
+
+Not permitted:
+
+- altering source artifacts
+- inventing filing text or facts
+- auto-approving ambiguous metric mappings
+- equating non-GAAP and GAAP measures by semantic similarity
+- changing golden files without review
+- uncontrolled SEC downloads
+- becoming required for tests or ingestion
+- claiming commands were run when they were not
+
+Any code-mediated LLM call must use:
+
+- explicit purpose
+- versioned prompt
+- schema validation
+- model identity
+- input hash
+- recorded parameters and failures
+- storage separate from canonical decisions
+
+The system must start, test, ingest, and parse with `LLM_ENABLED=false`.
+
+---
+
+## Security and repository hygiene
+
+- never commit `.env`, credentials, personal contact details, dumps, or model secrets
+- do not commit uncontrolled filing corpora
+- validate paths and prevent traversal
+- treat filings as untrusted input
+- do not execute scripts or active content
+- disable XML external entities
+- use bounded response and parsing limits
+- keep PostgreSQL local by default
+- do not run destructive commands without explicit need
+- preserve unrelated user changes
+
+---
+
+## Documentation rules
+
+Update documentation when changing:
+
+- CLI behavior
+- environment variables
+- schema
+- parser outputs
+- fixture process
+- semantic invariants
+- phase boundary
+- acceptance criteria
+
+Use ADRs for consequential decisions.
+
+Clearly distinguish implemented, planned, and experimental behavior.
+
+---
+
+## Definition of done for a change
+
+A change is complete when:
+
+- requested behavior is implemented
+- relevant tests exist and pass
+- relevant lint/type checks pass
+- migrations are included and reviewed when required
+- idempotency and provenance are preserved
+- semantic distinctions are not lost
+- phase scope is respected
+- documentation is updated
+- final diff has no unrelated edits
+- executed commands are reported accurately
+- limitations are explicit
+
+Parser/XBRL changes additionally require:
+
+- offline fixture coverage
+- review of changed counts and relationships
+- explanation of golden changes
+- no loss of source traceability
+
+---
+
+## Completion report format
+
+```text
+Summary
+- What changed and why
+
+Validation
+- Exact commands run
+- Pass/fail result
+
+Data or schema impact
+- Migration, fixture, parser-version, relationship, or manifest implications
+
+Limitations
+- Anything not tested or intentionally deferred
+```
