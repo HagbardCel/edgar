@@ -1,6 +1,15 @@
 # Planning Artifact Update
 
-## Updated artifacts
+## 2026-07-30 — Slice 0 scaffolding
+
+- Removed root planning `manifest.json` (Git is source of truth for repo files).
+- Added `README.md`, `LICENSE` (Apache-2.0), `.env.example`, `pyproject.toml`.
+- Added `docs/architecture.md`, `docs/fixture-policy.md`, ADRs 0001–0003 (Accepted), 0004/0006 (Proposed).
+- Selected spike + five-filing corpus in `fixtures/corpus.yaml` (eBay 10-K/10-K/A, Walmart 10-K, JPM 10-Q, KO 10-Q).
+- Implemented Slice 0 spike: `scripts/spikes/arelle_offline_closure.py` + `spike_lib/`.
+- Added hashing unit tests; spike report stub at `docs/spikes/0001-arelle-offline-closure.md`.
+
+## Earlier planning updates
 
 ### `docs/phase-1-plan.md`
 
@@ -24,6 +33,7 @@ Changes:
 - Added later-phase metric mapping rules and LLM restrictions.
 - Added relationship-specific test and completion requirements.
 - Added references to the full project roadmap and metric-semantics document.
+- Updated read-first list for architecture, fixture policy, data-model, and ADRs.
 
 ### New: `docs/metric-semantics.md`
 
