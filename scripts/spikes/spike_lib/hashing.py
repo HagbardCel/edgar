@@ -1,4 +1,4 @@
-"""Deterministic hashing helpers for payload, closure, and inspection identity."""
+"""Deterministic hashing helpers for payload, closure, relationships, and inspection."""
 
 from __future__ import annotations
 
@@ -99,9 +99,12 @@ def _normalize_for_json(value: Any) -> Any:
     return value
 
 
-def canonical_json_bytes(payload: Mapping[str, Any]) -> bytes:
+def canonical_json_bytes(payload: Mapping[str, Any] | list[Any]) -> bytes:
     """UTF-8 JSON with sorted keys, no whitespace, decimals as strings."""
-    normalized = _normalize_for_json(dict(payload))
+    if isinstance(payload, Mapping):
+        normalized = _normalize_for_json(dict(payload))
+    else:
+        normalized = _normalize_for_json(list(payload))
     return json.dumps(
         normalized,
         ensure_ascii=False,
@@ -113,3 +116,8 @@ def canonical_json_bytes(payload: Mapping[str, Any]) -> bytes:
 
 def inspection_hash(payload: Mapping[str, Any]) -> str:
     return sha256_hex(canonical_json_bytes(payload))
+
+
+def relationship_set_hash(records: Sequence[Mapping[str, Any]]) -> str:
+    """Hash the canonical effective relationship set."""
+    return sha256_hex(canonical_json_bytes(list(records)))

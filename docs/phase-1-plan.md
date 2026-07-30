@@ -154,7 +154,23 @@ Store separately:
 - source retrieval time
 - parser-run time
 
-### 4.8 Small vertical slices
+### 4.8 Small vertical slices and Phase 1 gates
+
+Slice 0 validates the acquisition and offline-replay approach.
+
+After Slice 0:
+
+```text
+Slice 0: acquisition/replay spike
+  -> Phase 1A: Acquisition Foundation
+       -> Phase 1B: XBRL Evidence          \
+       -> Phase 1C: Document Structure     /  may proceed in parallel
+            -> Phase 1D: Acceptance & Hardening
+```
+
+Durable retrieval (Phase 1A) is the input dependency for both parsers. Do not claim that raw-retrieval and parsing run in parallel: Phase 1B and 1C start only after Phase 1A produces a valid immutable bundle.
+
+Parser outputs are versioned, regenerable materializations of immutable filing bundles. Curated review and mapping decisions are separate, non-regenerable source data that must be transactionally stored, exported and backed up.
 
 Implement one complete path before broadening coverage:
 
@@ -1033,19 +1049,12 @@ Golden updates must be explicit and reviewed. A parser change must not automatic
 ## 13. First implementation sequence
 
 1. Repository bootstrap and documentation.
-2. Identifier value objects.
-3. Storage abstraction, atomic writes, and manifests.
-4. PostgreSQL schema and migrations.
-5. SEC client and submissions discovery.
-6. Filing-bundle retrieval and offline validation.
-7. Frozen fixture corpus.
-8. Semantic HTML parser.
-9. Regulatory section extractor.
-10. XBRL concepts, labels, references, and roles.
-11. Presentation/calculation/definition networks.
-12. Contexts, units, and facts.
-13. Provenance inspection commands.
-14. End-to-end idempotency acceptance.
-15. Phase 2 mapping-readiness review.
+2. Slice 0 acquisition/offline-replay spike (exit gate for approach validation).
+3. Phase 1A — Acquisition foundation (identifiers, storage, SEC client, immutable bundles).
+4. Phase 1B — XBRL evidence (concepts, labels, references, roles, networks, contexts, units, facts) and Phase 1C — Document structure (semantic HTML, regulatory sections) in parallel after 1A.
+5. Phase 1D — Integration, idempotency acceptance, and hardening.
+6. Frozen fixture corpus expansion.
+7. Provenance inspection commands.
+8. Phase 2 mapping-readiness review.
 
 Do not begin canonical metric mapping until Phase 1 fixtures demonstrate reliable taxonomy, network, context, dimensional, and provenance handling.

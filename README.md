@@ -24,7 +24,16 @@ uv run python scripts/spikes/arelle_offline_closure.py \
   --accession 0001065088-24-000036
 ```
 
-Outputs land under `var/spikes/<accession>/` (gitignored): payload objects, manifest, inspection JSON, and quality issues.
+Outputs land under `var/spikes/<accession>/` (gitignored):
+
+```text
+bundles/<policy>/<payload-hash>/manifest.json
+runs/<run-id>/inspection-core.json
+runs/<run-id>/run.json
+objects/sha256/...
+```
+
+Use `--clean --repeat` for a full independent revalidation.
 
 ## Documentation
 

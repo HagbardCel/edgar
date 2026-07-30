@@ -1,16 +1,25 @@
-"""Shared SEC HTTP client for spikes."""
+"""Shared SEC HTTP client and identifier helpers for spikes."""
 
 from __future__ import annotations
 
+import hashlib
 import random
+import re
 import time
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin, urlparse
 
 import httpx
 
 from spike_lib.quality import QualityIssue
+
+if TYPE_CHECKING:
+    from spike_lib.storage import ContentObject, ObjectStore
+
+ACCESSION_RE = re.compile(r"^\d{10}-\d{2}-\d{6}$")
+CIK_DIGITS_RE = re.compile(r"^\d{1,10}$")
 
 
 @dataclass
@@ -18,9 +27,18 @@ class FetchResult:
     url: str
     final_url: str
     status_code: int
-    content: bytes
     headers: dict[str, str]
     redirect_count: int
+    sha256: str
+    byte_size: int
+
+
+class SizeLimitExceeded(RuntimeError):
+    """Raised when a streamed response exceeds the configured byte limit."""
+
+
+class NetworkDenied(RuntimeError):
+    """Raised when the offline network guard blocks a connection attempt."""
 
 
 class SecClient:
@@ -35,8 +53,7 @@ class SecClient:
     ) -> None:
         if not user_agent or "@" not in user_agent:
             raise ValueError(
-                "SEC_USER_AGENT must identify the requester, e.g. "
-                "'Name email@example.com'"
+                "SEC_USER_AGENT must identify the requester, e.g. 'Name email@example.com'"
             )
         self.user_agent = user_agent
         self.min_interval_seconds = min_interval_seconds
@@ -65,61 +82,157 @@ class SecClient:
         if remaining > 0:
             time.sleep(remaining)
 
-    def get(self, url: str) -> FetchResult:
+    def fetch_to_store(
+        self,
+        url: str,
+        store: ObjectStore,
+        *,
+        max_bytes: int,
+    ) -> tuple[FetchResult, ContentObject]:
+        """Stream a response into the object store with incremental hashing.
+
+        One network read, one disk write, bounded memory. Retries discard any
+        partial temporary file before retrying.
+        """
         current = url
         redirect_count = 0
         for attempt in range(self.max_retries + 1):
             self._throttle()
             self._last_request_at = time.monotonic()
-            response = self._client.get(current)
-            if response.status_code in {301, 302, 303, 307, 308}:
-                location = response.headers.get("Location")
-                if not location:
-                    raise RuntimeError(f"redirect without Location from {current}")
-                redirect_count += 1
-                if redirect_count > self.max_redirects:
-                    raise RuntimeError(
-                        f"exceeded MAX_REDIRECTS={self.max_redirects} resolving {url}"
+            try:
+                with self._client.stream("GET", current) as response:
+                    if response.status_code in {301, 302, 303, 307, 308}:
+                        location = response.headers.get("Location")
+                        if not location:
+                            raise RuntimeError(f"redirect without Location from {current}")
+                        redirect_count += 1
+                        if redirect_count > self.max_redirects:
+                            raise RuntimeError(
+                                f"exceeded MAX_REDIRECTS={self.max_redirects} resolving {url}"
+                            )
+                        current = urljoin(current, location)
+                        continue
+                    if (
+                        response.status_code in {429, 500, 502, 503, 504}
+                        and attempt < self.max_retries
+                    ):
+                        backoff = (2**attempt) + random.uniform(0, 0.25)
+                        time.sleep(backoff)
+                        continue
+                    response.raise_for_status()
+
+                    content_length = response.headers.get("content-length")
+                    if content_length is not None:
+                        try:
+                            declared = int(content_length)
+                        except ValueError:
+                            declared = None
+                        else:
+                            if declared > max_bytes:
+                                raise SizeLimitExceeded(
+                                    f"Content-Length {declared} exceeds max_bytes={max_bytes}"
+                                )
+
+                    obj = store.put_stream(
+                        response.iter_bytes(chunk_size=64 * 1024),
+                        max_bytes=max_bytes,
                     )
-                current = urljoin(current, location)
-                continue
-            if response.status_code in {429, 500, 502, 503, 504} and attempt < self.max_retries:
+                    headers = {k.lower(): v for k, v in response.headers.items()}
+                    return (
+                        FetchResult(
+                            url=url,
+                            final_url=str(response.url),
+                            status_code=response.status_code,
+                            headers=headers,
+                            redirect_count=redirect_count,
+                            sha256=obj.sha256,
+                            byte_size=obj.byte_size,
+                        ),
+                        obj,
+                    )
+            except SizeLimitExceeded:
+                raise
+            except httpx.HTTPStatusError:
+                raise
+            except Exception:
+                if attempt >= self.max_retries:
+                    raise
                 backoff = (2**attempt) + random.uniform(0, 0.25)
                 time.sleep(backoff)
-                continue
-            response.raise_for_status()
-            return FetchResult(
-                url=url,
-                final_url=str(response.url),
-                status_code=response.status_code,
-                content=bytes(response.content),
-                headers={k.lower(): v for k, v in response.headers.items()},
-                redirect_count=redirect_count,
-            )
         raise RuntimeError(f"failed to fetch {url} after retries")
 
 
-def cik_int(cik: str) -> int:
-    return int(cik)
+def validate_cik(cik: str) -> str:
+    """Validate and normalize a CIK to a zero-padded ten-digit string."""
+    if not isinstance(cik, str):
+        raise ValueError(f"CIK must be a string, got {type(cik).__name__}")
+    cleaned = cik.strip()
+    if cleaned != cik or not cleaned:
+        raise ValueError(f"CIK rejected (whitespace or empty): {cik!r}")
+    if any(ch in cleaned for ch in "/\\."):
+        raise ValueError(f"CIK rejected (path characters): {cik!r}")
+    if cleaned.startswith(("+", "-")):
+        raise ValueError(f"CIK rejected (signed): {cik!r}")
+    if not CIK_DIGITS_RE.fullmatch(cleaned):
+        raise ValueError(f"CIK must be 1-10 decimal digits: {cik!r}")
+    return f"{int(cleaned):010d}"
+
+
+def validate_accession(accession: str) -> str:
+    """Validate accession in canonical dashed form."""
+    if not isinstance(accession, str):
+        raise ValueError(f"accession must be a string, got {type(accession).__name__}")
+    cleaned = accession.strip()
+    if cleaned != accession:
+        raise ValueError(f"accession rejected (surrounding whitespace): {accession!r}")
+    if not ACCESSION_RE.fullmatch(cleaned):
+        raise ValueError(f"accession must match ^\\d{{10}}-\\d{{2}}-\\d{{6}}$: {accession!r}")
+    return cleaned
+
+
+def assert_cik_accession_consistent(cik: str, accession: str) -> None:
+    """Fail when the accession prefix does not match the normalized CIK."""
+    cik_n = validate_cik(cik)
+    acc = validate_accession(accession)
+    prefix = acc.split("-", 1)[0]
+    if prefix != cik_n:
+        raise ValueError(f"accession CIK prefix {prefix} does not match normalized CIK {cik_n}")
+
+
+def assert_path_under(path: Path, root: Path) -> Path:
+    """Resolve path and assert it is a strict descendant of root."""
+    resolved = path.resolve()
+    root_resolved = root.resolve()
+    try:
+        resolved.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ValueError(f"path {resolved} escapes root {root_resolved}") from exc
+    if resolved == root_resolved:
+        raise ValueError(f"path {resolved} is not a strict descendant of {root_resolved}")
+    return resolved
 
 
 def normalize_cik(cik: str) -> str:
-    return f"{int(cik):010d}"
+    return validate_cik(cik)
+
+
+def cik_int(cik: str) -> int:
+    return int(validate_cik(cik))
 
 
 def accession_dashless(accession: str) -> str:
-    return accession.replace("-", "")
+    return validate_accession(accession).replace("-", "")
 
 
 def accession_archive_base(cik: str, accession: str) -> str:
+    assert_cik_accession_consistent(cik, accession)
     return (
-        "https://www.sec.gov/Archives/edgar/data/"
-        f"{cik_int(cik)}/{accession_dashless(accession)}/"
+        f"https://www.sec.gov/Archives/edgar/data/{cik_int(cik)}/{accession_dashless(accession)}/"
     )
 
 
 def submissions_url(cik: str) -> str:
-    return f"https://data.sec.gov/submissions/CIK{normalize_cik(cik)}.json"
+    return f"https://data.sec.gov/submissions/CIK{validate_cik(cik)}.json"
 
 
 def sanitize_basename(name: str) -> str:
@@ -144,6 +257,15 @@ def validate_logical_path(logical_path: str) -> str:
     return logical_path
 
 
+_SEC_GENERATED_RENDERING_NAMES = {
+    "filingsummary.xml",
+    "metalinks.json",
+    "show.js",
+    "report.css",
+    "financial_report.css",
+}
+
+
 def classify_source_and_role(
     filename: str,
     *,
@@ -160,11 +282,17 @@ def classify_source_and_role(
         return "sec_submission_metadata", "index_headers"
     if lower.endswith("-index.html") or lower.endswith("-index.htm"):
         return "sec_submission_metadata", "index_html"
+    if lower in _SEC_GENERATED_RENDERING_NAMES:
+        return "sec_generated_rendering", "sec_viewer_artifact"
+    if re.fullmatch(r"r\d+\.htm(l)?", lower):
+        return "sec_generated_rendering", "sec_viewer_artifact"
+    if lower.endswith((".css", ".js")) and (
+        "viewer" in lower or "report" in lower or lower.startswith("r")
+    ):
+        return "sec_generated_rendering", "sec_viewer_artifact"
     if lower.endswith(".xsd"):
         return "filer_submitted", "taxonomy_schema"
-    if lower.endswith("_pre.xml") or lower.endswith("_cal.xml") or lower.endswith("_def.xml"):
-        return "filer_submitted", "linkbase"
-    if lower.endswith("_lab.xml") or lower.endswith("_ref.xml"):
+    if lower.endswith(("_pre.xml", "_cal.xml", "_def.xml", "_lab.xml", "_ref.xml")):
         return "filer_submitted", "linkbase"
     if lower.endswith(".xml") and "htm.xml" in lower:
         return "sec_generated_xbrl", "sec_generated_xbrl"
@@ -176,7 +304,10 @@ def classify_source_and_role(
         return "filer_submitted", "primary_document"
     if description and "GRAPHIC" in description.upper():
         return "filer_submitted", "image"
-    return "filer_submitted", "attachment"
+    # Unknown origin stays unknown; never default to filer_submitted.
+    if description or document_type:
+        return "filer_submitted", "attachment"
+    return "unknown", "unknown"
 
 
 def extract_accession_record(
@@ -189,6 +320,7 @@ def extract_accession_record(
         idx = accessions.index(accession)
     except ValueError:
         return None
+
     def at(key: str, default: Any = None) -> Any:
         values = recent.get(key, [])
         return values[idx] if idx < len(values) else default
@@ -221,3 +353,14 @@ def missing_primary_issue(accession: str) -> QualityIssue:
 
 def host_of(url: str) -> str:
     return urlparse(url).netloc.lower()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()

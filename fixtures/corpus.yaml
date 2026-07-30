@@ -1,13 +1,7 @@
-# Initial fixture corpus
+# Initial fixture corpus for Phase 1.
+# Acquisition policy version: acq-v0-spike
+# Last updated: 2026-07-30
 
-Acquisition policy version: `acq-v0-spike`
-Last updated: 2026-07-30
-
-## Spike accession
-
-Used by Slice 0 (`scripts/spikes/arelle_offline_closure.py`).
-
-```yaml
 spike:
   company: eBay Inc.
   cik: "0001065088"
@@ -18,11 +12,7 @@ spike:
   reason: >
     Modern Inline XBRL 10-K with issuer extensions; anchors the corpus
     amendment pair for filing_relationship testing.
-```
 
-## Five-filing micro-corpus
-
-```yaml
 filings:
   - role: base_10k
     company: eBay Inc.
@@ -66,10 +56,12 @@ filings:
     form: "10-Q"
     filed: "2024-07-29"
     reason: Beverages/manufacturing quarterly; industry contrast.
-```
 
-## Coverage notes
-
-- Continuation chains / duplicate visual facts: confirm during spike and corpus expansion; add a sixth filing if eBay/Walmart/JPM/KO do not cover them.
-- Malformed HTML: add a targeted filing if none of the five expose awkward markup.
-- Taxonomy transition: desirable later; not required for the initial five.
+coverage_notes:
+  - >
+    Continuation chains / duplicate visual facts: confirm during spike and corpus
+    expansion; add a sixth filing if eBay/Walmart/JPM/KO do not cover them.
+  - >
+    Malformed HTML: add a targeted filing if none of the five expose awkward markup.
+  - >
+    Taxonomy transition: desirable later; not required for the initial five.

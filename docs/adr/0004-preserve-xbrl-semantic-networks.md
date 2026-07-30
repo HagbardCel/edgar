@@ -13,9 +13,18 @@ Phase 1 persists Arelle’s **effective** relationship set for presentation, cal
 
 Raw linkbase bytes remain immutable artifacts. Raw-arc tables are deferred until a concrete forensic need appears.
 
+Each effective relationship is represented exactly once in the canonical inspection set, keyed by network type, arcrole, link role, source/target concept QNames, and applicable order/weight/preferred-label/target-role/closed/usable/context-element fields.
+
 ## Validation
 
-Slice 0 (`docs/spikes/0001-arelle-offline-closure.md`) confirmed offline Arelle reload reproduces online concept/context/unit/fact counts and relationship-network totals for eBay `0001065088-24-000036`, with matching closure hashes. Fact occurrence keys should prefer Inline XBRL `id` and `sourceline`; Arelle did not provide usable XPath in sampled facts.
+Corrected Slice 0 rerun (`docs/spikes/0001-arelle-offline-closure.md`, run `20260730T163802Z-da85b81a`) confirmed:
+
+- Online and offline loads in fresh subprocesses produced matching concept/context/unit/fact counts.
+- Canonical effective relationship-set hashes matched (`relationship_set_hash`).
+- Closure document and discovery-edge sets matched with network denial and a cache that started empty and was seeded only from manifested payload objects.
+- Full-pipeline repeat reproduced `payload_hash` and `inspection_hash`.
+
+Fact locator fields are occurrence-model **candidates** for Slice 2; this ADR does not lock an occurrence key.
 
 ## Consequences
 
@@ -27,3 +36,4 @@ Slice 0 (`docs/spikes/0001-arelle-offline-closure.md`) confirmed offline Arelle 
 
 - Facts only in Phase 1 — insufficient for conservative mapping.
 - Dual XBRL engines before measuring Arelle gaps — premature complexity.
+- Using `baseSets` list lengths as relationship evidence — rejected; not unique effective relationships.

@@ -1,5 +1,13 @@
 # Planning Artifact Update
 
+## 2026-07-30 — Slice 0 review remediation
+
+- Demoted spike report to Failed/Provisional; demoted ADR 0004 to Proposed pending corrected rerun.
+- Added ADR 0005 (Accepted): amendment uses directed `amends`, not filing-wide supersession.
+- Encoded Phase 1A → parallel 1B/1C → 1D gates and regenerability wording in `phase-1-plan.md` and `project-roadmap.md`.
+- Converted `fixtures/corpus.yaml` to real parseable YAML.
+- Remediated spike: independent offline subprocess (empty cache + network guard), measured criteria, canonical relationship sets, SGML reconciliation, streaming `fetch_to_store`, immutable bundles vs versioned runs, CI workflow.
+
 ## 2026-07-30 — Slice 0 scaffolding
 
 - Removed root planning `manifest.json` (Git is source of truth for repo files).
