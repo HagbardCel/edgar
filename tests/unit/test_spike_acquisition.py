@@ -6,13 +6,10 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 SPIKE_DIR = Path(__file__).resolve().parents[2] / "scripts" / "spikes"
 sys.path.insert(0, str(SPIKE_DIR))
 
 from spike_lib.acquisition import (  # noqa: E402
-    commit_bundle,
     parse_index_html,
     parse_index_json,
     parse_sgml_documents,
@@ -112,88 +109,44 @@ def test_reconcile_sgml_inventory_outcomes() -> None:
     assert "INDEX_SUBMITTED_ABSENT_FROM_SGML" in codes
 
 
-def test_commit_bundle_reuse_and_conflict(tmp_path: Path) -> None:
-    accession_root = tmp_path / "acc"
-    accession_root.mkdir()
-    staged = {
-        "payload_hash": "aa" * 32,
-        "acquisition_policy_version": "acq-v0-spike",
-        "artifacts": [
-            {
-                "logical_path": "a",
-                "sha256": "bb" * 32,
-                "byte_size": 1,
-                "in_payload": True,
-            },
-            {
-                "logical_path": "metadata/offline-catalog.xml",
-                "sha256": "11" * 32,
-                "byte_size": 2,
-                "in_payload": False,
-            },
-        ],
-        "cik": "0001065088",
-        "accession": "0001065088-24-000036",
-    }
-    path1 = commit_bundle(
-        accession_root,
-        policy_version="acq-v0-spike",
-        payload_hash_value="aa" * 32,
-        staged_manifest=staged,
-    )
-    # Regenerable non-payload artifact may differ; payload identity matches → reuse.
-    staged_catalog_changed = {
-        **staged,
-        "artifacts": [
-            staged["artifacts"][0],
-            {
-                "logical_path": "metadata/offline-catalog.xml",
-                "sha256": "22" * 32,
-                "byte_size": 3,
-                "in_payload": False,
-            },
-        ],
-    }
-    path2 = commit_bundle(
-        accession_root,
-        policy_version="acq-v0-spike",
-        payload_hash_value="aa" * 32,
-        staged_manifest=staged_catalog_changed,
-    )
-    assert path1 == path2
+def test_external_capture_stat_first_streaming(tmp_path: Path) -> None:
+    from spike_lib.acquisition import AcquisitionService, BundleDraft
+    from spike_lib.storage import ObjectStore
 
-    # New payload creates a new bundle path.
-    staged2 = {
-        **staged,
-        "payload_hash": "cc" * 32,
-        "artifacts": [],
-    }
-    path3 = commit_bundle(
-        accession_root,
-        policy_version="acq-v0-spike",
-        payload_hash_value="cc" * 32,
-        staged_manifest=staged2,
+    store = ObjectStore(tmp_path / "root")
+    service = AcquisitionService(None, store, max_file_bytes=10_000, max_bundle_bytes=10_000)  # type: ignore[arg-type]
+    draft = BundleDraft(
+        cik="0001065088",
+        accession="0001065088-24-000036",
+        archive_base="https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/",
+        primary_document="a.htm",
     )
-    assert path3 != path1
 
-    # Conflict at same path when payload artifacts differ.
-    bad = {
-        **staged,
-        "artifacts": [
-            {
-                "logical_path": "a",
-                "sha256": "dd" * 32,
-                "byte_size": 1,
-                "in_payload": True,
-            }
-        ],
-    }
-    with pytest.raises(RuntimeError, match="integrity conflict"):
-        commit_bundle(
-            accession_root,
-            policy_version="acq-v0-spike",
-            payload_hash_value="aa" * 32,
-            staged_manifest=bad,
+    data = b"x" * 5000 + b"y" * 3000
+    source = tmp_path / "dep.xsd"
+    source.write_bytes(data)
+    expected = __import__("hashlib").sha256(data).hexdigest()
+    record = service.add_external_dependency_stream(
+        draft,
+        original_uri="https://xbrl.example.com/dep.xsd",
+        source_path=source,
+        expected_sha256=expected,
+        max_external_bytes=10_000,
+    )
+    assert record.sha256 == expected
+    assert record.byte_size == 8000
+    assert store.open_bytes(record.sha256) == data
+
+    # stat-first: oversized file rejected before streaming.
+    import pytest as _pytest
+
+    with _pytest.raises(RuntimeError, match="too large"):
+        service.add_external_dependency_stream(
+            draft,
+            original_uri="https://xbrl.example.com/huge.xsd",
+            source_path=source,
+            expected_sha256=expected,
+            max_external_bytes=100,
         )
 
 

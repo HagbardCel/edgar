@@ -1,4 +1,8 @@
-"""Strict vs normalized online/offline comparison for Slice 0."""
+"""Strict vs normalized online/offline comparison.
+
+Strict diffs fail the spike; allowed diffs must match a registered
+normalization rule. Free-form prose cannot waive strict diffs.
+"""
 
 from __future__ import annotations
 
@@ -36,16 +40,10 @@ def compare_snapshots(
     *,
     closure_hash_online: str,
     closure_hash_offline: str,
-    relationship_set_hash_online: str,
-    relationship_set_hash_offline: str,
     offline_network_attempt_count: int,
     offline_cache_was_empty: bool,
 ) -> dict[str, Any]:
-    """Compare online vs offline inspection cores.
-
-    Returns strict_diffs (fail the spike) and allowed_diffs (must match a
-    registered normalization rule). Free-form prose cannot waive strict diffs.
-    """
+    """Compare online vs offline inspection snapshots."""
     strict: list[dict[str, Any]] = []
     allowed: list[dict[str, Any]] = []
 
@@ -68,12 +66,33 @@ def compare_snapshots(
             }
         )
 
-    if relationship_set_hash_online != relationship_set_hash_offline:
+    for key in (
+        "concept_relationship_occurrence_hash",
+        "resource_relationship_occurrence_hash",
+    ):
+        if online.get(key) != offline.get(key):
+            strict.append(
+                {
+                    "code": f"STRICT_{key.upper()}_MISMATCH",
+                    "online": online.get(key),
+                    "offline": offline.get(key),
+                }
+            )
+
+    if online.get("relationship_counts") != offline.get("relationship_counts"):
         strict.append(
             {
-                "code": "STRICT_RELATIONSHIP_SET_HASH_MISMATCH",
-                "online": relationship_set_hash_online,
-                "offline": relationship_set_hash_offline,
+                "code": "STRICT_RELATIONSHIP_COUNTS_MISMATCH",
+                "online": online.get("relationship_counts"),
+                "offline": offline.get("relationship_counts"),
+            }
+        )
+    if online.get("resource_relationship_counts") != offline.get("resource_relationship_counts"):
+        strict.append(
+            {
+                "code": "STRICT_RESOURCE_RELATIONSHIP_COUNTS_MISMATCH",
+                "online": online.get("resource_relationship_counts"),
+                "offline": offline.get("resource_relationship_counts"),
             }
         )
 
@@ -96,6 +115,25 @@ def compare_snapshots(
                 "code": "STRICT_DISCOVERY_EDGE_SET_MISMATCH",
                 "only_online_count": len(online_edges - offline_edges),
                 "only_offline_count": len(offline_edges - online_edges),
+            }
+        )
+
+    # Synthetic structures have their own strict comparison invariant:
+    # online/offline synthetic inventories must match exactly.
+    if online.get("synthetic_document_set_hash") != offline.get("synthetic_document_set_hash"):
+        strict.append(
+            {
+                "code": "STRICT_SYNTHETIC_DOCUMENT_SET_MISMATCH",
+                "online": online.get("synthetic_document_set_hash"),
+                "offline": offline.get("synthetic_document_set_hash"),
+            }
+        )
+    if online.get("synthetic_edge_set_hash") != offline.get("synthetic_edge_set_hash"):
+        strict.append(
+            {
+                "code": "STRICT_SYNTHETIC_EDGE_SET_MISMATCH",
+                "online": online.get("synthetic_edge_set_hash"),
+                "offline": offline.get("synthetic_edge_set_hash"),
             }
         )
 
@@ -130,7 +168,6 @@ def compare_snapshots(
     online_eps = set(online.get("entry_points") or [])
     offline_eps = set(offline.get("entry_points") or [])
     if online_eps != offline_eps:
-        # If the only difference is path form of the same document, allow.
         online_hashes = {d[1] for d in online_docs}
         offline_hashes = {d[1] for d in offline_docs}
         if online_hashes == offline_hashes:

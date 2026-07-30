@@ -15,7 +15,7 @@ from spike_lib.hashing import (  # noqa: E402
     canonical_json_bytes,
     closure_hash,
     inspection_hash,
-    payload_hash,
+    payload_hash_v1,
     sha256_hex,
 )
 
@@ -23,13 +23,13 @@ from spike_lib.hashing import (  # noqa: E402
 def test_payload_hash_is_order_independent() -> None:
     a = [("b/file.txt", "aa" * 32, 10), ("a/file.txt", "bb" * 32, 3)]
     b = list(reversed(a))
-    assert payload_hash(a) == payload_hash(b)
+    assert payload_hash_v1(a) == payload_hash_v1(b)
 
 
 def test_payload_hash_changes_with_bytes() -> None:
     base = [("a.txt", "ab" * 32, 1)]
     changed = [("a.txt", "cd" * 32, 1)]
-    assert payload_hash(base) != payload_hash(changed)
+    assert payload_hash_v1(base) != payload_hash_v1(changed)
 
 
 def test_closure_hash_byte_discipline() -> None:

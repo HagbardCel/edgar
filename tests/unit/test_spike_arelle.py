@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import socket
 import sys
-from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,16 +12,17 @@ import pytest
 SPIKE_DIR = Path(__file__).resolve().parents[2] / "scripts" / "spikes"
 sys.path.insert(0, str(SPIKE_DIR))
 
+from spike_lib.arelle_errors import StructuredError  # noqa: E402
 from spike_lib.arelle_load import (  # noqa: E402
     build_oasis_catalog,
-    canonical_relationship_record,
-    collect_effective_relationships,
+    canonicalize_error_records,
+    make_canonical_resolver,
     map_discovery_type,
     map_discovery_types,
-    relationship_key,
+    occurrence_collection_hash,
 )
 from spike_lib.compare import compare_snapshots  # noqa: E402
-from spike_lib.hashing import inspection_hash, relationship_set_hash  # noqa: E402
+from spike_lib.hashing import inspection_hash  # noqa: E402
 from spike_lib.network_guard import NetworkDeniedError, NetworkGuard, network_denied  # noqa: E402
 
 
@@ -41,102 +41,48 @@ def test_map_discovery_types_import_include() -> None:
     assert map_discovery_types({"schemaRef"}) == ["schema_ref"]
 
 
-def test_relationship_set_hash_detects_diff_with_same_count() -> None:
-    a = [
-        {
-            "network_type": "presentation",
-            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/parent-child",
-            "link_role_uri": "http://example.com/role/A",
-            "source_concept": "us-gaap:Assets",
-            "target_concept": "us-gaap:Cash",
-            "order": "1.0",
-            "weight": None,
-            "preferred_label_role": None,
-            "target_role": None,
-            "closed": None,
-            "usable": None,
-            "context_element": None,
-        }
-    ]
-    b = [
-        {
-            **a[0],
-            "target_concept": "us-gaap:Inventory",
-        }
-    ]
+def test_occurrence_collection_hash_detects_diff_with_same_count() -> None:
+    a = [{"relationship_occurrence_hash": "a" * 64, "network_type": "presentation"}]
+    b = [{"relationship_occurrence_hash": "b" * 64, "network_type": "presentation"}]
     assert len(a) == len(b)
-    assert relationship_set_hash(a) != relationship_set_hash(b)
+    assert occurrence_collection_hash(a) != occurrence_collection_hash(b)
+    # Order independence.
+    c = [b[0], a[0]]
+    d = [a[0], b[0]]
+    assert occurrence_collection_hash(c) == occurrence_collection_hash(d)
 
 
-def test_collect_effective_relationships_dedup_and_linkroles() -> None:
-    class Rel:
-        def __init__(self, linkrole, frm, to, order="1", weight=None):
-            self.linkrole = linkrole
-            self.fromModelObject = SimpleNamespace(qname=frm)
-            self.toModelObject = SimpleNamespace(qname=to)
-            self.order = Decimal(order)
-            self.weight = weight
-            self.preferredLabel = None
-            self.targetRole = None
-            self.closed = None
-            self.usable = None
-            self.contextElement = None
-
-    arc = "http://www.xbrl.org/2003/arcrole/parent-child"
-    rel_a = Rel("http://example.com/role/A", "a:One", "a:Two")
-    rel_b = Rel("http://example.com/role/B", "a:One", "a:Two")
-    # Duplicate of rel_a
-    rel_a2 = Rel("http://example.com/role/A", "a:One", "a:Two")
-
-    class RelSet:
-        def __init__(self, rels):
-            self.modelRelationships = rels
-
-    class Model:
-        baseSets = {
-            (arc, "http://example.com/role/A", None, None, None): [rel_a],
-            (arc, "http://example.com/role/B", None, None, None): [rel_b],
-        }
-
-        def relationshipSet(self, arcrole, linkrole=None):
-            if arcrole != arc:
-                return RelSet([])
-            if linkrole == "http://example.com/role/A":
-                return RelSet([rel_a, rel_a2])
-            if linkrole == "http://example.com/role/B":
-                return RelSet([rel_b])
-            if linkrole is None:
-                return RelSet([rel_a, rel_b])
-            return RelSet([])
-
-    records, counts = collect_effective_relationships(Model())
-    assert counts["presentation"] == 2
-    assert len(records) == 2
-    roles = {r["link_role_uri"] for r in records}
-    assert roles == {"http://example.com/role/A", "http://example.com/role/B"}
+def test_canonical_resolver_prefers_filepath_alias(tmp_path: Path) -> None:
+    target = tmp_path / "accession" / "a.htm"
+    target.parent.mkdir(parents=True)
+    target.write_text("<html/>", encoding="utf-8")
+    canonical = "https://www.sec.gov/Archives/edgar/data/1/x/a.htm"
+    aliases = {str(target.resolve()): canonical}
+    resolver = make_canonical_resolver(aliases)
+    doc = SimpleNamespace(uri=str(target), filepath=str(target))
+    assert resolver(doc) == canonical
+    doc_http = SimpleNamespace(uri="https://xbrl.sec.gov/dei/2023/dei-2023.xsd", filepath=None)
+    assert resolver(doc_http) == "https://xbrl.sec.gov/dei/2023/dei-2023.xsd"
+    doc_unknown = SimpleNamespace(uri="/var/tmp/other.htm", filepath=None)
+    assert resolver(doc_unknown) is None
 
 
-def test_canonical_relationship_decimal_serialization() -> None:
-    rel = SimpleNamespace(
-        linkrole="http://example.com/role",
-        fromModelObject=SimpleNamespace(qname="a:X"),
-        toModelObject=SimpleNamespace(qname="a:Y"),
-        order=Decimal("1.50"),
-        weight=Decimal("-1"),
-        preferredLabel=None,
-        targetRole=None,
-        closed=True,
-        usable=False,
-        contextElement="segment",
-    )
-    record = canonical_relationship_record(
-        rel,
-        network_type="definition",
-        arcrole="http://xbrl.org/int/dim/arcrole/domain-member",
-    )
-    assert record["order"] == "1.50"
-    assert record["weight"] == "-1"
-    assert relationship_key(record)[0] == (1, "definition")
+def test_canonicalize_error_records_replaces_local_paths(tmp_path: Path) -> None:
+    target = tmp_path / "accession" / "a.htm"
+    target.parent.mkdir(parents=True)
+    target.write_text("<html/>", encoding="utf-8")
+    canonical = "https://www.sec.gov/Archives/edgar/data/1/x/a.htm"
+    aliases = {str(target.resolve()): canonical}
+    records = [
+        StructuredError("error", "xmlSchema:requiredAttribute", str(target), 12),
+        StructuredError("warning", "arelle:hrefWarning", None, None),
+        StructuredError("error", "UNSTRUCTURED", "/private/tmp/nowhere.htm", 3),
+    ]
+    out = canonicalize_error_records(records, aliases)
+    assert out[0].document_uri == canonical
+    assert out[1].document_uri is None
+    # Unresolvable local paths are dropped, never persisted.
+    assert out[2].document_uri is None
 
 
 def test_build_oasis_catalog(tmp_path: Path) -> None:
@@ -161,8 +107,8 @@ def test_network_guard_blocks_and_records() -> None:
     assert guard.attempts[0].port == 443
 
 
-def test_compare_snapshots_strict_vs_allowed() -> None:
-    online = {
+def _snapshot(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
         "concept_count": 1,
         "context_count": 1,
         "unit_count": 1,
@@ -175,39 +121,49 @@ def test_compare_snapshots_strict_vs_allowed() -> None:
             }
         ],
         "edges": [],
+        "relationship_counts": {"presentation": 1},
+        "resource_relationship_counts": {"concept_label": 1},
+        "concept_relationship_occurrence_hash": "e" * 64,
+        "resource_relationship_occurrence_hash": "f" * 64,
+        "synthetic_document_set_hash": "1" * 64,
+        "synthetic_edge_set_hash": "2" * 64,
         "unresolved_uris": [],
         "entry_points": ["https://sec.gov/a.htm"],
     }
-    offline = {
-        **online,
-        "entry_points": ["file:///tmp/working/accession/a.htm"],
-    }
-    result = compare_snapshots(
+    base.update(overrides)
+    return base
+
+
+def _compare(online: dict[str, object], offline: dict[str, object]) -> dict[str, object]:
+    return compare_snapshots(
         online,
         offline,
         closure_hash_online="c" * 64,
         closure_hash_offline="c" * 64,
-        relationship_set_hash_online="d" * 64,
-        relationship_set_hash_offline="d" * 64,
         offline_network_attempt_count=0,
         offline_cache_was_empty=True,
     )
+
+
+def test_compare_snapshots_strict_vs_allowed() -> None:
+    online = _snapshot()
+    offline = _snapshot(entry_points=["file:///tmp/working/accession/a.htm"])
+    result = _compare(online, offline)
     assert result["strict_ok"]
     assert result["criterion_10_ok"]
     assert result["allowed_diffs"][0]["code"] == "ENTRYPOINT_LOCAL_PATH_NORMALIZED"
 
-    bad = compare_snapshots(
-        online,
-        {**offline, "fact_count": 99},
-        closure_hash_online="c" * 64,
-        closure_hash_offline="c" * 64,
-        relationship_set_hash_online="d" * 64,
-        relationship_set_hash_offline="d" * 64,
-        offline_network_attempt_count=0,
-        offline_cache_was_empty=True,
-    )
+    bad = _compare(online, _snapshot(fact_count=99, entry_points=["file:///tmp/x.htm"]))
     assert not bad["strict_ok"]
     assert not bad["criterion_10_ok"]
+
+
+def test_compare_snapshots_synthetic_mismatch_is_strict() -> None:
+    online = _snapshot()
+    offline = _snapshot(synthetic_edge_set_hash="9" * 64)
+    result = _compare(online, offline)
+    assert not result["strict_ok"]
+    assert any(d["code"] == "STRICT_SYNTHETIC_EDGE_SET_MISMATCH" for d in result["strict_diffs"])
 
 
 def test_inspection_hash_excludes_local_paths_when_not_present() -> None:
@@ -232,13 +188,8 @@ def test_criterion_evaluation_external_capture_logic() -> None:
     # External capture detail shape used by criterion 5.
     detail = {
         "ok": False,
-        "mismatches": [
-            {
-                "uri": "https://xbrl.sec.gov/a.xsd",
-                "expected_sha256": "aa" * 32,
-                "artifact_sha256": None,
-            }
-        ],
-        "missing": [],
+        "uncovered_documents": ["https://xbrl.sec.gov/a.xsd"],
+        "uncovered_references": [],
+        "entrypoint_is_primary_binding": True,
     }
     assert detail["ok"] is False

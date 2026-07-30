@@ -17,22 +17,47 @@ def sha256_of_uri(uri: str) -> str:
     return sha256_hex(uri.encode("utf-8"))
 
 
-def payload_hash(entries: Sequence[tuple[str, str, int]]) -> str:
-    """Hash canonical payload identity records.
+def payload_artifact_identities(
+    entries: Sequence[tuple[str, str, int]],
+) -> list[dict[str, Any]]:
+    """Canonical payload artifact identity records (payload-v1).
 
-    Each entry is (logical_path, sha256_lowercase, byte_size).
-    Excludes the manifest itself and volatile operational attributes.
+    Each entry is (logical_path, sha256_lowercase, byte_size). The manifest
+    itself is never part of the payload identity: callers must not pass an
+    entry for ``manifest.json``. Role classification and provenance attributes
+    are deliberately excluded from bundle identity.
     """
-    sorted_entries = sorted(entries, key=lambda item: item[0].encode("utf-8"))
-    buf = bytearray()
-    for logical_path, digest, byte_size in sorted_entries:
-        buf.extend(logical_path.encode("utf-8"))
-        buf.append(0)
-        buf.extend(digest.lower().encode("ascii"))
-        buf.append(0)
-        buf.extend(str(byte_size).encode("ascii"))
-        buf.append(10)  # LF
-    return sha256_hex(bytes(buf))
+    identities = [
+        {"logical_path": path, "sha256": digest.lower(), "byte_size": int(size)}
+        for path, digest, size in entries
+    ]
+    identities.sort(key=lambda item: item["logical_path"].encode("utf-8"))
+    return identities
+
+
+def payload_hash_v1(entries: Sequence[tuple[str, str, int]]) -> str:
+    """Explicit payload-v1 construction.
+
+    SHA-256 over the canonical JSON of::
+
+        {
+            "payload_hash_schema_version": "payload-v1",
+            "artifacts": [
+                {"logical_path": ..., "sha256": ..., "byte_size": ...},
+                ...  # sorted by logical_path UTF-8 bytes
+            ]
+        }
+
+    ``metadata/uri-bindings.json`` participates exactly once as an ordinary
+    artifact entry. The manifest artifact is excluded.
+    """
+    from spike_lib import PAYLOAD_HASH_SCHEMA_VERSION
+
+    record = {
+        "payload_hash_schema_version": PAYLOAD_HASH_SCHEMA_VERSION,
+        "artifacts": payload_artifact_identities(entries),
+    }
+    return sha256_hex(canonical_json_bytes(record))
 
 
 def closure_document_records(
@@ -116,6 +141,12 @@ def canonical_json_bytes(payload: Mapping[str, Any] | list[Any]) -> bytes:
 
 def inspection_hash(payload: Mapping[str, Any]) -> str:
     return sha256_hex(canonical_json_bytes(payload))
+
+
+def versioned_record_hash(serialization_version: str, record: Mapping[str, Any]) -> str:
+    """SHA-256 over the canonical JSON of a version-stamped record."""
+    versioned = {"serialization_version": serialization_version, **record}
+    return sha256_hex(canonical_json_bytes(versioned))
 
 
 def relationship_set_hash(records: Sequence[Mapping[str, Any]]) -> str:

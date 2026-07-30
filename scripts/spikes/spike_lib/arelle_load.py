@@ -1,4 +1,11 @@
-"""Arelle load, DTS closure capture, relationship sets, and offline catalog helpers."""
+"""Arelle load, DTS closure capture, relationship extraction, and cache helpers.
+
+All persisted identities use canonical URIs (uri-identity-v1) and Clark-notation
+QNames. Loaded documents/edges are partitioned exhaustively into a source-backed
+partition (bytes captured from payload artifacts) and a synthetic partition
+(engine-created structures, inventoried and hashed separately). Arelle objects
+never escape this adapter boundary.
+"""
 
 from __future__ import annotations
 
@@ -6,36 +13,48 @@ import contextlib
 import os
 import shutil
 from dataclasses import dataclass, field
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
-from urllib.parse import urldefrag, urlparse
+from urllib.parse import unquote, urlsplit
 
-from spike_lib import CATALOG_GENERATOR_VERSION
-from spike_lib.hashing import relationship_set_hash, sha256_hex, sha256_of_uri
+from spike_lib import CATALOG_GENERATOR_VERSION, RELATIONSHIP_SERIALIZATION_VERSION
+from spike_lib.arelle_errors import ErrorCapture, summarize_errors
+from spike_lib.hashing import canonical_json_bytes, sha256_hex
 from spike_lib.quality import QualityIssue
+from spike_lib.relationships import collect_relationships
 from spike_lib.sec import sanitize_basename
-
-# Standard XBRL arcroles used for Phase 1 network persistence.
-PRESENTATION_ARCROLE = "http://www.xbrl.org/2003/arcrole/parent-child"
-CALCULATION_ARCROLE = "http://www.xbrl.org/2003/arcrole/summation-item"
-DIMENSION_ARCROLES = (
-    "http://xbrl.org/int/dim/arcrole/all",
-    "http://xbrl.org/int/dim/arcrole/notAll",
-    "http://xbrl.org/int/dim/arcrole/hypercube-dimension",
-    "http://xbrl.org/int/dim/arcrole/dimension-domain",
-    "http://xbrl.org/int/dim/arcrole/domain-member",
-    "http://xbrl.org/int/dim/arcrole/dimension-default",
+from spike_lib.synthetic import (
+    inline_document_set_identity,
+    synthetic_document_set_hash,
+    synthetic_edge_set_hash,
+    unknown_synthetic_identity,
+)
+from spike_lib.uri_identity import (
+    UriIdentityError,
+    is_http_uri,
+    normalize_uri,
+    resolve_document_uri,
+    strip_fragment,
 )
 
-
-def strip_fragment(uri: str) -> str:
-    base, _frag = urldefrag(uri)
-    return base
-
-
-def normalize_uri_for_identity(uri: str) -> str:
-    return strip_fragment(uri.strip())
+__all__ = [
+    "is_http_uri",
+    "strip_fragment",
+    "classify_document_type",
+    "map_discovery_type",
+    "map_discovery_types",
+    "materialize_working_tree",
+    "materialize_arelle_web_cache",
+    "build_oasis_catalog",
+    "build_accession_uri_map",
+    "external_logical_path",
+    "load_and_inspect",
+    "occurrence_collection_hash",
+    "ClosureDocument",
+    "ClosureEdge",
+    "InspectionSnapshot",
+    "ArelleLoadResult",
+]
 
 
 def classify_document_type(model_document: Any) -> str:
@@ -48,6 +67,8 @@ def classify_document_type(model_document: Any) -> str:
             type_name = None
     text = str(type_name or type_obj or "")
     upper = text.upper()
+    if "INLINEDOCUMENTSET" in upper:
+        return "inline_document_set"
     if "INLINE" in upper:
         return "inline_instance"
     if "INSTANCE" in upper:
@@ -56,8 +77,6 @@ def classify_document_type(model_document: Any) -> str:
         return "schema"
     if "LINKBASE" in upper:
         return "linkbase"
-    if "UNKNOWN" in upper:
-        return "unknown"
     return "unknown"
 
 
@@ -96,7 +115,6 @@ def map_discovery_types(reference_types: Any) -> list[str]:
     else:
         tokens = [reference_types]
 
-    # Prefer arcroleref before roleref when both present by sorting with priority.
     def sort_key(t: Any) -> tuple[int, str]:
         n = _normalize_ref_token(str(t))
         if n == "arcroleref":
@@ -141,11 +159,23 @@ class InspectionSnapshot:
     unit_count: int
     fact_count: int
     relationship_counts: dict[str, int]
-    relationship_records: list[dict[str, Any]]
-    relationship_set_hash: str
+    resource_relationship_counts: dict[str, int]
+    concept_records: list[dict[str, Any]]
+    resource_records: list[dict[str, Any]]
+    concept_relationship_occurrence_hash: str
+    resource_relationship_occurrence_hash: str
+    unsupported_inventory: dict[str, Any]
+    extraction: dict[str, Any]
+    synthetic_documents: list[dict[str, Any]]
+    synthetic_document_set_hash: str
+    synthetic_document_count: int
+    synthetic_edges: list[dict[str, Any]]
+    synthetic_edge_set_hash: str
+    synthetic_edge_count: int
     entry_points: list[str]
     unresolved_uris: list[str]
     fact_locator_stats: dict[str, Any]
+    error_summary: dict[str, Any]
     engine_name: str
     engine_version: str
     engine_config: dict[str, Any]
@@ -159,7 +189,7 @@ class ArelleLoadResult:
     snapshot: InspectionSnapshot
     closure_documents: list[ClosureDocument] = field(default_factory=list)
     closure_edges: list[ClosureEdge] = field(default_factory=list)
-    uri_to_local_file: dict[str, Path] = field(default_factory=dict)
+    reference_uris: list[str] = field(default_factory=list)
     issues: list[QualityIssue] = field(default_factory=list)
     raw_log: str = ""
     network_attempts: list[dict[str, Any]] = field(default_factory=list)
@@ -173,142 +203,14 @@ def _safe_len(obj: Any) -> int:
         return 0
 
 
-def _qname_str(obj: Any) -> str | None:
-    if obj is None:
-        return None
-    qname = getattr(obj, "qname", None)
-    if qname is None:
-        return None
-    return str(qname)
-
-
-def _decimal_or_none(value: Any) -> str | None:
-    if value is None:
-        return None
-    try:
-        return format(Decimal(str(value)), "f")
-    except Exception:  # noqa: BLE001
-        return str(value)
-
-
-def _network_type_for_arcrole(arcrole: str) -> str:
-    lower = arcrole.lower()
-    if "parent-child" in lower:
-        return "presentation"
-    if "summation" in lower:
-        return "calculation"
-    if "dim/arcrole" in lower or "/dimension" in lower:
-        return "definition"
-    return "other"
-
-
-def canonical_relationship_record(rel: Any, *, network_type: str, arcrole: str) -> dict[str, Any]:
-    """Build a canonical effective relationship record.
-
-    Absent fields are serialized as null consistently. Only applicable fields
-    for the relationship type are populated when available.
-    """
-    link_role = getattr(rel, "linkrole", None) or getattr(rel, "linkRole", None)
-    preferred = getattr(rel, "preferredLabel", None)
-    target_role = getattr(rel, "targetRole", None)
-    closed = getattr(rel, "closed", None)
-    usable = getattr(rel, "usable", None)
-    context_element = getattr(rel, "contextElement", None)
-    order = getattr(rel, "order", None)
-    weight = getattr(rel, "weight", None)
-    from_model = getattr(rel, "fromModelObject", None)
-    to_model = getattr(rel, "toModelObject", None)
-    return {
-        "network_type": network_type,
-        "arcrole_uri": arcrole,
-        "link_role_uri": str(link_role) if link_role else None,
-        "source_concept": _qname_str(from_model),
-        "target_concept": _qname_str(to_model),
-        "order": _decimal_or_none(order),
-        "weight": _decimal_or_none(weight),
-        "preferred_label_role": str(preferred) if preferred else None,
-        "target_role": str(target_role) if target_role else None,
-        "closed": closed if isinstance(closed, bool) else None,
-        "usable": usable if isinstance(usable, bool) else None,
-        "context_element": str(context_element) if context_element else None,
+def occurrence_collection_hash(records: list[dict[str, Any]]) -> str:
+    """Hash of an occurrence collection (canonically sorted records)."""
+    ordered = sorted(canonical_json_bytes(r) for r in records)
+    payload = {
+        "serialization_version": RELATIONSHIP_SERIALIZATION_VERSION,
+        "records": [r.decode("utf-8") for r in ordered],
     }
-
-
-def relationship_key(record: dict[str, Any]) -> tuple[Any, ...]:
-    def norm(value: Any) -> tuple[int, str]:
-        if value is None:
-            return (0, "")
-        return (1, str(value))
-
-    return (
-        norm(record.get("network_type")),
-        norm(record.get("arcrole_uri")),
-        norm(record.get("link_role_uri")),
-        norm(record.get("source_concept")),
-        norm(record.get("target_concept")),
-        norm(record.get("order")),
-        norm(record.get("weight")),
-        norm(record.get("preferred_label_role")),
-        norm(record.get("target_role")),
-        norm(record.get("closed")),
-        norm(record.get("usable")),
-        norm(record.get("context_element")),
-    )
-
-
-def collect_effective_relationships(model_xbrl: Any) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """Enumerate unique effective relationships via relationshipSet(...).
-
-    Iterates known arcroles and each link role present in baseSets to avoid
-    unpredictable aggregation across link roles.
-    """
-    records_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
-    counts = {"presentation": 0, "calculation": 0, "definition": 0, "other": 0}
-
-    arcroles = [PRESENTATION_ARCROLE, CALCULATION_ARCROLE, *DIMENSION_ARCROLES]
-    # Also include any other arcroles present in baseSets keys.
-    base_sets = getattr(model_xbrl, "baseSets", None) or {}
-    for key in base_sets:
-        if isinstance(key, tuple) and key and key[0]:
-            arc = str(key[0])
-            if arc not in arcroles and arc != "XBRL-footnotes":
-                arcroles.append(arc)
-
-    linkroles_by_arcrole: dict[str, set[str | None]] = {a: {None} for a in arcroles}
-    for key in base_sets:
-        if isinstance(key, tuple) and len(key) >= 2 and key[0]:
-            arc = str(key[0])
-            link = key[1]
-            linkroles_by_arcrole.setdefault(arc, {None}).add(str(link) if link else None)
-
-    for arcrole in arcroles:
-        network_type = _network_type_for_arcrole(arcrole)
-        for linkrole in sorted(
-            (lr for lr in linkroles_by_arcrole.get(arcrole, {None})),
-            key=lambda x: (x is None, str(x) if x else ""),
-        ):
-            try:
-                if linkrole is None:
-                    rel_set = model_xbrl.relationshipSet(arcrole)
-                else:
-                    rel_set = model_xbrl.relationshipSet(arcrole, linkrole)
-            except Exception:  # noqa: BLE001
-                continue
-            if rel_set is None:
-                continue
-            model_rels = getattr(rel_set, "modelRelationships", None) or []
-            for rel in model_rels:
-                record = canonical_relationship_record(
-                    rel, network_type=network_type, arcrole=arcrole
-                )
-                key = relationship_key(record)
-                if key not in records_by_key:
-                    records_by_key[key] = record
-
-    records = sorted(records_by_key.values(), key=lambda r: relationship_key(r))
-    for record in records:
-        counts[record["network_type"]] = counts.get(record["network_type"], 0) + 1
-    return records, counts
+    return sha256_hex(canonical_json_bytes(payload))
 
 
 def fact_locator_stats(model_xbrl: Any) -> dict[str, Any]:
@@ -334,11 +236,10 @@ def fact_locator_stats(model_xbrl: Any) -> dict[str, Any]:
         fact_id = getattr(fact, "id", None)
         sourceline = getattr(fact, "sourceline", None)
         doc = getattr(fact, "modelDocument", None)
-        doc_uri = normalize_uri_for_identity(str(getattr(doc, "uri", "") or ""))
+        doc_uri = strip_fragment(str(getattr(doc, "uri", "") or ""))
         is_numeric = bool(getattr(fact, "isNumeric", False))
         is_nil = bool(getattr(fact, "isNil", False))
         concept = getattr(fact, "concept", None)
-        # Inline detection: document type or ix attributes.
         doc_type = classify_document_type(doc) if doc is not None else "unknown"
         is_inline = doc_type == "inline_instance"
 
@@ -371,11 +272,9 @@ def fact_locator_stats(model_xbrl: Any) -> dict[str, Any]:
         else:
             non_inline_facts += 1
 
-        # Continuation: Arelle exposes continuationElement / isContinuation.
         cont = getattr(fact, "continuationElement", None) or getattr(fact, "ixContinuation", None)
         if cont is not None or bool(getattr(fact, "isContinuation", False)):
             continuation_starts += 1
-            # Best-effort chain length walk.
             length = 1
             seen_objs: set[int] = set()
             cur = cont
@@ -388,7 +287,6 @@ def fact_locator_stats(model_xbrl: Any) -> dict[str, Any]:
         if not fact_id and sourceline is None and concept is None:
             unreconstructable += 1
 
-    # ID uniqueness within each document
     duplicate_ids_within_doc = 0
     for _doc, ids in ids_by_doc.items():
         seen_ids: set[str] = set()
@@ -445,7 +343,10 @@ def materialize_working_tree(
         logical_path = artifact.logical_path
         target = dest / logical_path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(store.open_bytes(artifact.sha256))
+        data = store.open_bytes(artifact.sha256)
+        if sha256_hex(data) != artifact.sha256:
+            raise RuntimeError(f"object store integrity failure for {logical_path}")
+        target.write_bytes(data)
         mapping[logical_path] = target
     return mapping
 
@@ -454,7 +355,7 @@ def materialize_arelle_web_cache(
     uri_to_path: dict[str, Path],
     web_cache_dir: Path,
 ) -> dict[str, str]:
-    """Populate an empty Arelle web cache from manifested local files.
+    """Populate an empty Arelle web cache from serialized bindings only.
 
     This reconstructs Arelle's URL→cache-path layout from the immutable bundle.
     It does not copy a prior online cache.
@@ -487,11 +388,7 @@ def materialize_arelle_web_cache(
 
 
 def build_oasis_catalog(uri_to_path: dict[str, Path], catalog_path: Path) -> bytes:
-    """Build an OASIS catalog with paths relative to the catalog file.
-
-    Relative paths keep catalog bytes stable across different absolute data roots
-    when the working-tree layout is identical.
-    """
+    """Build an OASIS catalog with paths relative to the catalog file."""
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         f"<!-- generator={CATALOG_GENERATOR_VERSION} -->",
@@ -506,7 +403,6 @@ def build_oasis_catalog(uri_to_path: dict[str, Path], catalog_path: Path) -> byt
         except ValueError:
             rel = target.as_uri()
         else:
-            # Prefer file URI only when relative form is unavailable; else use path.
             rel = Path(rel).as_posix()
         safe_uri = (
             uri.replace("&", "&amp;")
@@ -535,7 +431,7 @@ def build_accession_uri_map(
     working: Path,
 ) -> dict[str, tuple[Any, str]]:
     """Map resolved local path → (artifact, canonical SEC URI)."""
-    archive = normalize_uri_for_identity(archive_base)
+    archive = normalize_uri(archive_base)
     if not archive.endswith("/"):
         archive += "/"
     mapping: dict[str, tuple[Any, str]] = {}
@@ -544,14 +440,100 @@ def build_accession_uri_map(
             continue
         name = artifact.logical_path.split("/", 1)[1]
         local = (working / artifact.logical_path).resolve()
-        canonical = normalize_uri_for_identity(archive + name)
+        canonical = normalize_uri(archive + name)
         mapping[str(local)] = (artifact, canonical)
-        # Also key by content hash for fallback matching.
     return mapping
 
 
-def load_with_arelle(
-    entrypoint: Path,
+def _local_candidates(uri: str) -> list[str]:
+    """Candidate local-path keys for a raw Arelle document URI."""
+    candidates = [uri]
+    if uri.startswith("file://"):
+        path = unquote(urlsplit(uri).path)
+        candidates.append(path)
+        candidates.append(str(Path(path).resolve()))
+    else:
+        with contextlib.suppress(OSError, ValueError):
+            candidates.append(str(Path(uri).resolve()))
+    return candidates
+
+
+def make_canonical_resolver(
+    aliases: dict[str, str],
+) -> Any:
+    """Resolve an Arelle model document to its canonical URI (or None).
+
+    Lookup order: resolved local filepath alias → raw URI alias → strict
+    normalization of an http(s) URI. Returns None when no canonical identity
+    exists (e.g. an unaliased local path).
+    """
+
+    def resolve(model_document: Any) -> str | None:
+        if model_document is None:
+            return None
+        uri = str(getattr(model_document, "uri", "") or "")
+        filepath = getattr(model_document, "filepath", None)
+        if filepath:
+            try:
+                resolved_path = str(Path(filepath).resolve())
+            except (OSError, ValueError):
+                resolved_path = None
+            if resolved_path and resolved_path in aliases:
+                return aliases[resolved_path]
+        if uri in aliases:
+            return aliases[uri]
+        for candidate in _local_candidates(uri):
+            if candidate in aliases:
+                return aliases[candidate]
+        if is_http_uri(uri):
+            try:
+                return normalize_uri(uri)
+            except UriIdentityError:
+                return None
+        return None
+
+    return resolve
+
+
+def canonicalize_error_records(records: Any, aliases: dict[str, str]) -> list[Any]:
+    """Canonicalize structured error document URIs through the alias map.
+
+    Local-path hrefs are replaced by canonical URIs; unresolvable non-http
+    hrefs are dropped (never persisted as volatile local paths).
+    """
+    from spike_lib.arelle_errors import StructuredError
+
+    canonicalized: list[Any] = []
+    for record in records:
+        doc_uri = record.document_uri
+        canonical: str | None = None
+        if doc_uri:
+            base = strip_fragment(doc_uri)
+            if base in aliases:
+                canonical = aliases[base]
+            else:
+                for candidate in _local_candidates(base):
+                    if candidate in aliases:
+                        canonical = aliases[candidate]
+                        break
+            if canonical is None and is_http_uri(base):
+                try:
+                    canonical = normalize_uri(base)
+                except UriIdentityError:
+                    canonical = base
+        canonicalized.append(
+            StructuredError(
+                severity=record.severity,
+                code=record.code,
+                document_uri=canonical,
+                source_line=record.source_line,
+            )
+        )
+    return canonicalized
+
+
+def load_and_inspect(
+    entrypoint: str,
     *,
     offline: bool,
     cache_dir: Path,
@@ -563,8 +545,10 @@ def load_with_arelle(
     offline_cache_started_empty: bool | None = None,
     offline_cache_populated_from_manifest: bool | None = None,
 ) -> ArelleLoadResult:
+    """Load with Arelle and extract canonical closure + relationship state."""
     import arelle.Version
     from arelle import Cntlr
+    from arelle.ModelDocument import Type as ModelDocumentType
 
     from spike_lib.network_guard import NetworkDeniedError, NetworkGuard, network_denied
 
@@ -573,7 +557,6 @@ def load_with_arelle(
     if offline:
         web_cache_dir.mkdir(parents=True, exist_ok=True)
         if offline_cache_started_empty is None:
-            # If not explicitly reported by caller, infer: no http/https cache trees yet.
             offline_cache_started_empty = not any(web_cache_dir.iterdir())
         if offline_cache_populated_from_manifest is None:
             offline_cache_populated_from_manifest = any(web_cache_dir.rglob("*"))
@@ -584,14 +567,12 @@ def load_with_arelle(
         offline_cache_started_empty = None
         offline_cache_populated_from_manifest = None
 
-    # Fresh catalog env for this load.
     prior_catalog = os.environ.get("XML_CATALOG_FILES")
     if catalog_path is not None:
         os.environ["XML_CATALOG_FILES"] = str(catalog_path.resolve())
     elif "XML_CATALOG_FILES" in os.environ:
         del os.environ["XML_CATALOG_FILES"]
 
-    # Clear common proxy env vars during offline loads where practical.
     cleared_proxy: dict[str, str] = {}
     if offline:
         proxy_keys = (
@@ -610,6 +591,9 @@ def load_with_arelle(
     issues: list[QualityIssue] = []
     raw_log = ""
     network_attempt_dicts: list[dict[str, Any]] = []
+    aliases = dict(uri_aliases or {})
+    resolve_canonical = make_canonical_resolver(aliases)
+    error_capture = ErrorCapture()
 
     def _do_load() -> ArelleLoadResult:
         nonlocal raw_log
@@ -618,18 +602,17 @@ def load_with_arelle(
         cntlr.webCache.workOffline = offline
         if user_agent:
             cntlr.webCache.httpUserAgent = user_agent
+        cntlr_logger = getattr(cntlr, "logger", None)
+        if cntlr_logger is not None:
+            cntlr_logger.addHandler(error_capture)
 
-        # Extra guard: if Arelle's web cache attempts a remote retrieve while offline,
-        # record it and deny for URIs not present in the manifest-backed catalog.
         if offline and deny_network:
             original_retrieve = getattr(cntlr.webCache, "retrieve", None)
             if original_retrieve is not None:
-                catalogued = {normalize_uri_for_identity(u) for u in (catalogued_uris or [])}
-                if uri_aliases:
-                    catalogued.update(normalize_uri_for_identity(u) for u in uri_aliases.values())
+                catalogued = set(catalogued_uris or [])
 
                 def guarded_retrieve(url, *args, **kwargs):  # type: ignore[no-untyped-def]
-                    normalized = normalize_uri_for_identity(str(url))
+                    normalized = strip_fragment(str(url))
                     if is_http_uri(normalized) and normalized not in catalogued:
                         guard.record("arelle_webcache_retrieve", normalized, None)
                         raise NetworkDeniedError(guard.attempts[-1])
@@ -638,26 +621,21 @@ def load_with_arelle(
                 cntlr.webCache.retrieve = guarded_retrieve  # type: ignore[method-assign]
 
         try:
-            model_xbrl = cntlr.modelManager.load(str(entrypoint.resolve()))
+            model_xbrl = cntlr.modelManager.load(entrypoint)
         except NetworkDeniedError:
             raise
         if model_xbrl is None:
             raise RuntimeError("Arelle failed to load entrypoint")
 
-        # Capture log buffer.
         try:
             log_handler = getattr(cntlr, "logHandler", None)
             if log_handler is not None and hasattr(log_handler, "getBuffer"):
                 raw_log = str(log_handler.getBuffer() or "")
-            elif hasattr(cntlr, "logToBuffer") or True:
-                messages = getattr(getattr(cntlr, "logHandler", None), "messages", None)
-                if messages:
-                    raw_log = "\n".join(str(m) for m in messages)
-                else:
-                    buf = getattr(cntlr, "logBuffer", None) or getattr(
-                        getattr(cntlr, "logHandler", None), "buffer", None
-                    )
-                    raw_log = str(buf or "")
+            else:
+                buf = getattr(cntlr, "logBuffer", None) or getattr(
+                    getattr(cntlr, "logHandler", None), "buffer", None
+                )
+                raw_log = str(buf or "")
         except Exception:  # noqa: BLE001
             raw_log = ""
 
@@ -666,24 +644,43 @@ def load_with_arelle(
 
         url_docs = getattr(model_xbrl, "urlDocs", {}) or {}
         closure_documents: list[ClosureDocument] = []
-        uri_to_local: dict[str, Path] = {}
+        synthetic_docs: list[dict[str, Any]] = []
+        synthetic_engine_uris: set[str] = set()
         unresolved: list[str] = []
-        aliases = uri_aliases or {}
 
         for uri, doc in url_docs.items():
-            raw_uri = normalize_uri_for_identity(str(uri))
+            raw_uri = strip_fragment(str(uri))
+            doc_type = classify_document_type(doc)
             filepath = getattr(doc, "filepath", None)
-            if filepath and Path(filepath).is_file():
-                local_resolved = str(Path(filepath).resolve())
-            else:
-                local_resolved = None
-            canonical = aliases.get(local_resolved or "", aliases.get(raw_uri, raw_uri))
-            # Prefer alias by local path, then by raw URI.
-            if local_resolved and local_resolved in aliases:
-                canonical = aliases[local_resolved]
-            elif raw_uri in aliases:
-                canonical = aliases[raw_uri]
 
+            if getattr(doc, "type", None) == ModelDocumentType.INLINEXBRLDOCUMENTSET:
+                member_uris: list[str] = []
+                for member in getattr(doc, "referencesDocument", {}) or {}:
+                    if getattr(member, "type", None) == ModelDocumentType.INLINEXBRL:
+                        member_uri = resolve_canonical(member)
+                        if member_uri:
+                            member_uris.append(member_uri)
+                if member_uris:
+                    identity = inline_document_set_identity(member_uris)
+                else:
+                    identity = unknown_synthetic_identity(raw_uri)
+                synthetic_docs.append(
+                    {"synthetic_document_identity": identity, "engine_uri": raw_uri}
+                )
+                synthetic_engine_uris.add(raw_uri)
+                continue
+
+            canonical = resolve_canonical(doc)
+            if canonical is None:
+                canonical = raw_uri
+                issues.append(
+                    QualityIssue(
+                        severity="fatal",
+                        code="UNRESOLVED_DOC_IDENTITY",
+                        message="loaded document has no canonical URI identity",
+                        context={"raw_uri": raw_uri, "offline": offline},
+                    )
+                )
             content_sha = ""
             byte_size = 0
             local_path = None
@@ -692,7 +689,6 @@ def load_with_arelle(
                 content_sha = sha256_hex(data)
                 byte_size = len(data)
                 local_path = str(Path(filepath).resolve())
-                uri_to_local[canonical] = Path(filepath).resolve()
             else:
                 unresolved.append(canonical)
                 issues.append(
@@ -707,72 +703,117 @@ def load_with_arelle(
                 ClosureDocument(
                     canonical_uri=canonical,
                     content_sha256=content_sha,
-                    document_type=classify_document_type(doc),
+                    document_type=doc_type,
                     local_path=local_path,
                     byte_size=byte_size,
                 )
             )
 
-        closure_edges: list[ClosureEdge] = []
+        synthetic_by_engine_uri = {d["engine_uri"]: d for d in synthetic_docs}
+
+        source_backed_edges: list[ClosureEdge] = []
+        synthetic_edges: list[dict[str, Any]] = []
+        reference_uris: set[str] = set()
+
         for uri, doc in url_docs.items():
-            raw_uri = normalize_uri_for_identity(str(uri))
-            filepath = getattr(doc, "filepath", None)
-            local_resolved = (
-                str(Path(filepath).resolve()) if filepath and Path(filepath).is_file() else None
-            )
-            source_uri = aliases.get(local_resolved or "", aliases.get(raw_uri, raw_uri))
-            if local_resolved and local_resolved in aliases:
-                source_uri = aliases[local_resolved]
+            raw_uri = strip_fragment(str(uri))
+            source_synthetic = raw_uri in synthetic_engine_uris
+            source_uri = resolve_canonical(doc) or raw_uri
             references = getattr(doc, "referencesDocument", {}) or {}
             for target_doc, ref_info in references.items():
-                target_raw = normalize_uri_for_identity(str(getattr(target_doc, "uri", "") or ""))
+                target_raw = strip_fragment(str(getattr(target_doc, "uri", "") or ""))
                 if not target_raw:
                     continue
-                t_filepath = getattr(target_doc, "filepath", None)
-                t_local = (
-                    str(Path(t_filepath).resolve())
-                    if t_filepath and Path(t_filepath).is_file()
-                    else None
-                )
-                target_uri = aliases.get(t_local or "", aliases.get(target_raw, target_raw))
-                if t_local and t_local in aliases:
-                    target_uri = aliases[t_local]
+                target_synthetic = target_raw in synthetic_engine_uris
+                target_uri = resolve_canonical(target_doc) or target_raw
                 ref_list = ref_info if isinstance(ref_info, list) else [ref_info]
                 for ref in ref_list:
-                    # Arelle 2.x exposes plural referenceTypes set.
                     reference_types = getattr(ref, "referenceTypes", None)
                     if reference_types is None:
                         singular = getattr(ref, "referenceType", None) or getattr(ref, "type", None)
                         reference_types = {singular} if singular is not None else set()
                     href = getattr(ref, "href", None) or target_uri
-                    for discovery_type in map_discovery_types(reference_types):
-                        closure_edges.append(
-                            ClosureEdge(
-                                source_uri=source_uri,
-                                discovery_type=discovery_type,
-                                target_uri=target_uri,
-                                normalized_href=normalize_uri_for_identity(str(href)),
+                    try:
+                        normalized_href = resolve_document_uri(source_uri, str(href))
+                        if is_http_uri(normalized_href):
+                            reference_uris.add(normalized_href)
+                    except (UriIdentityError, ValueError):
+                        normalized_href = strip_fragment(str(href))
+                    mapped_types = map_discovery_types(reference_types)
+                    # Arelle records linkbaseRef/schemaRef/roleRef/arcroleRef edges
+                    # with the generic "href" reference type; the specific element
+                    # is available on referringModelObject.
+                    referring = getattr(ref, "referringModelObject", None)
+                    referring_ln = getattr(referring, "localName", None)
+                    if referring_ln in ("linkbaseRef", "schemaRef", "roleRef", "arcroleRef"):
+                        specific = map_discovery_type(referring_ln)
+                        mapped_types = [
+                            specific if m == "locator_reference" else m for m in mapped_types
+                        ]
+                    for discovery_type in mapped_types:
+                        if source_synthetic or target_synthetic:
+                            if source_synthetic:
+                                source_identity: dict[str, Any] = {
+                                    "kind": "synthetic_document",
+                                    "synthetic_document_identity": synthetic_by_engine_uri[raw_uri][
+                                        "synthetic_document_identity"
+                                    ],
+                                }
+                            else:
+                                source_identity = {
+                                    "kind": "source_backed_document",
+                                    "document_uri": source_uri,
+                                }
+                            if target_synthetic:
+                                target_identity: dict[str, Any] = {
+                                    "kind": "synthetic_document",
+                                    "synthetic_document_identity": synthetic_by_engine_uri[
+                                        target_raw
+                                    ]["synthetic_document_identity"],
+                                }
+                            else:
+                                target_identity = {
+                                    "kind": "source_backed_document",
+                                    "document_uri": target_uri,
+                                }
+                            synthetic_edges.append(
+                                {
+                                    "kind": "engine_reference",
+                                    "source": source_identity,
+                                    "target": target_identity,
+                                    "edge_attributes": {
+                                        "discovery_type": discovery_type,
+                                        "normalized_href": normalized_href,
+                                    },
+                                }
                             )
-                        )
+                        else:
+                            source_backed_edges.append(
+                                ClosureEdge(
+                                    source_uri=source_uri,
+                                    discovery_type=discovery_type,
+                                    target_uri=target_uri,
+                                    normalized_href=normalized_href,
+                                )
+                            )
 
         entry_points: list[str] = []
         model_doc = getattr(model_xbrl, "modelDocument", None)
         if model_doc is not None:
-            ep_raw = normalize_uri_for_identity(str(model_doc.uri))
-            ep_path = getattr(model_doc, "filepath", None)
-            ep_local = str(Path(ep_path).resolve()) if ep_path and Path(ep_path).is_file() else None
-            ep = aliases.get(ep_local or "", aliases.get(ep_raw, ep_raw))
-            if ep_local and ep_local in aliases:
-                ep = aliases[ep_local]
-            entry_points.append(ep)
+            ep = resolve_canonical(model_doc)
+            if ep is not None:
+                entry_points.append(ep)
 
         concepts = getattr(model_xbrl, "qnameConcepts", {}) or {}
         contexts = getattr(model_xbrl, "contexts", {}) or {}
         units = getattr(model_xbrl, "units", {}) or {}
         facts = getattr(model_xbrl, "facts", []) or []
 
-        rel_records, rel_counts = collect_effective_relationships(model_xbrl)
-        rel_hash = relationship_set_hash(rel_records)
+        rel_result = collect_relationships(model_xbrl, canonical_doc_uri=resolve_canonical)
+        concept_records = rel_result["concept_records"]
+        resource_records = rel_result["resource_records"]
+        concept_occ_hash = occurrence_collection_hash(concept_records)
+        resource_occ_hash = occurrence_collection_hash(resource_records)
 
         version = str(
             getattr(arelle.Version, "__version__", None)
@@ -780,7 +821,6 @@ def load_with_arelle(
             or "unknown"
         )
 
-        # Plugin inventory (best-effort).
         plugins: list[str] = []
         try:
             plugin_info = getattr(cntlr, "pluginInfo", None) or {}
@@ -802,6 +842,8 @@ def load_with_arelle(
 
         log_digest = sha256_hex(raw_log.encode("utf-8")) if raw_log else None
 
+        synthetic_identities = [d["synthetic_document_identity"] for d in synthetic_docs]
+
         snapshot = InspectionSnapshot(
             documents=[
                 {
@@ -820,7 +862,7 @@ def load_with_arelle(
                     "normalized_href": e.normalized_href,
                 }
                 for e in sorted(
-                    closure_edges,
+                    source_backed_edges,
                     key=lambda x: (
                         x.source_uri,
                         x.discovery_type,
@@ -833,12 +875,26 @@ def load_with_arelle(
             context_count=_safe_len(contexts),
             unit_count=_safe_len(units),
             fact_count=_safe_len(facts),
-            relationship_counts=rel_counts,
-            relationship_records=rel_records,
-            relationship_set_hash=rel_hash,
+            relationship_counts=rel_result["relationship_counts"],
+            resource_relationship_counts=rel_result["resource_relationship_counts"],
+            concept_records=concept_records,
+            resource_records=resource_records,
+            concept_relationship_occurrence_hash=concept_occ_hash,
+            resource_relationship_occurrence_hash=resource_occ_hash,
+            unsupported_inventory=rel_result["unsupported_inventory"],
+            extraction=rel_result["extraction"],
+            synthetic_documents=sorted(synthetic_docs, key=lambda d: canonical_json_bytes(d)),
+            synthetic_document_set_hash=synthetic_document_set_hash(synthetic_identities),
+            synthetic_document_count=len(synthetic_docs),
+            synthetic_edges=sorted(synthetic_edges, key=lambda e: canonical_json_bytes(e)),
+            synthetic_edge_set_hash=synthetic_edge_set_hash(synthetic_edges),
+            synthetic_edge_count=len(synthetic_edges),
             entry_points=sorted(set(entry_points)),
             unresolved_uris=sorted(set(unresolved)),
             fact_locator_stats=fact_locator_stats(model_xbrl),
+            error_summary=summarize_errors(
+                canonicalize_error_records(error_capture.records, aliases)
+            ),
             engine_name="arelle",
             engine_version=version,
             engine_config=engine_config,
@@ -855,8 +911,8 @@ def load_with_arelle(
         return ArelleLoadResult(
             snapshot=snapshot,
             closure_documents=closure_documents,
-            closure_edges=closure_edges,
-            uri_to_local_file=uri_to_local,
+            closure_edges=source_backed_edges,
+            reference_uris=sorted(reference_uris),
             issues=issues,
             raw_log=raw_log,
             network_attempts=network_attempt_dicts,
@@ -881,10 +937,8 @@ def load_with_arelle(
     return result
 
 
-def is_http_uri(uri: str) -> bool:
-    return urlparse(uri).scheme in {"http", "https"}
-
-
 def external_logical_path(original_uri: str) -> str:
-    basename = sanitize_basename(Path(urlparse(original_uri).path).name or "dependency")
+    from spike_lib.hashing import sha256_of_uri
+
+    basename = sanitize_basename(Path(urlsplit(original_uri).path).name or "dependency")
     return f"external/{sha256_of_uri(original_uri)}/{basename}"

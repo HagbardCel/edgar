@@ -1,23 +1,18 @@
-"""Accession mirroring, SGML reconciliation, and bundle construction for Slice 0."""
+"""Accession mirroring, SGML reconciliation, and bundle-draft acquisition."""
 
 from __future__ import annotations
 
 import json
 import re
-import shutil
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
 
 from lxml import html
 
-from spike_lib import (
-    ACQUISITION_POLICY_VERSION,
-    DISCOVERY_EXTRACTION_POLICY_VERSION,
-)
-from spike_lib.hashing import payload_hash, sha256_of_uri
+from spike_lib import DISCOVERY_EXTRACTION_POLICY_VERSION
+from spike_lib.hashing import payload_hash_v1, sha256_of_uri
 from spike_lib.quality import QualityIssue
 from spike_lib.sec import (
     SecClient,
@@ -31,7 +26,7 @@ from spike_lib.sec import (
     validate_accession,
     validate_logical_path,
 )
-from spike_lib.storage import ObjectStore, write_json_atomic
+from spike_lib.storage import ObjectStore
 
 
 @dataclass
@@ -118,7 +113,7 @@ class BundleDraft:
         return [(a.logical_path, a.sha256, a.byte_size) for a in self.artifacts if a.in_payload]
 
     def compute_payload_hash(self) -> str:
-        return payload_hash(self.payload_entries())
+        return payload_hash_v1(self.payload_entries())
 
 
 def parse_index_json(content: bytes, archive_base: str) -> list[dict[str, Any]]:
@@ -757,110 +752,60 @@ class AcquisitionService:
             in_payload=True,
         )
 
+    def add_external_dependency_stream(
+        self,
+        draft: BundleDraft,
+        *,
+        original_uri: str,
+        source_path: Path,
+        expected_sha256: str,
+        max_external_bytes: int,
+    ) -> ArtifactRecord:
+        """Capture an external dependency with stat-first bounded streaming.
 
-def build_manifest_dict(
-    draft: BundleDraft,
-    *,
-    payload_hash_value: str,
-    extra: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    manifest: dict[str, Any] = {
-        "manifest_version": "1",
-        "acquisition_policy_version": ACQUISITION_POLICY_VERSION,
-        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        "cik": draft.cik,
-        "accession": draft.accession,
-        "payload_hash": payload_hash_value,
-        "archive_base": draft.archive_base,
-        "artifacts": [a.to_dict() for a in sorted(draft.artifacts, key=lambda x: x.logical_path)],
-        "quality_issues": [i.to_dict() for i in draft.issues],
-        "discovery": draft.discovery,
-        "issuer_provenance": draft.issuer_provenance,
-        "sgml_reconciliation": draft.sgml_reconciliation,
-        "sgml_documents": [d.to_dict() for d in draft.sgml_documents],
-    }
-    if extra:
-        manifest.update(extra)
-    return manifest
-
-
-def write_manifest(
-    path: Path,
-    draft: BundleDraft,
-    *,
-    payload_hash_value: str,
-    extra: dict[str, Any] | None = None,
-) -> bytes:
-    manifest = build_manifest_dict(draft, payload_hash_value=payload_hash_value, extra=extra)
-    return write_json_atomic(path, manifest)
-
-
-def commit_bundle(
-    accession_root: Path,
-    *,
-    policy_version: str,
-    payload_hash_value: str,
-    staged_manifest: dict[str, Any],
-) -> Path:
-    """Atomically place an immutable bundle under bundles/<policy>/<payload_hash>/.
-
-    - Same policy+payload: reuse the existing immutable bundle manifest.
-    - Different payload: create a new bundle snapshot (legitimate).
-    - Same path with different *payload* artifact identities: fatal integrity error.
-
-    Regenerable / non-payload artifacts (e.g. offline catalog with absolute paths)
-    are not part of bundle identity.
-    """
-
-    def payload_identity(manifest: dict[str, Any]) -> list[tuple[str, str, int]]:
-        artifacts = manifest.get("artifacts") or []
-        entries = [
-            (a["logical_path"], a["sha256"], int(a["byte_size"]))
-            for a in artifacts
-            if a.get("in_payload", True)
-        ]
-        return sorted(entries, key=lambda item: item[0].encode("utf-8"))
-
-    bundle_dir = accession_root / "bundles" / policy_version / payload_hash_value
-    manifest_path = bundle_dir / "manifest.json"
-    if manifest_path.is_file():
-        existing = json.loads(manifest_path.read_text(encoding="utf-8"))
-        for key in ("payload_hash", "acquisition_policy_version", "cik", "accession"):
-            if existing.get(key) != staged_manifest.get(key):
-                raise RuntimeError(
-                    f"bundle integrity conflict at {manifest_path}: field {key} differs"
+        The file size is checked before any read; bytes are streamed to the
+        object store in fixed-size chunks with incremental hashing.
+        """
+        stat = source_path.stat()
+        if stat.st_size > max_external_bytes:
+            draft.issues.append(
+                QualityIssue(
+                    severity="fatal",
+                    code="EXTERNAL_DEPENDENCY_SIZE_LIMIT_EXCEEDED",
+                    message="external dependency exceeds MAX_EXTERNAL_DEPENDENCY_BYTES",
+                    context={"uri": original_uri, "byte_size": stat.st_size},
                 )
-        if payload_identity(existing) != payload_identity(staged_manifest):
-            raise RuntimeError(
-                f"bundle integrity conflict at {manifest_path}: payload artifacts differ"
             )
-        return bundle_dir
+            raise RuntimeError(f"external dependency too large: {original_uri}")
 
-    bundle_dir.mkdir(parents=True, exist_ok=True)
-    write_json_atomic(manifest_path, staged_manifest)
-    return bundle_dir
+        def chunks() -> Any:
+            with source_path.open("rb") as handle:
+                while True:
+                    chunk = handle.read(64 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
 
-
-def stage_and_commit_bundle(
-    accession_root: Path,
-    draft: BundleDraft,
-    *,
-    payload_hash_value: str,
-    extra: dict[str, Any] | None = None,
-) -> Path:
-    tmp = accession_root / "tmp" / f"stage-{payload_hash_value[:12]}"
-    if tmp.exists():
-        shutil.rmtree(tmp)
-    tmp.mkdir(parents=True, exist_ok=True)
-    manifest = build_manifest_dict(draft, payload_hash_value=payload_hash_value, extra=extra)
-    write_json_atomic(tmp / "manifest.json", manifest)
-    try:
-        return commit_bundle(
-            accession_root,
-            policy_version=ACQUISITION_POLICY_VERSION,
-            payload_hash_value=payload_hash_value,
-            staged_manifest=manifest,
+        obj = self.store.put_stream(chunks(), max_bytes=max_external_bytes)
+        if obj.sha256 != expected_sha256:
+            draft.issues.append(
+                QualityIssue(
+                    severity="fatal",
+                    code="EXTERNAL_DEPENDENCY_HASH_MISMATCH",
+                    message="captured external bytes do not match online-loaded content hash",
+                    context={
+                        "uri": original_uri,
+                        "expected": expected_sha256,
+                        "actual": obj.sha256,
+                    },
+                )
+            )
+            raise RuntimeError(f"external dependency hash mismatch: {original_uri}")
+        return self.add_external_dependency(
+            draft,
+            original_uri=original_uri,
+            sha256=obj.sha256,
+            byte_size=obj.byte_size,
+            final_url=original_uri,
+            max_external_bytes=max_external_bytes,
         )
-    finally:
-        if tmp.exists():
-            shutil.rmtree(tmp, ignore_errors=True)
