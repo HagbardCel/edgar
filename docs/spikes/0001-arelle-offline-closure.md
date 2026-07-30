@@ -1,6 +1,6 @@
 # Spike 0001: Arelle offline closure
 
-**Status:** Passed (2026-07-30, corrected remediation rerun).
+**Status:** Passed (2026-07-30, v2 rebuild with authoritative URI bindings; supersedes the corrected remediation rerun below).
 
 The earlier “10/10” recording was invalidated (copied online cache, unconditional criteria, incorrect relationship/discovery measurements). This report replaces that evidence after an independent offline replay seeded only from the immutable bundle.
 
@@ -173,3 +173,48 @@ ADR 0006 remains **Proposed** pending durable persistence of regenerable outputs
 1. Persist effective relationship records using the canonical key fields validated here.
 2. Treat fact locator fields as candidates for the Slice 2 occurrence model; validate continuation chains on a filing that has them.
 3. Keep HTML-index-only vs JSON-only inventory differences as documented reconciliation rules, not fatals.
+
+---
+
+## v2 rebuild (2026-07-30): authoritative URI bindings, sterile manifest, occurrence identities
+
+**Status:** All 10 criteria **PASS**. Run id `20260730T221130Z-ed1b9c75`; source commit `a05f748ad85f36ae7cc89ab2a6489bd8ede2ebfb`; committed evidence under `fixtures/manifests/0001065088-24-000036/` (verified offline by `scripts/spikes/verify_evidence.py`, also in CI).
+
+The v2 rebuild replaces the v1 replay contract end to end:
+
+- **Sterile manifest** (`manifest-v2-spike`): no volatile retrieval fields; `payload_hash` built by the explicit `payload-v1` construction over sorted artifact identities; the manifest artifact itself is never a payload member; `uri-bindings.json` participates exactly once via a pointer consistent with the artifact entry.
+- **Authoritative URI bindings** (`uri-bindings-v1`): every replay-required canonical URI (document_uris + replay aliases) binds to a manifest-listed logical path and content hash. The entrypoint must be a primary `document_uri`. Binding-rule violations (conflicting object identities, alias collisions, self-binding, manifest/hash mismatches) are fatal.
+- **Manifest-only offline worker**: the replay subprocess receives only the sterile manifest bytes (verified against an expected SHA-256), the object store, and the serialized bindings — no online cache, environment, or digest fallbacks. A fresh Arelle web cache is seeded from the bindings; network is denied.
+- **Staged promotion**: bundle candidates validate offline under `.staging/` and promote to `bundles/acq-v1-spike/<payload_hash>/` by atomic rename of the exact validated bytes. Identical promotion identity reuses the existing bundle; any conflict at the final path is fatal; failed candidates are moved to `.failed/`.
+- **Occurrence identities**: relationships are partitioned into concept networks (presentation, calculation, definition — including custom definition-link arcroles) and resource networks (concept-label, concept-reference). `relationship_occurrence_hash` covers the arc occurrence plus both endpoint occurrences (XLink locator occurrences, local resource occurrences, Clark-notation concept endpoints). Resource `content` fingerprints (exact Unicode text, ordered reference parts with subtree C14N) are distinct from resource `occurrence` identities (document + deterministic element locator).
+- **Synthetic partition**: engine-created documents/edges (e.g. inline document sets) are inventoried and hashed separately with their own strict online/offline comparison invariant. eBay fixture: 0 synthetic documents, 0 synthetic edges.
+- **Fail-closed error policy** (`arelle-error-policy-v2`): every EDGAR filing must be extractable — engine data-quality diagnostics on filed content never block extraction; unknown error codes fail the run. The 51 deterministic `ix11.10.1.2/ix11.11.1.2:invalidTransformation` diagnostics (legacy SEC transform namespace unrecognized by Arelle's iXBRL 1.1 registry) are recorded with full multiplicity and do not block.
+- **Non-circular semantic identity** (`semantic-run-v1`): `semantic_run_hash` covers the semantic projections of both load sides, engine identity, schema versions, and success-criterion outcomes — excluding the repeat criterion, raw warnings, and operational fields. Criterion 9 compares payload and semantic run hashes across a full pipeline repeat.
+
+### v2 hashes and counts (online = offline)
+
+| Item | Value |
+| --- | --- |
+| `payload_hash` (repeat-identical) | `707e77bf5ce3fa2a7235446a151e4f0d30f057c7d8a8e6ba7030008332b81e59` |
+| `closure_hash` | `81676fc69be3a570948a3ad53d29bc3e3795c9e7ff28e1e5b73da7345454b79e` |
+| `semantic_run_hash` (repeat-identical) | `399e95c3385f5df9df9571ffd1f1eb4dc688f7d62705db8a45480dcb5283b05f` |
+| Concept relationship occurrence hash | `06554a5ce0b400aa253a5959e9ad5dd353c330bded83aa47b14efdb26b34f8b2` |
+| Resource relationship occurrence hash | `a0a23b5bbccd8f43f506c1cc78056a0afc7de7417bf3e2384e0b2514be48d412` |
+| Bundle artifacts / URI bindings | 186 / 180 |
+| Concepts / contexts / units / facts | 18,527 / 521 / 9 / 2,093 |
+| Presentation / calculation / definition | 1,516 / 241 / 1,801 |
+| Concept-label / concept-reference | 2,190 / 0 |
+| Closure documents / discovery edges | 25 / 79 |
+| Unstable endpoints / unsupported failing / duplicate inconsistencies | 0 / 0 / 0 |
+| Recognized non-blocking diagnostics (ix transforms) | 51 (multiplicity preserved) |
+
+The unsupported-arcrole inventory is exhaustive: every encountered arcrole is classified supported (registry definition arcroles: `all`, `dimension-default`, `dimension-domain`, `domain-member`, `hypercube-dimension`), excluded (none), or unsupported-failing (none).
+
+### v2 evidence and verification
+
+- `fixtures/manifests/0001065088-24-000036/` contains exact byte copies of the promoted `bundle-manifest.json`, `uri-bindings.json`, and `inspection-core.json`, plus deterministic `acquisition-expectations.json` / `parser-expectations.json` projections and `evidence-metadata.json` (source commit, run id, evidence file hashes).
+- `scripts/spikes/verify_evidence.py` checks JSON well-formedness, sterile-manifest validity, pointer hash consistency, binding rules, expectation projections, privacy (no user agents, `file:` URIs, or absolute local paths), non-circular `semantic_run_hash` recomputation, and provenance (source commit ancestry; deny-by-default path allowlist for post-implementation changes). CI runs it on every push/PR.
+
+### ADR impact (v2)
+
+ADR 0007 (manifest-only replay with authoritative URI bindings) is **Accepted** with this run. ADR 0004 remains Accepted; its relationship-preservation requirement is now realized with occurrence-level identities rather than aggregate set hashes.

@@ -1,0 +1,56 @@
+{
+  "closure_hash": "81676fc69be3a570948a3ad53d29bc3e3795c9e7ff28e1e5b73da7345454b79e",
+  "concept_count": 18527,
+  "concept_relationship_occurrence_hash": "06554a5ce0b400aa253a5959e9ad5dd353c330bded83aa47b14efdb26b34f8b2",
+  "context_count": 521,
+  "criteria_passed": {
+    "1": true,
+    "10": true,
+    "2": true,
+    "3": true,
+    "4": true,
+    "5": true,
+    "6": true,
+    "7": true,
+    "8": true,
+    "9": true
+  },
+  "extraction": {
+    "duplicate_occurrence_inconsistency_count": 0,
+    "extraction_complete": true,
+    "unstable_endpoint_occurrence_count": 0,
+    "unsupported_failing_relationship_count": 0
+  },
+  "fact_count": 2093,
+  "offline_concept_relationship_occurrence_hash": "06554a5ce0b400aa253a5959e9ad5dd353c330bded83aa47b14efdb26b34f8b2",
+  "offline_resource_relationship_occurrence_hash": "a0a23b5bbccd8f43f506c1cc78056a0afc7de7417bf3e2384e0b2514be48d412",
+  "payload_hash": "707e77bf5ce3fa2a7235446a151e4f0d30f057c7d8a8e6ba7030008332b81e59",
+  "resource_relationship_occurrence_hash": "a0a23b5bbccd8f43f506c1cc78056a0afc7de7417bf3e2384e0b2514be48d412",
+  "semantic_run_hash": "399e95c3385f5df9df9571ffd1f1eb4dc688f7d62705db8a45480dcb5283b05f",
+  "semantic_run_schema_version": "semantic-run-v1",
+  "unit_count": 9,
+  "unsupported_inventory": {
+    "encountered_arcrole_counts": {
+      "http://www.xbrl.org/2003/arcrole/concept-label": 2190,
+      "http://www.xbrl.org/2003/arcrole/parent-child": 1516,
+      "http://www.xbrl.org/2003/arcrole/summation-item": 241,
+      "http://xbrl.org/int/dim/arcrole/all": 57,
+      "http://xbrl.org/int/dim/arcrole/dimension-default": 151,
+      "http://xbrl.org/int/dim/arcrole/dimension-domain": 151,
+      "http://xbrl.org/int/dim/arcrole/domain-member": 1291,
+      "http://xbrl.org/int/dim/arcrole/hypercube-dimension": 151
+    },
+    "excluded_arcrole_counts": {},
+    "supported_arcrole_counts": {
+      "http://www.xbrl.org/2003/arcrole/concept-label": 2190,
+      "http://www.xbrl.org/2003/arcrole/parent-child": 1516,
+      "http://www.xbrl.org/2003/arcrole/summation-item": 241,
+      "http://xbrl.org/int/dim/arcrole/all": 57,
+      "http://xbrl.org/int/dim/arcrole/dimension-default": 151,
+      "http://xbrl.org/int/dim/arcrole/dimension-domain": 151,
+      "http://xbrl.org/int/dim/arcrole/domain-member": 1291,
+      "http://xbrl.org/int/dim/arcrole/hypercube-dimension": 151
+    },
+    "unsupported_arcrole_counts": {}
+  }
+}
