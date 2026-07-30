@@ -1,14 +1,14 @@
-"""Structured Arelle error capture and error policy (arelle-error-policy-v1).
+"""Structured Arelle error/warning capture with an explicit policy.
 
-A logging handler attached to the Arelle controller logger captures structured
-records instead of parsing the rendered log buffer. Missing or unstructured
-codes are represented explicitly as ``UNSTRUCTURED``; they never disappear.
+Every EDGAR filing must be extractable: engine data-quality diagnostics on
+filed content (validation and transformation messages) never block extraction.
+They are preserved with full multiplicity in evidence. Unknown error codes
+fail closed: any error code outside the recognized non-blocking registry fails
+the run and forces review, so new failure modes can never slip through.
 
-Policy:
-- allowlist empty by default
-- every non-allowlisted error fails the run
-- every non-allowlisted warning is reported, deterministic, and not silently
-  fatal (raw warning text is excluded from semantic identity)
+A code enters RECOGNIZED_NONBLOCKING_CODES only with a written rationale
+showing that (a) it diagnoses filed content, not the extraction process, and
+(b) the affected structures are still extracted and occurrence-identified.
 """
 
 from __future__ import annotations
@@ -20,6 +20,23 @@ from typing import Any
 from spike_lib import ARELLE_ERROR_POLICY_VERSION
 
 UNSTRUCTURED_CODE = "UNSTRUCTURED"
+
+# Recognized engine data-quality diagnostics that never block extraction.
+# Each entry must cite why the diagnostic cannot hide an extraction failure.
+RECOGNIZED_NONBLOCKING_CODES: dict[str, str] = {
+    # eBay 10-K (and many EDGAR filings) use the legacy SEC inline XBRL
+    # transformation namespace http://www.sec.gov/inlineXBRL/transformation/2015-08-31,
+    # which Arelle's iXBRL 1.1 transformation registry does not recognize.
+    # Arelle retains the facts; fact counts and closure are unaffected.
+    "ix11.10.1.2:invalidTransformation": (
+        "legacy SEC transformation namespace unrecognized by the iXBRL 1.0 "
+        "registry; facts are retained and occurrence-identified"
+    ),
+    "ix11.11.1.2:invalidTransformation": (
+        "legacy SEC transformation namespace unrecognized by the iXBRL 1.1 "
+        "registry; facts are retained and occurrence-identified"
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -75,9 +92,19 @@ class ErrorCapture(logging.Handler):
 
 
 def summarize_errors(
-    records: list[StructuredError], *, allowed_codes: frozenset[str] = frozenset()
+    records: list[StructuredError],
+    *,
+    recognized_nonblocking: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Deterministic structured summary with explicit multiplicity."""
+    """Deterministic structured summary with explicit multiplicity.
+
+    Fails closed: policy passes only when every error code is recognized as a
+    non-blocking engine data-quality diagnostic. Warnings never fail the run;
+    they are reported with full multiplicity.
+    """
+    recognized = (
+        RECOGNIZED_NONBLOCKING_CODES if recognized_nonblocking is None else recognized_nonblocking
+    )
     error_counts: dict[tuple[str, str | None, int | None], int] = {}
     warning_counts: dict[tuple[str, str | None, int | None], int] = {}
     for record in records:
@@ -101,16 +128,16 @@ def summarize_errors(
 
     errors = project(error_counts)
     warnings = project(warning_counts)
-    unallowlisted_errors = [e for e in errors if e["code"] not in allowed_codes]
-    unallowlisted_warnings = [w for w in warnings if w["code"] not in allowed_codes]
+    recognized_errors = [e for e in errors if e["code"] in recognized]
+    unrecognized_errors = [e for e in errors if e["code"] not in recognized]
     return {
         "arelle_error_policy_version": ARELLE_ERROR_POLICY_VERSION,
-        "allowed_codes": sorted(allowed_codes),
+        "recognized_nonblocking_codes": sorted(recognized),
         "errors": errors,
         "warnings": warnings,
         "error_count": sum(error_counts.values()),
         "warning_count": sum(warning_counts.values()),
-        "unallowlisted_error_count": sum(e["count"] for e in unallowlisted_errors),
-        "unallowlisted_warning_count": sum(w["count"] for w in unallowlisted_warnings),
-        "policy_passed": not unallowlisted_errors,
+        "recognized_nonblocking_error_count": sum(e["count"] for e in recognized_errors),
+        "unrecognized_error_count": sum(e["count"] for e in unrecognized_errors),
+        "policy_passed": not unrecognized_errors,
     }

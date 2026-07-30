@@ -361,7 +361,7 @@ def evaluate_success_criteria(
             "id": 4,
             "name": (
                 "Online and offline Arelle loads complete without unresolved "
-                "documents or unallowlisted errors"
+                "documents or unrecognized errors (recognized diagnostics reported)"
             ),
             "passed": not online_snap.get("unresolved_uris")
             and not offline_snap.get("unresolved_uris")
@@ -373,10 +373,14 @@ def evaluate_success_criteria(
             "detail": {
                 "online_unresolved_uris": online_snap.get("unresolved_uris"),
                 "offline_unresolved_uris": offline_snap.get("unresolved_uris"),
-                "online_unallowlisted_error_count": online_errors.get("unallowlisted_error_count"),
-                "offline_unallowlisted_error_count": offline_errors.get(
-                    "unallowlisted_error_count"
+                "online_recognized_nonblocking_error_count": online_errors.get(
+                    "recognized_nonblocking_error_count"
                 ),
+                "offline_recognized_nonblocking_error_count": offline_errors.get(
+                    "recognized_nonblocking_error_count"
+                ),
+                "online_unrecognized_error_count": online_errors.get("unrecognized_error_count"),
+                "offline_unrecognized_error_count": offline_errors.get("unrecognized_error_count"),
             },
         },
         {

@@ -73,16 +73,38 @@ def test_summarize_multiplicity_deterministic() -> None:
     ]
     assert summary1["error_count"] == 2
     assert summary1["warning_count"] == 1
-    assert summary1["unallowlisted_error_count"] == 2
-    assert summary1["unallowlisted_warning_count"] == 1
+    assert summary1["recognized_nonblocking_error_count"] == 0
+    assert summary1["unrecognized_error_count"] == 2
     assert summary1["policy_passed"] is False
     assert summary1["arelle_error_policy_version"] == ARELLE_ERROR_POLICY_VERSION
 
 
-def test_summarize_empty_allowlist_is_strict_default() -> None:
-    records = [StructuredError("error", "arelle:whatever", None, None)]
-    summary = summarize_errors(records, allowed_codes=frozenset())
+def test_unknown_codes_fail_closed_recognized_pass() -> None:
+    unknown = [StructuredError("error", "arelle:whatever", None, None)]
+    summary = summarize_errors(unknown)
     assert summary["policy_passed"] is False
-    summary_ok = summarize_errors(records, allowed_codes=frozenset({"arelle:whatever"}))
+
+    recognized = [
+        StructuredError("error", "ix11.11.1.2:invalidTransformation", None, 5),
+        StructuredError("error", "ix11.11.1.2:invalidTransformation", None, 5),
+    ]
+    summary_ok = summarize_errors(recognized)
     assert summary_ok["policy_passed"] is True
-    assert summary_ok["unallowlisted_error_count"] == 0
+    assert summary_ok["recognized_nonblocking_error_count"] == 2
+    assert summary_ok["unrecognized_error_count"] == 0
+    assert summary_ok["errors"][0]["count"] == 2
+
+    mixed = recognized + unknown
+    summary_mixed = summarize_errors(mixed)
+    assert summary_mixed["policy_passed"] is False
+    assert summary_mixed["recognized_nonblocking_error_count"] == 2
+    assert summary_mixed["unrecognized_error_count"] == 1
+
+
+def test_recognized_registry_requires_explicit_override() -> None:
+    records = [StructuredError("error", "arelle:whatever", None, None)]
+    summary = summarize_errors(
+        records, recognized_nonblocking={"arelle:whatever": "justified for test"}
+    )
+    assert summary["policy_passed"] is True
+    assert summary["recognized_nonblocking_codes"] == ["arelle:whatever"]

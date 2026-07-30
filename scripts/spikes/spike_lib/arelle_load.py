@@ -629,13 +629,14 @@ def load_and_inspect(
 
         try:
             log_handler = getattr(cntlr, "logHandler", None)
-            if log_handler is not None and hasattr(log_handler, "getBuffer"):
-                raw_log = str(log_handler.getBuffer() or "")
-            else:
-                buf = getattr(cntlr, "logBuffer", None) or getattr(
-                    getattr(cntlr, "logHandler", None), "buffer", None
+            buffer = getattr(log_handler, "logRecordBuffer", None)
+            if isinstance(buffer, list):
+                # Deterministic fixed format; no timestamps.
+                raw_log = "\n".join(
+                    f"[{rec.levelname}] [{getattr(rec, 'messageCode', '') or ''}] "
+                    f"{rec.getMessage()}"
+                    for rec in buffer
                 )
-                raw_log = str(buf or "")
         except Exception:  # noqa: BLE001
             raw_log = ""
 

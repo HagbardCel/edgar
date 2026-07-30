@@ -17,7 +17,7 @@ RESOURCE_SERIALIZATION_VERSION = "xbrl-resource-v1"
 RELATIONSHIP_SERIALIZATION_VERSION = "xbrl-relationship-v1"
 SYNTHETIC_DOCUMENT_SERIALIZATION_VERSION = "synthetic-document-v1"
 SEMANTIC_RUN_SCHEMA_VERSION = "semantic-run-v1"
-ARELLE_ERROR_POLICY_VERSION = "arelle-error-policy-v1"
+ARELLE_ERROR_POLICY_VERSION = "arelle-error-policy-v2"
 
 # Evidence package contract versions.
 EVIDENCE_SCHEMA_VERSION = "evidence-v1"
