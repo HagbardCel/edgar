@@ -1,6 +1,6 @@
 # Spike 0001: Arelle offline closure
 
-**Status:** Passed (2026-07-30, v2 rebuild with authoritative URI bindings; supersedes the corrected remediation rerun below).
+**Status:** Passed (2026-07-31, v3 identity/provenance/promotion/evidence corrections; supersedes the v2 rebuild below).
 
 The earlier “10/10” recording was invalidated (copied online cache, unconditional criteria, incorrect relationship/discovery measurements). This report replaces that evidence after an independent offline replay seeded only from the immutable bundle.
 
@@ -218,3 +218,40 @@ The unsupported-arcrole inventory is exhaustive: every encountered arcrole is cl
 ### ADR impact (v2)
 
 ADR 0007 (manifest-only replay with authoritative URI bindings) is **Accepted** with this run. ADR 0004 remains Accepted; its relationship-preservation requirement is now realized with occurrence-level identities rather than aggregate set hashes.
+
+---
+
+## v3 corrections (2026-07-31): purified identities, explicit provenance, compact evidence
+
+**Status:** All 10 criteria **PASS**. Run id `20260731T065515Z-ce42ca2f`; implementation commit `261d658539113a499f95db6527ed3ddedd7ae6d8`; committed evidence under `fixtures/manifests/0001065088-24-000036/` (verified offline by `scripts/spikes/verify_evidence.py`).
+
+v3 corrects the identity and promotion contracts after the v2 review:
+
+- **Three-projection occurrence model** (`xbrl-relationship-v2` / `xbrl-resource-v2`): occurrence identity is document URI + deterministic locator only; canonical compared records carry resolved semantics and arc/resource content; diagnostic provenance (`source_line`, `xlink:label`) enters no hash. Direct non-locator concept endpoints are extraction-incomplete (Clark QName is never an occurrence identity). Inspection records are shaped as `{canonical_record, diagnostic_provenance}`; collection hashes use `canonical_record` only.
+- **Explicit URI provenance** (`acq-v2-spike`): `captured_artifact_by_local_path` associates online local paths to exact artifacts; content SHA verifies the association and never selects it. Bindings cover only replay-addressable loaded documents (25 for this fixture), not images/index/headers/complete-submission text. Primary URI selection is deterministic (accession → archive URI; external → capture-designated canonical; additional observations → `replay_alias`).
+- **Expanded manifest pointer** (`manifest-v3-spike` / `uri-bindings-v2`): pointer carries `binding_count`, `schema_version`, and `uri_identity_version`; validation is split into `validate_manifest_structure` and `validate_uri_bindings_pointer`, shared by candidate construction, offline worker, and evidence verification. Serialized binding URIs must already be canonical.
+- **Non-circular pre-promotion gate**: promotion runs only after strict online/offline equality, extraction completeness (relationships + document edges), error-policy/error-identity success, and network isolation. Promotion certifies a **single-run replay bundle**, not Criterion 9 repeat determinism. Criterion 6 tests manifest-only replay and network isolation only. Exact manifest-byte equality is required on reuse; staging is cleaned after `reused_existing`.
+- **Fail-closed extraction**: relationship-set load failures and endpoint-family mismatches fail completeness with stable codes. Generic resource arcroles `http://xbrl.org/arcrole/2008/element-label` and `http://xbrl.org/arcrole/2008/element-reference` are explicitly deferred/unsupported-failing. Document-edge extraction requires a deterministic filed reference occurrence (`closure-v1`); unrecovered referring elements fail completeness (multisets may be retained for diagnosis only).
+- **Strict structured-error comparison** (`semantic-run-v2`): online/offline equality over `code + document URI + multiplicity`; source line is evidence-only. The 51 recognized `invalidTransformation` diagnostics prove retained fact objects and stable counts/closure — not fact-value fidelity or complete fact occurrence identities.
+- **Compact evidence** (`evidence-v2` / `inspection-samples-v1`): the run writes compact `inspection-core.json`, local-only `inspection-full.json`, and mandatory `inspection-samples.json`. Committed evidence is an exact byte copy of the compact core (~5k lines vs ~874k previously). Samples are excluded from `semantic_run_hash`. The exporter verifies the full-inspection digest locally and records it as non-CI provenance. `evidence-metadata.json` is not self-hashed.
+
+### v3 hashes and counts (online = offline)
+
+| Item | Value |
+| --- | --- |
+| `payload_hash` (repeat-identical) | `aa744cbb4c56d55163f6fcf37bdd5f519f41c3f97976b55c47ea93536843909a` |
+| `closure_hash` | `32c8c2f3ed7fd01c37c5a0aa438feb875da5185f79582501caa08fd57aca020a` |
+| `semantic_run_hash` (repeat-identical) | `6a8ad055258229e56477c541eca03732962b601c631671f5c64f063f469efd49` |
+| Concept relationship occurrence hash | `180097534c9b9122dd33372c62057785f14b7232526220303c0a0b6efdff8a1f` |
+| Resource relationship occurrence hash | `f64dc0655562b24323909e84ac1b720d5f2492ce3ec024438ba864669ccd8be0` |
+| Bundle artifacts / URI bindings | 186 / 25 |
+| Concepts / contexts / units / facts | 18,527 / 521 / 9 / 2,093 |
+| Presentation / calculation / definition | 1,516 / 241 / 1,801 |
+| Concept-label / concept-reference | 2,190 / 0 |
+| Closure documents / discovery edges | 25 / 79 |
+| Unstable endpoints / edge extraction incomplete / duplicate inconsistencies | 0 / 0 / 0 |
+| Recognized non-blocking diagnostics (ix transforms) | 51 (multiplicity preserved) |
+
+### ADR impact (v3)
+
+ADR 0007 remains **Accepted** and is amended for the v3 contracts (three-projection identities, explicit provenance, non-circular gate with single-run certification, compact non-self-referential evidence, deferred 2008 generic arcroles).

@@ -1,7 +1,7 @@
 {
-  "closure_hash": "81676fc69be3a570948a3ad53d29bc3e3795c9e7ff28e1e5b73da7345454b79e",
+  "closure_hash": "32c8c2f3ed7fd01c37c5a0aa438feb875da5185f79582501caa08fd57aca020a",
   "concept_count": 18527,
-  "concept_relationship_occurrence_hash": "06554a5ce0b400aa253a5959e9ad5dd353c330bded83aa47b14efdb26b34f8b2",
+  "concept_relationship_occurrence_hash": "180097534c9b9122dd33372c62057785f14b7232526220303c0a0b6efdff8a1f",
   "context_count": 521,
   "criteria_passed": {
     "1": true,
@@ -15,21 +15,37 @@
     "8": true,
     "9": true
   },
+  "document_edge_extraction": {
+    "document_conflict_count": 0,
+    "extraction_complete": true,
+    "failure_records": [],
+    "unresolved_reference_attribute_count": 0,
+    "unstable_reference_occurrence_count": 0
+  },
   "extraction": {
+    "base_set_load_failure_count": 0,
+    "base_set_load_failures": [],
     "duplicate_occurrence_inconsistency_count": 0,
+    "endpoint_family_failure_count": 0,
+    "endpoint_family_failure_records": [],
     "extraction_complete": true,
     "unstable_endpoint_occurrence_count": 0,
     "unsupported_failing_relationship_count": 0
   },
   "fact_count": 2093,
-  "offline_concept_relationship_occurrence_hash": "06554a5ce0b400aa253a5959e9ad5dd353c330bded83aa47b14efdb26b34f8b2",
-  "offline_resource_relationship_occurrence_hash": "a0a23b5bbccd8f43f506c1cc78056a0afc7de7417bf3e2384e0b2514be48d412",
-  "payload_hash": "707e77bf5ce3fa2a7235446a151e4f0d30f057c7d8a8e6ba7030008332b81e59",
-  "resource_relationship_occurrence_hash": "a0a23b5bbccd8f43f506c1cc78056a0afc7de7417bf3e2384e0b2514be48d412",
-  "semantic_run_hash": "399e95c3385f5df9df9571ffd1f1eb4dc688f7d62705db8a45480dcb5283b05f",
-  "semantic_run_schema_version": "semantic-run-v1",
+  "offline_concept_relationship_occurrence_hash": "180097534c9b9122dd33372c62057785f14b7232526220303c0a0b6efdff8a1f",
+  "offline_resource_relationship_occurrence_hash": "f64dc0655562b24323909e84ac1b720d5f2492ce3ec024438ba864669ccd8be0",
+  "payload_hash": "aa744cbb4c56d55163f6fcf37bdd5f519f41c3f97976b55c47ea93536843909a",
+  "resource_relationship_occurrence_hash": "f64dc0655562b24323909e84ac1b720d5f2492ce3ec024438ba864669ccd8be0",
+  "semantic_run_hash": "6a8ad055258229e56477c541eca03732962b601c631671f5c64f063f469efd49",
+  "semantic_run_schema_version": "semantic-run-v2",
   "unit_count": 9,
   "unsupported_inventory": {
+    "deferred_arcrole_counts": {},
+    "deferred_generic_resource_arcroles": [
+      "http://xbrl.org/arcrole/2008/element-label",
+      "http://xbrl.org/arcrole/2008/element-reference"
+    ],
     "encountered_arcrole_counts": {
       "http://www.xbrl.org/2003/arcrole/concept-label": 2190,
       "http://www.xbrl.org/2003/arcrole/parent-child": 1516,

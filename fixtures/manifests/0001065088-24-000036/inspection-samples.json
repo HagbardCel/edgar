@@ -1,0 +1,1947 @@
+{
+  "offline": {
+    "concept_records": [
+      {
+        "arc_occurrence_hash": "0021d5800befe4ca0cebc11b8fe395f6d8f120756076dad64cadf05249667cb8",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/parent-child",
+        "canonical_record": {
+          "arc_occurrence_hash": "0021d5800befe4ca0cebc11b8fe395f6d8f120756076dad64cadf05249667cb8",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/parent-child",
+          "closed": null,
+          "context_element": null,
+          "link_role_uri": "http://www.ebay.com/role/DebtFutureMaturitiesNarrativeDetails",
+          "network_type": "presentation",
+          "order": "3.0",
+          "preferred_label_role": "http://www.xbrl.org/2003/role/terseLabel",
+          "relationship_occurrence_hash": "af49209ac62caacbcf47b1965f217ca4dd12fa4f07f366a6bfff437c916e022e",
+          "source_concept": "{http://fasb.org/us-gaap/2023}DebtInstrumentLineItems",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}presentationLink",
+                    99
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    10
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "921288cc1ac1488550e3d69a365297f3b4c572679d352139da8423522a5f893a"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}DebtInstrumentLineItems",
+            "kind": "concept"
+          },
+          "target_concept": "{http://fasb.org/us-gaap/2023}RepaymentsOfDebt",
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}presentationLink",
+                    99
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    13
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "85767ebfac9615a0e4cd2d600d393111fb775b9cb9f50fd0bcc0a7365331ba75"
+          },
+          "target_role": null,
+          "target_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}RepaymentsOfDebt",
+            "kind": "concept"
+          },
+          "usable": null,
+          "weight": null
+        },
+        "closed": null,
+        "context_element": null,
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 2717
+          },
+          "source_locator_provenance": {
+            "source_line": 2710,
+            "xlink_label": "loc_us-gaap_DebtInstrumentLineItems_aca873e3-e217-474a-a0ce-2f921e706baf"
+          },
+          "target_locator_provenance": {
+            "source_line": 2716,
+            "xlink_label": "loc_us-gaap_RepaymentsOfDebt_c1db907e-525d-4660-a370-08964cd493f3"
+          }
+        },
+        "link_role_uri": "http://www.ebay.com/role/DebtFutureMaturitiesNarrativeDetails",
+        "network_type": "presentation",
+        "order": "3.0",
+        "preferred_label_role": "http://www.xbrl.org/2003/role/terseLabel",
+        "relationship_occurrence_hash": "af49209ac62caacbcf47b1965f217ca4dd12fa4f07f366a6bfff437c916e022e",
+        "source_concept": "{http://fasb.org/us-gaap/2023}DebtInstrumentLineItems",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}presentationLink",
+                  99
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  10
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "921288cc1ac1488550e3d69a365297f3b4c572679d352139da8423522a5f893a"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}DebtInstrumentLineItems",
+          "kind": "concept"
+        },
+        "target_concept": "{http://fasb.org/us-gaap/2023}RepaymentsOfDebt",
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}presentationLink",
+                  99
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  13
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "85767ebfac9615a0e4cd2d600d393111fb775b9cb9f50fd0bcc0a7365331ba75"
+        },
+        "target_role": null,
+        "target_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}RepaymentsOfDebt",
+          "kind": "concept"
+        },
+        "usable": null,
+        "weight": null
+      },
+      {
+        "arc_occurrence_hash": "0022ef4647c2f6d4e88cf0e811b5420baa76045f6d4827fb3c0012fe831b0e54",
+        "arcrole_uri": "http://xbrl.org/int/dim/arcrole/domain-member",
+        "canonical_record": {
+          "arc_occurrence_hash": "0022ef4647c2f6d4e88cf0e811b5420baa76045f6d4827fb3c0012fe831b0e54",
+          "arcrole_uri": "http://xbrl.org/int/dim/arcrole/domain-member",
+          "closed": null,
+          "context_element": null,
+          "link_role_uri": "http://fasb.org/us-gaap/role/eedm/ExtensibleEnumerationLists",
+          "network_type": "definition",
+          "order": "10.0",
+          "preferred_label_role": null,
+          "relationship_occurrence_hash": "56e7fff50a59212eeaea907f3625792fdc64f4a60aea2d79d82d633e30637e14",
+          "source_concept": "{http://fasb.org/us-gaap/2023}LiabilitiesCurrentAbstract",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}schema",
+                    1
+                  ],
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}annotation",
+                    1
+                  ],
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}appinfo",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}definitionLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    313
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "93601636036122d93742b72d5f86ba2fc6e02ef42ddfa8312dcdab83bac5aa9c"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}LiabilitiesCurrentAbstract",
+            "kind": "concept"
+          },
+          "target_concept": "{http://fasb.org/us-gaap/2023}AccountsPayableAndAccruedLiabilitiesCurrent",
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}schema",
+                    1
+                  ],
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}annotation",
+                    1
+                  ],
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}appinfo",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}definitionLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    314
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "da032529355cbd2804be104ec4890dd47ec594f79012c7a8944c72eee7f685a1"
+          },
+          "target_role": null,
+          "target_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}AccountsPayableAndAccruedLiabilitiesCurrent",
+            "kind": "concept"
+          },
+          "usable": null,
+          "weight": null
+        },
+        "closed": null,
+        "context_element": null,
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 956
+          },
+          "source_locator_provenance": {
+            "source_line": 338,
+            "xlink_label": "loc_LiabilitiesCurrentAbstract"
+          },
+          "target_locator_provenance": {
+            "source_line": 339,
+            "xlink_label": "loc_AccountsPayableAndAccruedLiabilitiesCurrent"
+          }
+        },
+        "link_role_uri": "http://fasb.org/us-gaap/role/eedm/ExtensibleEnumerationLists",
+        "network_type": "definition",
+        "order": "10.0",
+        "preferred_label_role": null,
+        "relationship_occurrence_hash": "56e7fff50a59212eeaea907f3625792fdc64f4a60aea2d79d82d633e30637e14",
+        "source_concept": "{http://fasb.org/us-gaap/2023}LiabilitiesCurrentAbstract",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.w3.org/2001/XMLSchema}schema",
+                  1
+                ],
+                [
+                  "{http://www.w3.org/2001/XMLSchema}annotation",
+                  1
+                ],
+                [
+                  "{http://www.w3.org/2001/XMLSchema}appinfo",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}definitionLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  313
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "93601636036122d93742b72d5f86ba2fc6e02ef42ddfa8312dcdab83bac5aa9c"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}LiabilitiesCurrentAbstract",
+          "kind": "concept"
+        },
+        "target_concept": "{http://fasb.org/us-gaap/2023}AccountsPayableAndAccruedLiabilitiesCurrent",
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.w3.org/2001/XMLSchema}schema",
+                  1
+                ],
+                [
+                  "{http://www.w3.org/2001/XMLSchema}annotation",
+                  1
+                ],
+                [
+                  "{http://www.w3.org/2001/XMLSchema}appinfo",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}definitionLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  314
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "da032529355cbd2804be104ec4890dd47ec594f79012c7a8944c72eee7f685a1"
+        },
+        "target_role": null,
+        "target_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}AccountsPayableAndAccruedLiabilitiesCurrent",
+          "kind": "concept"
+        },
+        "usable": null,
+        "weight": null
+      },
+      {
+        "arc_occurrence_hash": "0029c8c6e9db7ca2918af453ffb51303fd50ecedaa3d230dd25e373b6bce51e5",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+        "canonical_record": {
+          "arc_occurrence_hash": "0029c8c6e9db7ca2918af453ffb51303fd50ecedaa3d230dd25e373b6bce51e5",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+          "closed": null,
+          "context_element": null,
+          "link_role_uri": "http://www.ebay.com/role/AccumulatedOtherComprehensiveIncomeChangesinAccumulatedBalancesofOtherComprehensiveIncomeDetails",
+          "network_type": "calculation",
+          "order": "2.0",
+          "preferred_label_role": null,
+          "relationship_occurrence_hash": "e55211a9ab5f9d5354ff6f1721d9ffac2382a60a9f7d4992618b30f2f553059b",
+          "source_concept": "{http://fasb.org/us-gaap/2023}OtherComprehensiveIncomeLossTaxPortionAttributableToParent1",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}calculationLink",
+                    30
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    7
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "dc3d5ea520e9087d43c0e9162c84dc7fc3dfae71070eaf5de80b16fed44037d3"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}OtherComprehensiveIncomeLossTaxPortionAttributableToParent1",
+            "kind": "concept"
+          },
+          "target_concept": "{http://fasb.org/us-gaap/2023}ReclassificationFromAociCurrentPeriodTax",
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}calculationLink",
+                    30
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    9
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "bc27c431e4c35dfbb0c619efcffd76a3ed13e13841c19b429cc913ac1f3b9af6"
+          },
+          "target_role": null,
+          "target_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}ReclassificationFromAociCurrentPeriodTax",
+            "kind": "concept"
+          },
+          "usable": null,
+          "weight": "-1.0"
+        },
+        "closed": null,
+        "context_element": null,
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 641
+          },
+          "source_locator_provenance": {
+            "source_line": 637,
+            "xlink_label": "loc_us-gaap_OtherComprehensiveIncomeLossTaxPortionAttributableToParent1_27e5d09a-efca-4404-9dfc-8338b25f12db"
+          },
+          "target_locator_provenance": {
+            "source_line": 640,
+            "xlink_label": "loc_us-gaap_ReclassificationFromAociCurrentPeriodTax_b7ed7762-5e56-48ea-9d42-8e1d31dc2969"
+          }
+        },
+        "link_role_uri": "http://www.ebay.com/role/AccumulatedOtherComprehensiveIncomeChangesinAccumulatedBalancesofOtherComprehensiveIncomeDetails",
+        "network_type": "calculation",
+        "order": "2.0",
+        "preferred_label_role": null,
+        "relationship_occurrence_hash": "e55211a9ab5f9d5354ff6f1721d9ffac2382a60a9f7d4992618b30f2f553059b",
+        "source_concept": "{http://fasb.org/us-gaap/2023}OtherComprehensiveIncomeLossTaxPortionAttributableToParent1",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}calculationLink",
+                  30
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  7
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "dc3d5ea520e9087d43c0e9162c84dc7fc3dfae71070eaf5de80b16fed44037d3"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}OtherComprehensiveIncomeLossTaxPortionAttributableToParent1",
+          "kind": "concept"
+        },
+        "target_concept": "{http://fasb.org/us-gaap/2023}ReclassificationFromAociCurrentPeriodTax",
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}calculationLink",
+                  30
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  9
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "bc27c431e4c35dfbb0c619efcffd76a3ed13e13841c19b429cc913ac1f3b9af6"
+        },
+        "target_role": null,
+        "target_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}ReclassificationFromAociCurrentPeriodTax",
+          "kind": "concept"
+        },
+        "usable": null,
+        "weight": "-1.0"
+      }
+    ],
+    "resource_records": [
+      {
+        "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+        "canonical_record": {
+          "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+          "link_role_uri": "http://www.xbrl.org/2003/role/link",
+          "network_type": "resource",
+          "order": "1.0",
+          "relationship_occurrence_hash": "3d8e678e56edadd5138e2c8851e229f1f470af26d376a519dd7fad4e581a05fb",
+          "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+          "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1",
+          "resource_relationship_kind": "concept_label",
+          "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}labelLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    234
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+            "kind": "concept"
+          },
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "local_resource",
+            "endpoint_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+          },
+          "target_semantic_identity": {
+            "kind": "resource",
+            "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+            "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+          }
+        },
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 1010
+          },
+          "resource_diagnostic_provenance": {
+            "source_line": 1007,
+            "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          },
+          "resource_full": {
+            "canonical_record": {
+              "resource_content": {
+                "lang": "en-US",
+                "resource_type": "label",
+                "role_uri": "http://www.xbrl.org/2003/role/label",
+                "text": "Accrued General And Administrative Expenses, Current"
+              },
+              "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+              "resource_occurrence": {
+                "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+                "locator": {
+                  "kind": "unqualified_id",
+                  "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_label_en-US"
+                }
+              },
+              "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+            },
+            "diagnostic_provenance": {
+              "source_line": 1007,
+              "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+            },
+            "resource_content": {
+              "lang": "en-US",
+              "resource_type": "label",
+              "role_uri": "http://www.xbrl.org/2003/role/label",
+              "text": "Accrued General And Administrative Expenses, Current"
+            },
+            "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+            "resource_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "unqualified_id",
+                "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_label_en-US"
+              }
+            },
+            "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+          },
+          "source_locator_provenance": {
+            "source_line": 1009,
+            "xlink_label": "loc_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          }
+        },
+        "link_role_uri": "http://www.xbrl.org/2003/role/link",
+        "network_type": "resource",
+        "order": "1.0",
+        "relationship_occurrence_hash": "3d8e678e56edadd5138e2c8851e229f1f470af26d376a519dd7fad4e581a05fb",
+        "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+        "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1",
+        "resource_relationship_kind": "concept_label",
+        "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}labelLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  234
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "kind": "concept"
+        },
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "local_resource",
+          "endpoint_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+        },
+        "target_semantic_identity": {
+          "kind": "resource",
+          "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+          "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+        }
+      },
+      {
+        "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+        "canonical_record": {
+          "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+          "link_role_uri": "http://www.xbrl.org/2003/role/link",
+          "network_type": "resource",
+          "order": "1.0",
+          "relationship_occurrence_hash": "584398450629a8ea4f15c9073271a74391c6af4bd53889dcda68d205d9d0c920",
+          "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+          "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583",
+          "resource_relationship_kind": "concept_label",
+          "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}labelLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    234
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+            "kind": "concept"
+          },
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "local_resource",
+            "endpoint_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+          },
+          "target_semantic_identity": {
+            "kind": "resource",
+            "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+            "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+          }
+        },
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 1010
+          },
+          "resource_diagnostic_provenance": {
+            "source_line": 1006,
+            "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          },
+          "resource_full": {
+            "canonical_record": {
+              "resource_content": {
+                "lang": "en-US",
+                "resource_type": "label",
+                "role_uri": "http://www.xbrl.org/2003/role/terseLabel",
+                "text": "Accrued general and administrative expenses"
+              },
+              "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+              "resource_occurrence": {
+                "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+                "locator": {
+                  "kind": "unqualified_id",
+                  "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_d67818a4-ae59-4d94-a318-9a237193d331_terseLabel_en-US"
+                }
+              },
+              "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+            },
+            "diagnostic_provenance": {
+              "source_line": 1006,
+              "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+            },
+            "resource_content": {
+              "lang": "en-US",
+              "resource_type": "label",
+              "role_uri": "http://www.xbrl.org/2003/role/terseLabel",
+              "text": "Accrued general and administrative expenses"
+            },
+            "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+            "resource_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "unqualified_id",
+                "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_d67818a4-ae59-4d94-a318-9a237193d331_terseLabel_en-US"
+              }
+            },
+            "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+          },
+          "source_locator_provenance": {
+            "source_line": 1009,
+            "xlink_label": "loc_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          }
+        },
+        "link_role_uri": "http://www.xbrl.org/2003/role/link",
+        "network_type": "resource",
+        "order": "1.0",
+        "relationship_occurrence_hash": "584398450629a8ea4f15c9073271a74391c6af4bd53889dcda68d205d9d0c920",
+        "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+        "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583",
+        "resource_relationship_kind": "concept_label",
+        "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}labelLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  234
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "kind": "concept"
+        },
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "local_resource",
+          "endpoint_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+        },
+        "target_semantic_identity": {
+          "kind": "resource",
+          "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+          "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+        }
+      },
+      {
+        "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+        "canonical_record": {
+          "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+          "link_role_uri": "http://www.xbrl.org/2003/role/link",
+          "network_type": "resource",
+          "order": "1.0",
+          "relationship_occurrence_hash": "bc1a5231f7a6e3ff153e7cca428386868f4195bdf581693c9cb638c5cc692fff",
+          "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+          "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d",
+          "resource_relationship_kind": "concept_label",
+          "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}labelLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    234
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+            "kind": "concept"
+          },
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "local_resource",
+            "endpoint_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+          },
+          "target_semantic_identity": {
+            "kind": "resource",
+            "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+            "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+          }
+        },
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 1010
+          },
+          "resource_diagnostic_provenance": {
+            "source_line": 1008,
+            "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          },
+          "resource_full": {
+            "canonical_record": {
+              "resource_content": {
+                "lang": "en-US",
+                "resource_type": "label",
+                "role_uri": "http://www.xbrl.org/2003/role/documentation",
+                "text": "Accrued General And Administrative Expenses, Current"
+              },
+              "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+              "resource_occurrence": {
+                "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+                "locator": {
+                  "kind": "unqualified_id",
+                  "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_documentation_en-US"
+                }
+              },
+              "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+            },
+            "diagnostic_provenance": {
+              "source_line": 1008,
+              "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+            },
+            "resource_content": {
+              "lang": "en-US",
+              "resource_type": "label",
+              "role_uri": "http://www.xbrl.org/2003/role/documentation",
+              "text": "Accrued General And Administrative Expenses, Current"
+            },
+            "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+            "resource_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "unqualified_id",
+                "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_documentation_en-US"
+              }
+            },
+            "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+          },
+          "source_locator_provenance": {
+            "source_line": 1009,
+            "xlink_label": "loc_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          }
+        },
+        "link_role_uri": "http://www.xbrl.org/2003/role/link",
+        "network_type": "resource",
+        "order": "1.0",
+        "relationship_occurrence_hash": "bc1a5231f7a6e3ff153e7cca428386868f4195bdf581693c9cb638c5cc692fff",
+        "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+        "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d",
+        "resource_relationship_kind": "concept_label",
+        "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}labelLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  234
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "kind": "concept"
+        },
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "local_resource",
+          "endpoint_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+        },
+        "target_semantic_identity": {
+          "kind": "resource",
+          "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+          "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+        }
+      }
+    ]
+  },
+  "online": {
+    "concept_records": [
+      {
+        "arc_occurrence_hash": "0021d5800befe4ca0cebc11b8fe395f6d8f120756076dad64cadf05249667cb8",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/parent-child",
+        "canonical_record": {
+          "arc_occurrence_hash": "0021d5800befe4ca0cebc11b8fe395f6d8f120756076dad64cadf05249667cb8",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/parent-child",
+          "closed": null,
+          "context_element": null,
+          "link_role_uri": "http://www.ebay.com/role/DebtFutureMaturitiesNarrativeDetails",
+          "network_type": "presentation",
+          "order": "3.0",
+          "preferred_label_role": "http://www.xbrl.org/2003/role/terseLabel",
+          "relationship_occurrence_hash": "af49209ac62caacbcf47b1965f217ca4dd12fa4f07f366a6bfff437c916e022e",
+          "source_concept": "{http://fasb.org/us-gaap/2023}DebtInstrumentLineItems",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}presentationLink",
+                    99
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    10
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "921288cc1ac1488550e3d69a365297f3b4c572679d352139da8423522a5f893a"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}DebtInstrumentLineItems",
+            "kind": "concept"
+          },
+          "target_concept": "{http://fasb.org/us-gaap/2023}RepaymentsOfDebt",
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}presentationLink",
+                    99
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    13
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "85767ebfac9615a0e4cd2d600d393111fb775b9cb9f50fd0bcc0a7365331ba75"
+          },
+          "target_role": null,
+          "target_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}RepaymentsOfDebt",
+            "kind": "concept"
+          },
+          "usable": null,
+          "weight": null
+        },
+        "closed": null,
+        "context_element": null,
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 2717
+          },
+          "source_locator_provenance": {
+            "source_line": 2710,
+            "xlink_label": "loc_us-gaap_DebtInstrumentLineItems_aca873e3-e217-474a-a0ce-2f921e706baf"
+          },
+          "target_locator_provenance": {
+            "source_line": 2716,
+            "xlink_label": "loc_us-gaap_RepaymentsOfDebt_c1db907e-525d-4660-a370-08964cd493f3"
+          }
+        },
+        "link_role_uri": "http://www.ebay.com/role/DebtFutureMaturitiesNarrativeDetails",
+        "network_type": "presentation",
+        "order": "3.0",
+        "preferred_label_role": "http://www.xbrl.org/2003/role/terseLabel",
+        "relationship_occurrence_hash": "af49209ac62caacbcf47b1965f217ca4dd12fa4f07f366a6bfff437c916e022e",
+        "source_concept": "{http://fasb.org/us-gaap/2023}DebtInstrumentLineItems",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}presentationLink",
+                  99
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  10
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "921288cc1ac1488550e3d69a365297f3b4c572679d352139da8423522a5f893a"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}DebtInstrumentLineItems",
+          "kind": "concept"
+        },
+        "target_concept": "{http://fasb.org/us-gaap/2023}RepaymentsOfDebt",
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}presentationLink",
+                  99
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  13
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "85767ebfac9615a0e4cd2d600d393111fb775b9cb9f50fd0bcc0a7365331ba75"
+        },
+        "target_role": null,
+        "target_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}RepaymentsOfDebt",
+          "kind": "concept"
+        },
+        "usable": null,
+        "weight": null
+      },
+      {
+        "arc_occurrence_hash": "0022ef4647c2f6d4e88cf0e811b5420baa76045f6d4827fb3c0012fe831b0e54",
+        "arcrole_uri": "http://xbrl.org/int/dim/arcrole/domain-member",
+        "canonical_record": {
+          "arc_occurrence_hash": "0022ef4647c2f6d4e88cf0e811b5420baa76045f6d4827fb3c0012fe831b0e54",
+          "arcrole_uri": "http://xbrl.org/int/dim/arcrole/domain-member",
+          "closed": null,
+          "context_element": null,
+          "link_role_uri": "http://fasb.org/us-gaap/role/eedm/ExtensibleEnumerationLists",
+          "network_type": "definition",
+          "order": "10.0",
+          "preferred_label_role": null,
+          "relationship_occurrence_hash": "56e7fff50a59212eeaea907f3625792fdc64f4a60aea2d79d82d633e30637e14",
+          "source_concept": "{http://fasb.org/us-gaap/2023}LiabilitiesCurrentAbstract",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}schema",
+                    1
+                  ],
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}annotation",
+                    1
+                  ],
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}appinfo",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}definitionLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    313
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "93601636036122d93742b72d5f86ba2fc6e02ef42ddfa8312dcdab83bac5aa9c"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}LiabilitiesCurrentAbstract",
+            "kind": "concept"
+          },
+          "target_concept": "{http://fasb.org/us-gaap/2023}AccountsPayableAndAccruedLiabilitiesCurrent",
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}schema",
+                    1
+                  ],
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}annotation",
+                    1
+                  ],
+                  [
+                    "{http://www.w3.org/2001/XMLSchema}appinfo",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}definitionLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    314
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "da032529355cbd2804be104ec4890dd47ec594f79012c7a8944c72eee7f685a1"
+          },
+          "target_role": null,
+          "target_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}AccountsPayableAndAccruedLiabilitiesCurrent",
+            "kind": "concept"
+          },
+          "usable": null,
+          "weight": null
+        },
+        "closed": null,
+        "context_element": null,
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 956
+          },
+          "source_locator_provenance": {
+            "source_line": 338,
+            "xlink_label": "loc_LiabilitiesCurrentAbstract"
+          },
+          "target_locator_provenance": {
+            "source_line": 339,
+            "xlink_label": "loc_AccountsPayableAndAccruedLiabilitiesCurrent"
+          }
+        },
+        "link_role_uri": "http://fasb.org/us-gaap/role/eedm/ExtensibleEnumerationLists",
+        "network_type": "definition",
+        "order": "10.0",
+        "preferred_label_role": null,
+        "relationship_occurrence_hash": "56e7fff50a59212eeaea907f3625792fdc64f4a60aea2d79d82d633e30637e14",
+        "source_concept": "{http://fasb.org/us-gaap/2023}LiabilitiesCurrentAbstract",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.w3.org/2001/XMLSchema}schema",
+                  1
+                ],
+                [
+                  "{http://www.w3.org/2001/XMLSchema}annotation",
+                  1
+                ],
+                [
+                  "{http://www.w3.org/2001/XMLSchema}appinfo",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}definitionLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  313
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "93601636036122d93742b72d5f86ba2fc6e02ef42ddfa8312dcdab83bac5aa9c"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}LiabilitiesCurrentAbstract",
+          "kind": "concept"
+        },
+        "target_concept": "{http://fasb.org/us-gaap/2023}AccountsPayableAndAccruedLiabilitiesCurrent",
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.w3.org/2001/XMLSchema}schema",
+                  1
+                ],
+                [
+                  "{http://www.w3.org/2001/XMLSchema}annotation",
+                  1
+                ],
+                [
+                  "{http://www.w3.org/2001/XMLSchema}appinfo",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}definitionLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  314
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "da032529355cbd2804be104ec4890dd47ec594f79012c7a8944c72eee7f685a1"
+        },
+        "target_role": null,
+        "target_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}AccountsPayableAndAccruedLiabilitiesCurrent",
+          "kind": "concept"
+        },
+        "usable": null,
+        "weight": null
+      },
+      {
+        "arc_occurrence_hash": "0029c8c6e9db7ca2918af453ffb51303fd50ecedaa3d230dd25e373b6bce51e5",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+        "canonical_record": {
+          "arc_occurrence_hash": "0029c8c6e9db7ca2918af453ffb51303fd50ecedaa3d230dd25e373b6bce51e5",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+          "closed": null,
+          "context_element": null,
+          "link_role_uri": "http://www.ebay.com/role/AccumulatedOtherComprehensiveIncomeChangesinAccumulatedBalancesofOtherComprehensiveIncomeDetails",
+          "network_type": "calculation",
+          "order": "2.0",
+          "preferred_label_role": null,
+          "relationship_occurrence_hash": "e55211a9ab5f9d5354ff6f1721d9ffac2382a60a9f7d4992618b30f2f553059b",
+          "source_concept": "{http://fasb.org/us-gaap/2023}OtherComprehensiveIncomeLossTaxPortionAttributableToParent1",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}calculationLink",
+                    30
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    7
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "dc3d5ea520e9087d43c0e9162c84dc7fc3dfae71070eaf5de80b16fed44037d3"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}OtherComprehensiveIncomeLossTaxPortionAttributableToParent1",
+            "kind": "concept"
+          },
+          "target_concept": "{http://fasb.org/us-gaap/2023}ReclassificationFromAociCurrentPeriodTax",
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}calculationLink",
+                    30
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    9
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "bc27c431e4c35dfbb0c619efcffd76a3ed13e13841c19b429cc913ac1f3b9af6"
+          },
+          "target_role": null,
+          "target_semantic_identity": {
+            "expanded_qname": "{http://fasb.org/us-gaap/2023}ReclassificationFromAociCurrentPeriodTax",
+            "kind": "concept"
+          },
+          "usable": null,
+          "weight": "-1.0"
+        },
+        "closed": null,
+        "context_element": null,
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 641
+          },
+          "source_locator_provenance": {
+            "source_line": 637,
+            "xlink_label": "loc_us-gaap_OtherComprehensiveIncomeLossTaxPortionAttributableToParent1_27e5d09a-efca-4404-9dfc-8338b25f12db"
+          },
+          "target_locator_provenance": {
+            "source_line": 640,
+            "xlink_label": "loc_us-gaap_ReclassificationFromAociCurrentPeriodTax_b7ed7762-5e56-48ea-9d42-8e1d31dc2969"
+          }
+        },
+        "link_role_uri": "http://www.ebay.com/role/AccumulatedOtherComprehensiveIncomeChangesinAccumulatedBalancesofOtherComprehensiveIncomeDetails",
+        "network_type": "calculation",
+        "order": "2.0",
+        "preferred_label_role": null,
+        "relationship_occurrence_hash": "e55211a9ab5f9d5354ff6f1721d9ffac2382a60a9f7d4992618b30f2f553059b",
+        "source_concept": "{http://fasb.org/us-gaap/2023}OtherComprehensiveIncomeLossTaxPortionAttributableToParent1",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}calculationLink",
+                  30
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  7
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "dc3d5ea520e9087d43c0e9162c84dc7fc3dfae71070eaf5de80b16fed44037d3"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}OtherComprehensiveIncomeLossTaxPortionAttributableToParent1",
+          "kind": "concept"
+        },
+        "target_concept": "{http://fasb.org/us-gaap/2023}ReclassificationFromAociCurrentPeriodTax",
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}calculationLink",
+                  30
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  9
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "bc27c431e4c35dfbb0c619efcffd76a3ed13e13841c19b429cc913ac1f3b9af6"
+        },
+        "target_role": null,
+        "target_semantic_identity": {
+          "expanded_qname": "{http://fasb.org/us-gaap/2023}ReclassificationFromAociCurrentPeriodTax",
+          "kind": "concept"
+        },
+        "usable": null,
+        "weight": "-1.0"
+      }
+    ],
+    "resource_records": [
+      {
+        "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+        "canonical_record": {
+          "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+          "link_role_uri": "http://www.xbrl.org/2003/role/link",
+          "network_type": "resource",
+          "order": "1.0",
+          "relationship_occurrence_hash": "3d8e678e56edadd5138e2c8851e229f1f470af26d376a519dd7fad4e581a05fb",
+          "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+          "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1",
+          "resource_relationship_kind": "concept_label",
+          "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}labelLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    234
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+            "kind": "concept"
+          },
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "local_resource",
+            "endpoint_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+          },
+          "target_semantic_identity": {
+            "kind": "resource",
+            "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+            "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+          }
+        },
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 1010
+          },
+          "resource_diagnostic_provenance": {
+            "source_line": 1007,
+            "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          },
+          "resource_full": {
+            "canonical_record": {
+              "resource_content": {
+                "lang": "en-US",
+                "resource_type": "label",
+                "role_uri": "http://www.xbrl.org/2003/role/label",
+                "text": "Accrued General And Administrative Expenses, Current"
+              },
+              "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+              "resource_occurrence": {
+                "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+                "locator": {
+                  "kind": "unqualified_id",
+                  "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_label_en-US"
+                }
+              },
+              "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+            },
+            "diagnostic_provenance": {
+              "source_line": 1007,
+              "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+            },
+            "resource_content": {
+              "lang": "en-US",
+              "resource_type": "label",
+              "role_uri": "http://www.xbrl.org/2003/role/label",
+              "text": "Accrued General And Administrative Expenses, Current"
+            },
+            "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+            "resource_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "unqualified_id",
+                "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_label_en-US"
+              }
+            },
+            "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+          },
+          "source_locator_provenance": {
+            "source_line": 1009,
+            "xlink_label": "loc_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          }
+        },
+        "link_role_uri": "http://www.xbrl.org/2003/role/link",
+        "network_type": "resource",
+        "order": "1.0",
+        "relationship_occurrence_hash": "3d8e678e56edadd5138e2c8851e229f1f470af26d376a519dd7fad4e581a05fb",
+        "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+        "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1",
+        "resource_relationship_kind": "concept_label",
+        "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}labelLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  234
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "kind": "concept"
+        },
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "local_resource",
+          "endpoint_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+        },
+        "target_semantic_identity": {
+          "kind": "resource",
+          "resource_content_hash": "3b54a4fe0336b2555c374e55634ce7a085a678f291f4fb49233816aa7b9a8066",
+          "resource_occurrence_hash": "5350f4b60adcb719f00cc5aba9e9ee22a0c898f22ae71936b91e874c0f61b4a1"
+        }
+      },
+      {
+        "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+        "canonical_record": {
+          "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+          "link_role_uri": "http://www.xbrl.org/2003/role/link",
+          "network_type": "resource",
+          "order": "1.0",
+          "relationship_occurrence_hash": "584398450629a8ea4f15c9073271a74391c6af4bd53889dcda68d205d9d0c920",
+          "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+          "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583",
+          "resource_relationship_kind": "concept_label",
+          "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}labelLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    234
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+            "kind": "concept"
+          },
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "local_resource",
+            "endpoint_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+          },
+          "target_semantic_identity": {
+            "kind": "resource",
+            "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+            "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+          }
+        },
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 1010
+          },
+          "resource_diagnostic_provenance": {
+            "source_line": 1006,
+            "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          },
+          "resource_full": {
+            "canonical_record": {
+              "resource_content": {
+                "lang": "en-US",
+                "resource_type": "label",
+                "role_uri": "http://www.xbrl.org/2003/role/terseLabel",
+                "text": "Accrued general and administrative expenses"
+              },
+              "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+              "resource_occurrence": {
+                "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+                "locator": {
+                  "kind": "unqualified_id",
+                  "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_d67818a4-ae59-4d94-a318-9a237193d331_terseLabel_en-US"
+                }
+              },
+              "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+            },
+            "diagnostic_provenance": {
+              "source_line": 1006,
+              "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+            },
+            "resource_content": {
+              "lang": "en-US",
+              "resource_type": "label",
+              "role_uri": "http://www.xbrl.org/2003/role/terseLabel",
+              "text": "Accrued general and administrative expenses"
+            },
+            "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+            "resource_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "unqualified_id",
+                "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_d67818a4-ae59-4d94-a318-9a237193d331_terseLabel_en-US"
+              }
+            },
+            "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+          },
+          "source_locator_provenance": {
+            "source_line": 1009,
+            "xlink_label": "loc_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          }
+        },
+        "link_role_uri": "http://www.xbrl.org/2003/role/link",
+        "network_type": "resource",
+        "order": "1.0",
+        "relationship_occurrence_hash": "584398450629a8ea4f15c9073271a74391c6af4bd53889dcda68d205d9d0c920",
+        "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+        "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583",
+        "resource_relationship_kind": "concept_label",
+        "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}labelLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  234
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "kind": "concept"
+        },
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "local_resource",
+          "endpoint_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+        },
+        "target_semantic_identity": {
+          "kind": "resource",
+          "resource_content_hash": "596356409ceea83eae5ff90a2df795544503377d7c784d60bfe447fe94203ffa",
+          "resource_occurrence_hash": "995b271c9b35eca54e750783d48f6d3a4caa390cf2ccbffbaad295ed4183c583"
+        }
+      },
+      {
+        "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+        "canonical_record": {
+          "arc_occurrence_hash": "00b8cb6fb97c4abc18a486c51ed619bc5cc9031af75cdaf504db20dc79d24643",
+          "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-label",
+          "link_role_uri": "http://www.xbrl.org/2003/role/link",
+          "network_type": "resource",
+          "order": "1.0",
+          "relationship_occurrence_hash": "bc1a5231f7a6e3ff153e7cca428386868f4195bdf581693c9cb638c5cc692fff",
+          "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+          "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d",
+          "resource_relationship_kind": "concept_label",
+          "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "source_endpoint_occurrence_identity": {
+            "endpoint_kind": "locator",
+            "endpoint_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "expanded_element_path",
+                "path": [
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}linkbase",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}labelLink",
+                    1
+                  ],
+                  [
+                    "{http://www.xbrl.org/2003/linkbase}loc",
+                    234
+                  ]
+                ]
+              }
+            },
+            "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+          },
+          "source_semantic_identity": {
+            "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+            "kind": "concept"
+          },
+          "target_endpoint_occurrence_identity": {
+            "endpoint_kind": "local_resource",
+            "endpoint_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+          },
+          "target_semantic_identity": {
+            "kind": "resource",
+            "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+            "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+          }
+        },
+        "diagnostic_provenance": {
+          "arc_provenance": {
+            "source_line": 1010
+          },
+          "resource_diagnostic_provenance": {
+            "source_line": 1008,
+            "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          },
+          "resource_full": {
+            "canonical_record": {
+              "resource_content": {
+                "lang": "en-US",
+                "resource_type": "label",
+                "role_uri": "http://www.xbrl.org/2003/role/documentation",
+                "text": "Accrued General And Administrative Expenses, Current"
+              },
+              "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+              "resource_occurrence": {
+                "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+                "locator": {
+                  "kind": "unqualified_id",
+                  "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_documentation_en-US"
+                }
+              },
+              "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+            },
+            "diagnostic_provenance": {
+              "source_line": 1008,
+              "xlink_label": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+            },
+            "resource_content": {
+              "lang": "en-US",
+              "resource_type": "label",
+              "role_uri": "http://www.xbrl.org/2003/role/documentation",
+              "text": "Accrued General And Administrative Expenses, Current"
+            },
+            "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+            "resource_occurrence": {
+              "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+              "locator": {
+                "kind": "unqualified_id",
+                "value": "lab_ebay_AccruedGeneralAndAdministrativeExpensesCurrent_documentation_en-US"
+              }
+            },
+            "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+          },
+          "source_locator_provenance": {
+            "source_line": 1009,
+            "xlink_label": "loc_ebay_AccruedGeneralAndAdministrativeExpensesCurrent"
+          }
+        },
+        "link_role_uri": "http://www.xbrl.org/2003/role/link",
+        "network_type": "resource",
+        "order": "1.0",
+        "relationship_occurrence_hash": "bc1a5231f7a6e3ff153e7cca428386868f4195bdf581693c9cb638c5cc692fff",
+        "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+        "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d",
+        "resource_relationship_kind": "concept_label",
+        "source_concept": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+        "source_endpoint_occurrence_identity": {
+          "endpoint_kind": "locator",
+          "endpoint_occurrence": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+            "locator": {
+              "kind": "expanded_element_path",
+              "path": [
+                [
+                  "{http://www.xbrl.org/2003/linkbase}linkbase",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}labelLink",
+                  1
+                ],
+                [
+                  "{http://www.xbrl.org/2003/linkbase}loc",
+                  234
+                ]
+              ]
+            }
+          },
+          "endpoint_occurrence_hash": "9e94741865bb665beb6dec227d580dc1677061362e02d8c0db8caaa65071e78b"
+        },
+        "source_semantic_identity": {
+          "expanded_qname": "{http://www.ebay.com/20231231}AccruedGeneralAndAdministrativeExpensesCurrent",
+          "kind": "concept"
+        },
+        "target_endpoint_occurrence_identity": {
+          "endpoint_kind": "local_resource",
+          "endpoint_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+        },
+        "target_semantic_identity": {
+          "kind": "resource",
+          "resource_content_hash": "4bd54b4b787541aa7d9fa9c00e217a01cdc888abf9cb3ae960863bf7301adc10",
+          "resource_occurrence_hash": "55c58724dcc1308321c60f6f886319dc00b03d5b8eb0b4694805d55026cc529d"
+        }
+      }
+    ]
+  },
+  "samples_policy_version": "inspection-samples-v1"
+}

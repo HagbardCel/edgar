@@ -2,17 +2,23 @@
   "accession": "0001065088-24-000036",
   "cik": "0001065088",
   "evidence_file_sha256": {
-    "acquisition-expectations.json": "f768a66222ce68f897fffc41af6b1292827135aa415f416cc03f7a88ad781894",
-    "bundle-manifest.json": "2cb490dd180f4e0ea4107fc6288f14a88268929cf2f87226d0eb5111acb0ca09",
-    "inspection-core.json": "d41af8dc25b35f6b061c67905a76204944213a740c5e7a1bcc0527966784b2f0",
-    "parser-expectations.json": "e5ed1cbc74d5cc103e73956feae5807ea0d86827c201bb690910264b03491130",
-    "uri-bindings.json": "9b6d8574701f5eeef36a36c03a2594332bd0165474c873ce16a78e9158b90dcb"
+    "acquisition-expectations.json": "d8b67747bfda4e2b95257728cd8b276cdd8c08b26f45ab2c999ca26cb5d7b179",
+    "bundle-manifest.json": "a5095b50192bb83a55290fe4b41651c9f5f01a945ee598b80463f486a1dcbbb5",
+    "inspection-core.json": "be2d95a07b81191c537c684f7e0cffd8102c0e614e5e4583fa0ac59597de3896",
+    "inspection-samples.json": "06a66b9b6598fcb28bd34e4cbffbc6e0da04a12c816dadef486a1dd894980db2",
+    "parser-expectations.json": "dc64da29c99e491854baf6d640c0235b82c0bb440dff362e5bb07f5ad11db30c",
+    "uri-bindings.json": "81bcfd869206e3c87ecc57818851675c52c07fe809f971833d327f1a83308b14"
   },
-  "evidence_schema_version": "evidence-v1",
-  "exporter_version": "evidence-export-v1",
-  "payload_hash": "707e77bf5ce3fa2a7235446a151e4f0d30f057c7d8a8e6ba7030008332b81e59",
-  "semantic_run_hash": "399e95c3385f5df9df9571ffd1f1eb4dc688f7d62705db8a45480dcb5283b05f",
-  "source_commit": "a05f748ad85f36ae7cc89ab2a6489bd8ede2ebfb",
-  "source_run_id": "20260730T221130Z-ed1b9c75",
+  "evidence_schema_version": "evidence-v2",
+  "exporter_version": "evidence-export-v2",
+  "full_inspection": {
+    "sha256": "2773980dbab0bff7e30c2638bdf470402d4a93cd3900fae90bb7c37c7a340bc1",
+    "verification_scope": "verified_by_exporter_from_source_run_not_committed"
+  },
+  "payload_hash": "aa744cbb4c56d55163f6fcf37bdd5f519f41c3f97976b55c47ea93536843909a",
+  "samples_policy_version": "inspection-samples-v1",
+  "semantic_run_hash": "6a8ad055258229e56477c541eca03732962b601c631671f5c64f063f469efd49",
+  "source_commit": "261d658539113a499f95db6527ed3ddedd7ae6d8",
+  "source_run_id": "20260731T065515Z-ce42ca2f",
   "working_tree_was_dirty": false
 }

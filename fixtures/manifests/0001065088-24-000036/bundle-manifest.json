@@ -1,6 +1,6 @@
 {
   "accession": "0001065088-24-000036",
-  "acquisition_policy_version": "acq-v1-spike",
+  "acquisition_policy_version": "acq-v2-spike",
   "artifacts": [
     {
       "artifact_role": "index_headers",
@@ -2351,7 +2351,7 @@
       "sec_description": null,
       "sec_document_type": null,
       "sec_sequence": null,
-      "sha256": "72e6b6494777eedda31cbff1135f90e4ebb56835ec7ce63c99ca2d0bcc42280b",
+      "sha256": "8b69fbfd380a7a0df0608f3e72f9f4397c75a22e5dfb8afff02e7c1a1269ec37",
       "source_class": "sec_submission_metadata",
       "source_url": null
     },
@@ -2409,14 +2409,14 @@
     },
     {
       "artifact_role": "uri_bindings",
-      "byte_size": 51349,
+      "byte_size": 8113,
       "in_payload": true,
       "logical_path": "metadata/uri-bindings.json",
       "required": true,
       "sec_description": null,
       "sec_document_type": null,
       "sec_sequence": null,
-      "sha256": "9b6d8574701f5eeef36a36c03a2594332bd0165474c873ce16a78e9158b90dcb",
+      "sha256": "81bcfd869206e3c87ecc57818851675c52c07fe809f971833d327f1a83308b14",
       "source_class": "generated",
       "source_url": null
     }
@@ -2426,12 +2426,15 @@
     "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231.htm",
     "kind": "single_document"
   },
-  "manifest_schema_version": "manifest-v2-spike",
-  "payload_hash": "707e77bf5ce3fa2a7235446a151e4f0d30f057c7d8a8e6ba7030008332b81e59",
+  "manifest_schema_version": "manifest-v3-spike",
+  "payload_hash": "aa744cbb4c56d55163f6fcf37bdd5f519f41c3f97976b55c47ea93536843909a",
   "payload_hash_schema_version": "payload-v1",
   "uri_bindings_artifact": {
-    "byte_size": 51349,
+    "binding_count": 25,
+    "byte_size": 8113,
     "logical_path": "metadata/uri-bindings.json",
-    "sha256": "9b6d8574701f5eeef36a36c03a2594332bd0165474c873ce16a78e9158b90dcb"
+    "schema_version": "uri-bindings-v2",
+    "sha256": "81bcfd869206e3c87ecc57818851675c52c07fe809f971833d327f1a83308b14",
+    "uri_identity_version": "uri-identity-v1"
   }
 }

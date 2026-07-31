@@ -1,14 +1,14 @@
 {
   "accession": "0001065088-24-000036",
-  "acquisition_policy_version": "acq-v1-spike",
+  "acquisition_policy_version": "acq-v2-spike",
   "artifact_count": 186,
   "cik": "0001065088",
   "entrypoint": {
     "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231.htm",
     "kind": "single_document"
   },
-  "manifest_schema_version": "manifest-v2-spike",
+  "manifest_schema_version": "manifest-v3-spike",
   "payload_artifact_count": 185,
-  "payload_hash": "707e77bf5ce3fa2a7235446a151e4f0d30f057c7d8a8e6ba7030008332b81e59",
+  "payload_hash": "aa744cbb4c56d55163f6fcf37bdd5f519f41c3f97976b55c47ea93536843909a",
   "payload_hash_schema_version": "payload-v1"
 }
