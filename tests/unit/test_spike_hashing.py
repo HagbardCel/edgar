@@ -34,21 +34,37 @@ def test_payload_hash_changes_with_bytes() -> None:
 
 def test_closure_hash_byte_discipline() -> None:
     docs = [
-        ("https://example.com/b.xsd", "11" * 32, "schema"),
-        ("https://example.com/a.xsd", "22" * 32, "schema"),
+        {
+            "document_uri": "https://example.com/b.xsd",
+            "content_sha256": "11" * 32,
+            "document_type": "schema",
+        },
+        {
+            "document_uri": "https://example.com/a.xsd",
+            "content_sha256": "22" * 32,
+            "document_type": "schema",
+        },
     ]
     edges = [
-        (
-            "https://example.com/a.xsd",
-            "schema_import",
-            "https://example.com/b.xsd",
-            "b.xsd",
-        )
+        {
+            "edge_occurrence": {
+                "document_uri": "https://example.com/a.xsd",
+                "locator": {"kind": "unqualified_id", "value": "r1"},
+            },
+            "source_document_uri": "https://example.com/a.xsd",
+            "target_document_uri": "https://example.com/b.xsd",
+            "reference_kind": "schema_import",
+            "normalized_reference_uri": "https://example.com/b.xsd",
+            "reference_attribute_qname": "schemaLocation",
+        }
     ]
     h1 = closure_hash(docs, edges)
     h2 = closure_hash(list(reversed(docs)), edges)
     assert h1 == h2
     assert len(h1) == 64
+    # Multiplicity retained: two identical edges change the hash.
+    h3 = closure_hash(docs, edges + edges)
+    assert h3 != h1
 
 
 def test_inspection_hash_excludes_float_and_sorts() -> None:

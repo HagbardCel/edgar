@@ -1,5 +1,14 @@
 # Planning Artifact Update
 
+## 2026-07-31 — Slice 0 v3 review corrections
+
+- Purified occurrence hashes (xbrl-relationship-v2 / xbrl-resource-v2): document URI + locator only; three-projection model with explicit `canonical_record` / `diagnostic_provenance`; no direct-concept exception.
+- Explicit URI provenance (`acq-v2-spike`): `captured_artifact_by_local_path` replaces digest inference; bindings restricted to replay-addressable documents; deterministic primary/alias selection.
+- Expanded manifest pointer (`manifest-v3-spike`) with binding count + schema/identity versions; split `validate_manifest_structure` / `validate_uri_bindings_pointer`; strict `uri-bindings-v2` parser.
+- Non-circular pre-promotion gate (single-run certification); exact manifest-byte reuse; fail-closed relationship and document-edge extraction (`discovery-v1-spike`, `closure-v1`).
+- Strict structured-error comparison; `semantic-run-v2` with error multiplicities and full schema-version map.
+- Compact run-generated evidence (`evidence-v2`, `inspection-samples-v1`); exporter-verified full digest; schema-aware privacy.
+
 ## 2026-07-30 — Slice 0 review remediation
 
 - Demoted spike report to Failed/Provisional; demoted ADR 0004 to Proposed pending corrected rerun.

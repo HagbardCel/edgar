@@ -20,6 +20,7 @@ from urllib.parse import unquote, urlsplit
 from spike_lib import CATALOG_GENERATOR_VERSION, RELATIONSHIP_SERIALIZATION_VERSION
 from spike_lib.arelle_errors import ErrorCapture, summarize_errors
 from spike_lib.hashing import canonical_json_bytes, sha256_hex
+from spike_lib.locators import element_locator
 from spike_lib.quality import QualityIssue
 from spike_lib.relationships import collect_relationships
 from spike_lib.sec import sanitize_basename
@@ -35,6 +36,17 @@ from spike_lib.uri_identity import (
     normalize_uri,
     resolve_document_uri,
     strip_fragment,
+)
+
+# Registered document-reference attribute QNames (Clark notation or local name).
+XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
+XSI_SCHEMA_LOCATION = "{http://www.w3.org/2001/XMLSchema-instance}schemaLocation"
+REGISTERED_REFERENCE_ATTRIBUTE_QNAMES: frozenset[str] = frozenset(
+    {
+        XLINK_HREF,
+        "schemaLocation",
+        XSI_SCHEMA_LOCATION,
+    }
 )
 
 __all__ = [
@@ -148,6 +160,9 @@ class ClosureEdge:
     discovery_type: str
     target_uri: str
     normalized_href: str
+    edge_occurrence: dict[str, Any] | None = None  # {document_uri, locator} or None if unstable
+    reference_attribute_qname: str | None = None  # e.g. {http://www.w3.org/1999/xlink}href
+    referring_element_recoverable: bool = False
 
 
 @dataclass
@@ -166,6 +181,7 @@ class InspectionSnapshot:
     resource_relationship_occurrence_hash: str
     unsupported_inventory: dict[str, Any]
     extraction: dict[str, Any]
+    document_edge_extraction: dict[str, Any]
     synthetic_documents: list[dict[str, Any]]
     synthetic_document_set_hash: str
     synthetic_document_count: int
@@ -204,13 +220,62 @@ def _safe_len(obj: Any) -> int:
 
 
 def occurrence_collection_hash(records: list[dict[str, Any]]) -> str:
-    """Hash of an occurrence collection (canonically sorted records)."""
-    ordered = sorted(canonical_json_bytes(r) for r in records)
+    """Hash of an occurrence collection (canonically sorted canonical records only)."""
+    canonicals = [r.get("canonical_record", r) for r in records]
+    ordered = sorted(canonical_json_bytes(c) for c in canonicals)
     payload = {
         "serialization_version": RELATIONSHIP_SERIALIZATION_VERSION,
         "records": [r.decode("utf-8") for r in ordered],
     }
     return sha256_hex(canonical_json_bytes(payload))
+
+
+def _referring_element_recoverable(obj: Any) -> bool:
+    """True when ``obj`` is an lxml-backed element suitable for ``element_locator``."""
+    if obj is None:
+        return False
+    tag = getattr(obj, "tag", None)
+    if not isinstance(tag, str):
+        return False
+    getroottree = getattr(obj, "getroottree", None)
+    if not callable(getroottree):
+        return False
+    try:
+        return getroottree() is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _reference_attribute_qname(element: Any) -> str | None:
+    """Return the registered reference-bearing attribute QName present on ``element``."""
+    for attr in (XLINK_HREF, "schemaLocation", XSI_SCHEMA_LOCATION):
+        try:
+            if element.get(attr) is not None:
+                return attr
+        except Exception:  # noqa: BLE001
+            continue
+    attrib = getattr(element, "attrib", None)
+    if not attrib:
+        return None
+    for key in attrib:
+        clark = str(key)
+        if clark in REGISTERED_REFERENCE_ATTRIBUTE_QNAMES:
+            return clark
+    return None
+
+
+def _referring_document_uri(
+    referring: Any,
+    *,
+    source_uri: str,
+    resolve_canonical: Any,
+) -> str:
+    referring_doc = getattr(referring, "modelDocument", None)
+    if referring_doc is not None:
+        resolved = resolve_canonical(referring_doc)
+        if resolved:
+            return resolved
+    return source_uri
 
 
 def fact_locator_stats(model_xbrl: Any) -> dict[str, Any]:
@@ -645,6 +710,9 @@ def load_and_inspect(
 
         url_docs = getattr(model_xbrl, "urlDocs", {}) or {}
         closure_documents: list[ClosureDocument] = []
+        seen_closure_docs: dict[str, ClosureDocument] = {}
+        document_conflict_failures: list[dict[str, Any]] = []
+        document_conflict_count = 0
         synthetic_docs: list[dict[str, Any]] = []
         synthetic_engine_uris: set[str] = set()
         unresolved: list[str] = []
@@ -700,21 +768,39 @@ def load_and_inspect(
                         context={"uri": canonical, "offline": offline},
                     )
                 )
-            closure_documents.append(
-                ClosureDocument(
-                    canonical_uri=canonical,
-                    content_sha256=content_sha,
-                    document_type=doc_type,
-                    local_path=local_path,
-                    byte_size=byte_size,
-                )
+            prior = seen_closure_docs.get(canonical)
+            if prior is not None:
+                if prior.content_sha256 != content_sha or prior.document_type != doc_type:
+                    document_conflict_count += 1
+                    document_conflict_failures.append(
+                        {
+                            "failure_code": "DOCUMENT_URI_CONFLICT",
+                            "document_uri": canonical,
+                            "existing_content_sha256": prior.content_sha256,
+                            "existing_document_type": prior.document_type,
+                            "conflicting_content_sha256": content_sha,
+                            "conflicting_document_type": doc_type,
+                        }
+                    )
+                continue
+            closure_doc = ClosureDocument(
+                canonical_uri=canonical,
+                content_sha256=content_sha,
+                document_type=doc_type,
+                local_path=local_path,
+                byte_size=byte_size,
             )
+            seen_closure_docs[canonical] = closure_doc
+            closure_documents.append(closure_doc)
 
         synthetic_by_engine_uri = {d["engine_uri"]: d for d in synthetic_docs}
 
         source_backed_edges: list[ClosureEdge] = []
         synthetic_edges: list[dict[str, Any]] = []
         reference_uris: set[str] = set()
+        unstable_reference_occurrence_count = 0
+        unresolved_reference_attribute_count = 0
+        edge_failure_records: list[dict[str, Any]] = []
 
         for uri, doc in url_docs.items():
             raw_uri = strip_fragment(str(uri))
@@ -751,6 +837,58 @@ def load_and_inspect(
                         mapped_types = [
                             specific if m == "locator_reference" else m for m in mapped_types
                         ]
+
+                    edge_occurrence: dict[str, Any] | None = None
+                    reference_attribute_qname: str | None = None
+                    referring_recoverable = False
+                    if not source_synthetic and not target_synthetic:
+                        referring_recoverable = _referring_element_recoverable(referring)
+                        if referring_recoverable:
+                            assert referring is not None
+                            referring_doc_uri = _referring_document_uri(
+                                referring,
+                                source_uri=source_uri,
+                                resolve_canonical=resolve_canonical,
+                            )
+                            try:
+                                locator = element_locator(referring)
+                            except Exception:  # noqa: BLE001
+                                referring_recoverable = False
+                                locator = None
+                            if referring_recoverable and locator is not None:
+                                edge_occurrence = {
+                                    "document_uri": referring_doc_uri,
+                                    "locator": locator,
+                                }
+                                reference_attribute_qname = _reference_attribute_qname(referring)
+                                if reference_attribute_qname is None:
+                                    unresolved_reference_attribute_count += len(mapped_types)
+                                    for discovery_type in mapped_types:
+                                        edge_failure_records.append(
+                                            {
+                                                "failure_code": "UNRESOLVED_REFERENCE_ATTRIBUTE",
+                                                "source_document_uri": source_uri,
+                                                "target_document_uri": target_uri,
+                                                "reference_kind": discovery_type,
+                                                "normalized_reference_uri": normalized_href,
+                                                "edge_occurrence": edge_occurrence,
+                                            }
+                                        )
+                        if not referring_recoverable:
+                            edge_occurrence = None
+                            reference_attribute_qname = None
+                            unstable_reference_occurrence_count += len(mapped_types)
+                            for discovery_type in mapped_types:
+                                edge_failure_records.append(
+                                    {
+                                        "failure_code": "UNSTABLE_REFERENCE_OCCURRENCE",
+                                        "source_document_uri": source_uri,
+                                        "target_document_uri": target_uri,
+                                        "reference_kind": discovery_type,
+                                        "normalized_reference_uri": normalized_href,
+                                    }
+                                )
+
                     for discovery_type in mapped_types:
                         if source_synthetic or target_synthetic:
                             if source_synthetic:
@@ -795,6 +933,9 @@ def load_and_inspect(
                                     discovery_type=discovery_type,
                                     target_uri=target_uri,
                                     normalized_href=normalized_href,
+                                    edge_occurrence=edge_occurrence,
+                                    reference_attribute_qname=reference_attribute_qname,
+                                    referring_element_recoverable=referring_recoverable,
                                 )
                             )
 
@@ -845,30 +986,54 @@ def load_and_inspect(
 
         synthetic_identities = [d["synthetic_document_identity"] for d in synthetic_docs]
 
+        failure_records = sorted(
+            [*document_conflict_failures, *edge_failure_records],
+            key=lambda r: canonical_json_bytes(r),
+        )
+        document_edge_extraction = {
+            "extraction_complete": (
+                unstable_reference_occurrence_count == 0
+                and unresolved_reference_attribute_count == 0
+                and document_conflict_count == 0
+            ),
+            "unstable_reference_occurrence_count": unstable_reference_occurrence_count,
+            "unresolved_reference_attribute_count": unresolved_reference_attribute_count,
+            "document_conflict_count": document_conflict_count,
+            "failure_records": failure_records,
+        }
+
         snapshot = InspectionSnapshot(
             documents=[
                 {
+                    "document_uri": d.canonical_uri,
                     "canonical_uri": d.canonical_uri,
                     "content_sha256": d.content_sha256,
                     "document_type": d.document_type,
-                    "byte_size": d.byte_size,
                 }
                 for d in sorted(closure_documents, key=lambda x: x.canonical_uri)
             ],
             edges=[
                 {
-                    "source_uri": e.source_uri,
-                    "discovery_type": e.discovery_type,
-                    "target_uri": e.target_uri,
-                    "normalized_href": e.normalized_href,
+                    "edge_occurrence": e.edge_occurrence,
+                    "source_document_uri": e.source_uri,
+                    "target_document_uri": e.target_uri,
+                    "reference_kind": e.discovery_type,
+                    "normalized_reference_uri": e.normalized_href,
+                    "reference_attribute_qname": e.reference_attribute_qname,
+                    "referring_element_recoverable": e.referring_element_recoverable,
                 }
                 for e in sorted(
                     source_backed_edges,
-                    key=lambda x: (
-                        x.source_uri,
-                        x.discovery_type,
-                        x.target_uri,
-                        x.normalized_href,
+                    key=lambda x: canonical_json_bytes(
+                        {
+                            "edge_occurrence": x.edge_occurrence,
+                            "source_document_uri": x.source_uri,
+                            "target_document_uri": x.target_uri,
+                            "reference_kind": x.discovery_type,
+                            "normalized_reference_uri": x.normalized_href,
+                            "reference_attribute_qname": x.reference_attribute_qname,
+                            "referring_element_recoverable": x.referring_element_recoverable,
+                        }
                     ),
                 )
             ],
@@ -884,6 +1049,7 @@ def load_and_inspect(
             resource_relationship_occurrence_hash=resource_occ_hash,
             unsupported_inventory=rel_result["unsupported_inventory"],
             extraction=rel_result["extraction"],
+            document_edge_extraction=document_edge_extraction,
             synthetic_documents=sorted(synthetic_docs, key=lambda d: canonical_json_bytes(d)),
             synthetic_document_set_hash=synthetic_document_set_hash(synthetic_identities),
             synthetic_document_count=len(synthetic_docs),

@@ -61,50 +61,66 @@ def payload_hash_v1(entries: Sequence[tuple[str, str, int]]) -> str:
 
 
 def closure_document_records(
-    documents: Iterable[tuple[str, str, str]],
-) -> list[bytes]:
-    """Encode (canonical_uri, content_sha256, document_type) records."""
-    records: list[bytes] = []
-    for canonical_uri, content_sha256, document_type in documents:
-        records.append(
-            canonical_uri.encode("utf-8")
-            + b"\x00"
-            + content_sha256.lower().encode("ascii")
-            + b"\x00"
-            + document_type.encode("utf-8")
-            + b"\n"
-        )
-    records.sort()
+    documents: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Canonical document records for closure-v1 (sorted, unique by URI)."""
+    records = [
+        {
+            "document_uri": d["document_uri"],
+            "content_sha256": str(d["content_sha256"]).lower(),
+            "document_type": d["document_type"],
+        }
+        for d in documents
+    ]
+    records.sort(key=lambda r: canonical_json_bytes(r))
     return records
 
 
 def closure_edge_records(
-    edges: Iterable[tuple[str, str, str, str]],
-) -> list[bytes]:
-    """Encode (source_uri, discovery_type, target_uri, normalized_href) records."""
-    records: list[bytes] = []
-    for source_uri, discovery_type, target_uri, normalized_href in edges:
-        records.append(
-            source_uri.encode("utf-8")
-            + b"\x00"
-            + discovery_type.encode("utf-8")
-            + b"\x00"
-            + target_uri.encode("utf-8")
-            + b"\x00"
-            + normalized_href.encode("utf-8")
-            + b"\n"
-        )
-    records.sort()
+    edges: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Canonical edge occurrence records for closure-v1 (sorted, duplicates retained)."""
+    records = [dict(e) for e in edges]
+    records.sort(key=lambda r: canonical_json_bytes(r))
     return records
 
 
+def build_closure_envelope(
+    documents: Iterable[Mapping[str, Any]],
+    edges: Iterable[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Explicit closure-v1 envelope. Edges retain duplicates; never deduplicated."""
+    from spike_lib import CLOSURE_SERIALIZATION_VERSION
+
+    return {
+        "closure_serialization_version": CLOSURE_SERIALIZATION_VERSION,
+        "documents": closure_document_records(documents),
+        "edges": closure_edge_records(edges),
+    }
+
+
 def closure_hash(
-    documents: Iterable[tuple[str, str, str]],
-    edges: Iterable[tuple[str, str, str, str]],
+    documents: Iterable[Mapping[str, Any]],
+    edges: Iterable[Mapping[str, Any]],
 ) -> str:
-    doc_hash = sha256_hex(b"".join(closure_document_records(documents)))
-    edge_hash = sha256_hex(b"".join(closure_edge_records(edges)))
-    return sha256_hex(doc_hash.encode("ascii") + b"\x00" + edge_hash.encode("ascii"))
+    """SHA-256 over the canonical JSON of the closure-v1 envelope."""
+    return sha256_hex(canonical_json_bytes(build_closure_envelope(documents, edges)))
+
+
+def validate_closure_documents(
+    documents: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Require one canonical URI → one content SHA → one document type."""
+    errors: list[str] = []
+    by_uri: dict[str, tuple[str, str]] = {}
+    for doc in documents:
+        uri = doc["document_uri"]
+        identity = (str(doc["content_sha256"]).lower(), doc["document_type"])
+        prior = by_uri.get(uri)
+        if prior is not None and prior != identity:
+            errors.append(f"conflicting closure document records for {uri!r}")
+        by_uri[uri] = identity
+    return errors
 
 
 def _normalize_for_json(value: Any) -> Any:

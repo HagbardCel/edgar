@@ -31,12 +31,14 @@ from spike_lib import (  # noqa: E402
     ACQUISITION_POLICY_VERSION,
     ARELLE_ERROR_POLICY_VERSION,
     CATALOG_GENERATOR_VERSION,
+    CLOSURE_SERIALIZATION_VERSION,
     DISCOVERY_EXTRACTION_POLICY_VERSION,
     EVIDENCE_SCHEMA_VERSION,
     MANIFEST_SCHEMA_VERSION,
     PAYLOAD_HASH_SCHEMA_VERSION,
     RELATIONSHIP_SERIALIZATION_VERSION,
     RESOURCE_SERIALIZATION_VERSION,
+    SAMPLES_POLICY_VERSION,
     SEMANTIC_RUN_SCHEMA_VERSION,
     SYNTHETIC_DOCUMENT_SERIALIZATION_VERSION,
     URI_BINDING_SCHEMA_VERSION,
@@ -53,13 +55,17 @@ from spike_lib.arelle_load import (  # noqa: E402
     materialize_working_tree,
 )
 from spike_lib.compare import compare_snapshots  # noqa: E402
-from spike_lib.hashing import closure_hash, sha256_hex  # noqa: E402
+from spike_lib.hashing import canonical_json_bytes, closure_hash, sha256_hex  # noqa: E402
 from spike_lib.manifest import (  # noqa: E402
+    FAILURE_MANIFEST_INVALID,
+    FAILURE_OFFLINE_REPLAY,
+    FAILURE_PRE_PROMOTION_GATE,
     build_sterile_manifest,
     discard_candidate,
     promote_candidate,
     stage_candidate,
-    validate_manifest,
+    validate_manifest_structure,
+    validate_uri_bindings_pointer,
 )
 from spike_lib.quality import QualityIssue  # noqa: E402
 from spike_lib.sec import (  # noqa: E402
@@ -80,7 +86,6 @@ from spike_lib.uri_bindings import (  # noqa: E402
     UriBinding,
     covered_uris,
     serialize_bindings,
-    validate_bindings,
 )
 from spike_lib.uri_identity import normalize_uri  # noqa: E402
 
@@ -92,10 +97,12 @@ SCHEMA_VERSIONS = {
     "uri_identity_version": URI_IDENTITY_VERSION,
     "resource_serialization_version": RESOURCE_SERIALIZATION_VERSION,
     "relationship_serialization_version": RELATIONSHIP_SERIALIZATION_VERSION,
+    "closure_serialization_version": CLOSURE_SERIALIZATION_VERSION,
     "synthetic_document_serialization_version": SYNTHETIC_DOCUMENT_SERIALIZATION_VERSION,
     "semantic_run_schema_version": SEMANTIC_RUN_SCHEMA_VERSION,
     "arelle_error_policy_version": ARELLE_ERROR_POLICY_VERSION,
     "evidence_schema_version": EVIDENCE_SCHEMA_VERSION,
+    "samples_policy_version": SAMPLES_POLICY_VERSION,
     "catalog_generator_version": CATALOG_GENERATOR_VERSION,
     "discovery_extraction_policy_version": DISCOVERY_EXTRACTION_POLICY_VERSION,
 }
@@ -194,15 +201,32 @@ def capture_external_dependencies(
     *,
     max_external_bytes: int,
 ) -> dict[str, Any]:
-    """Capture external closure docs via stat-first bounded streaming."""
+    """Capture external closure docs via stat-first bounded streaming.
+
+    Returns artifact association by resolved online local path (no URIs):
+    ``captured_artifact_by_local_path[resolved_path] = {logical_path, content_sha256}``.
+    """
     archive_base = normalize_uri(draft.archive_base)
     accession_sha = {a.sha256 for a in draft.artifacts if a.logical_path.startswith("accession/")}
     missing: list[str] = []
     captured: list[str] = []
     skipped_accession: list[str] = []
+    captured_artifact_by_local_path: dict[str, dict[str, str]] = {}
+
+    def _record_local_association(local_path: str | None, artifact: ArtifactRecord) -> None:
+        if not local_path:
+            return
+        try:
+            resolved = str(Path(local_path).resolve())
+        except (OSError, ValueError):
+            return
+        captured_artifact_by_local_path[resolved] = {
+            "logical_path": artifact.logical_path,
+            "content_sha256": artifact.sha256,
+        }
 
     for doc in online.get("closure_documents", []):
-        uri = doc["canonical_uri"]
+        uri = doc.get("document_uri") or doc["canonical_uri"]
         digest = doc.get("content_sha256") or ""
         local_path = doc.get("local_path")
         if not digest:
@@ -215,13 +239,15 @@ def capture_external_dependencies(
         if not is_http_uri(uri):
             skipped_accession.append(uri)
             continue
-        if draft.artifact_by_path(external_logical_path(uri)) is not None:
+        existing = draft.artifact_by_path(external_logical_path(uri))
+        if existing is not None:
             captured.append(uri)
+            _record_local_association(local_path, existing)
             continue
         if not local_path or not Path(local_path).is_file():
             missing.append(uri)
             continue
-        acquisition.add_external_dependency_stream(
+        artifact = acquisition.add_external_dependency_stream(
             draft,
             original_uri=uri,
             source_path=Path(local_path),
@@ -229,58 +255,86 @@ def capture_external_dependencies(
             max_external_bytes=max_external_bytes,
         )
         captured.append(uri)
+        _record_local_association(local_path, artifact)
 
     return {
         "captured": captured,
         "skipped_accession": skipped_accession,
         "missing": missing,
+        "captured_artifact_by_local_path": captured_artifact_by_local_path,
     }
 
 
-def build_uri_bindings(draft: Any, online: dict[str, Any]) -> list[UriBinding]:
-    """Serialize the authoritative URI→object bindings from manifest artifacts."""
+def _closure_doc_uri(doc: dict[str, Any]) -> str:
+    return doc.get("document_uri") or doc["canonical_uri"]
+
+
+def build_uri_bindings(
+    draft: Any,
+    online: dict[str, Any],
+    *,
+    path_map: dict[str, tuple[Any, str]],
+    captured_artifact_by_local_path: dict[str, dict[str, str]],
+) -> list[UriBinding]:
+    """Build bindings only for replay-addressable online closure documents.
+
+    Digest verifies artifact association; it never selects the artifact.
+    Primary URI policy is deterministic (accession archive URI / capture
+    source_url); additional observations become replay_aliases.
+    """
     archive_base = normalize_uri(draft.archive_base)
     if not archive_base.endswith("/"):
         archive_base += "/"
-    bindings: list[UriBinding] = []
-    by_logical_path: dict[str, UriBinding] = {}
+    bindings_by_path: dict[str, UriBinding] = {}
 
-    for artifact in draft.artifacts:
-        if not artifact.in_payload:
+    for doc in online.get("closure_documents", []):
+        uri = _closure_doc_uri(doc)
+        if not is_http_uri(uri):
             continue
+        local_path = doc.get("local_path")
+        if not local_path:
+            continue
+        try:
+            resolved = str(Path(local_path).resolve())
+        except (OSError, ValueError):
+            continue
+
+        digest = doc.get("content_sha256") or ""
+        artifact: Any | None = None
+        captured = captured_artifact_by_local_path.get(resolved)
+        if captured is not None:
+            artifact = draft.artifact_by_path(captured["logical_path"])
+        elif resolved in path_map:
+            artifact, _canonical = path_map[resolved]
+        if artifact is None or not artifact.in_payload:
+            continue
+        if digest and digest != artifact.sha256:
+            continue
+
         if artifact.logical_path.startswith("accession/"):
             name = artifact.logical_path.split("/", 1)[1]
-            document_uri = normalize_uri(archive_base + name)
+            primary = normalize_uri(archive_base + name)
         elif artifact.source_class == "external_taxonomy_dependency" and artifact.source_url:
-            document_uri = normalize_uri(artifact.source_url)
+            primary = normalize_uri(artifact.source_url)
         else:
+            # Images, index pages, complete-submission .txt, discovery metadata,
+            # uri-bindings, and other non-XBRL artifacts are never bound.
             continue
-        binding = UriBinding(
-            document_uri=document_uri,
-            logical_path=artifact.logical_path,
-            content_sha256=artifact.sha256,
-        )
-        bindings.append(binding)
-        by_logical_path[artifact.logical_path] = binding
 
-    # Replay aliases: loaded closure URIs whose content matches a bound artifact
-    # but whose canonical URI is not itself a primary binding document_uri.
-    payload_by_sha = {a.sha256: a for a in draft.artifacts if a.in_payload}
-    for doc in online.get("closure_documents", []):
-        uri = doc["canonical_uri"]
-        digest = doc.get("content_sha256") or ""
-        if not digest or not is_http_uri(uri):
-            continue
-        artifact = payload_by_sha.get(digest)
-        if artifact is None:
-            continue
-        binding = by_logical_path.get(artifact.logical_path)
+        binding = bindings_by_path.get(artifact.logical_path)
         if binding is None:
-            continue
-        if uri != binding.document_uri and uri not in binding.replay_aliases:
-            binding.replay_aliases.append(uri)
+            binding = UriBinding(
+                document_uri=primary,
+                logical_path=artifact.logical_path,
+                content_sha256=artifact.sha256,
+            )
+            bindings_by_path[artifact.logical_path] = binding
 
-    return bindings
+        observed = normalize_uri(uri)
+        if observed != binding.document_uri and observed not in binding.replay_aliases:
+            binding.replay_aliases.append(observed)
+
+    return list(bindings_by_path.values())
 
 
 def check_binding_coverage(
@@ -293,9 +347,9 @@ def check_binding_coverage(
     primary_uris = {b.document_uri for b in bindings}
     uncovered_documents = sorted(
         {
-            d["canonical_uri"]
+            _closure_doc_uri(d)
             for d in online.get("closure_documents", [])
-            if is_http_uri(d["canonical_uri"]) and d["canonical_uri"] not in covered
+            if is_http_uri(_closure_doc_uri(d)) and _closure_doc_uri(d) not in covered
         }
     )
     uncovered_references = sorted({u for u in online.get("reference_uris", []) if u not in covered})
@@ -307,6 +361,92 @@ def check_binding_coverage(
         "entrypoint_is_primary_binding": entrypoint_primary,
         "binding_count": len(bindings),
         "covered_uri_count": len(covered),
+    }
+
+
+def pre_promotion_gate(
+    online: dict[str, Any],
+    offline: dict[str, Any],
+    compare: dict[str, Any],
+    draft: Any,
+    coverage: dict[str, Any],
+    manifest_errors: list[str],
+    *,
+    closure_hash_online: str,
+    closure_hash_offline: str,
+) -> dict[str, Any]:
+    """Independent gate: promote only after offline replay + strict equality."""
+    reasons: list[str] = []
+    failure_code = FAILURE_PRE_PROMOTION_GATE
+    online_snap = online.get("snapshot") or {}
+    offline_snap = offline.get("snapshot") or {}
+    engine_config = offline_snap.get("engine_config") or {}
+    online_errors = online_snap.get("error_summary") or {}
+    offline_errors = offline_snap.get("error_summary") or {}
+    network_attempts = offline.get("network_attempts") or []
+
+    if manifest_errors:
+        reasons.append(f"manifest/bindings validation failed: {manifest_errors}")
+        failure_code = FAILURE_MANIFEST_INVALID
+
+    if offline.get("error"):
+        reasons.append(f"offline worker top-level error: {offline['error']}")
+        if failure_code == FAILURE_PRE_PROMOTION_GATE:
+            failure_code = FAILURE_OFFLINE_REPLAY
+
+    fatal_issues = [i for i in draft.issues if i.severity == "fatal"]
+    if fatal_issues:
+        reasons.append(
+            "fatal draft issues present: " + ", ".join(sorted({i.code for i in fatal_issues}))
+        )
+        if failure_code == FAILURE_PRE_PROMOTION_GATE:
+            failure_code = FAILURE_OFFLINE_REPLAY
+
+    if network_attempts:
+        reasons.append(f"offline network attempts: {len(network_attempts)}")
+
+    if not engine_config.get("offline_cache_started_empty"):
+        reasons.append("offline cache did not start empty")
+    if not engine_config.get("offline_cache_populated_from_manifest"):
+        reasons.append("offline cache was not populated from manifest")
+
+    if online_snap.get("unresolved_uris"):
+        reasons.append(f"online unresolved documents: {online_snap.get('unresolved_uris')}")
+    if offline_snap.get("unresolved_uris"):
+        reasons.append(f"offline unresolved documents: {offline_snap.get('unresolved_uris')}")
+
+    if not online_errors.get("policy_passed", True):
+        reasons.append("online error policy failed")
+    if not offline_errors.get("policy_passed", True):
+        reasons.append("offline error policy failed")
+
+    if not bool(online_snap.get("extraction", {}).get("extraction_complete")):
+        reasons.append("online relationship extraction incomplete")
+    if not bool(offline_snap.get("extraction", {}).get("extraction_complete")):
+        reasons.append("offline relationship extraction incomplete")
+
+    online_edge_ext = online_snap.get("document_edge_extraction") or {}
+    offline_edge_ext = offline_snap.get("document_edge_extraction") or {}
+    if not bool(online_edge_ext.get("extraction_complete")):
+        reasons.append("online document-edge extraction incomplete")
+    if not bool(offline_edge_ext.get("extraction_complete")):
+        reasons.append("offline document-edge extraction incomplete")
+
+    if not compare.get("strict_ok"):
+        reasons.append(f"strict comparison failed: {compare.get('strict_diffs')}")
+
+    if closure_hash_online != closure_hash_offline:
+        reasons.append(
+            f"closure hash mismatch: online={closure_hash_online} offline={closure_hash_offline}"
+        )
+
+    if not coverage.get("ok"):
+        reasons.append("binding coverage incomplete for replay-required URIs")
+
+    return {
+        "ok": not reasons,
+        "failure_code": failure_code if reasons else FAILURE_PRE_PROMOTION_GATE,
+        "reasons": reasons,
     }
 
 
@@ -398,7 +538,7 @@ def evaluate_success_criteria(
                 and bool(engine_config.get("offline_cache_populated_from_manifest"))
                 and bool(engine_config.get("work_offline"))
                 and bool(engine_config.get("deny_network"))
-                and bool(promotion and promotion.get("outcome"))
+                and "error" not in offline
             ),
             "detail": {
                 "offline_network_attempt_count": len(network_attempts),
@@ -409,6 +549,7 @@ def evaluate_success_criteria(
                 "work_offline": engine_config.get("work_offline"),
                 "deny_network": engine_config.get("deny_network"),
                 "network_attempts": network_attempts,
+                "offline_completed_without_error": "error" not in offline,
                 "promotion_outcome": (promotion or {}).get("outcome"),
             },
         },
@@ -462,9 +603,9 @@ def evaluate_success_criteria(
     return criteria
 
 
-def _side_evidence(snapshot: dict[str, Any]) -> dict[str, Any]:
+def _side_evidence(snapshot: dict[str, Any], *, include_records: bool = False) -> dict[str, Any]:
     """Evidence projection of one load side (no operational/local fields)."""
-    return {
+    side = {
         "concept_count": snapshot["concept_count"],
         "context_count": snapshot["context_count"],
         "unit_count": snapshot["unit_count"],
@@ -473,8 +614,6 @@ def _side_evidence(snapshot: dict[str, Any]) -> dict[str, Any]:
         "resource_relationship_counts": snapshot["resource_relationship_counts"],
         "concept_relationship_occurrence_hash": snapshot["concept_relationship_occurrence_hash"],
         "resource_relationship_occurrence_hash": snapshot["resource_relationship_occurrence_hash"],
-        "concept_records": snapshot["concept_records"],
-        "resource_records": snapshot["resource_records"],
         "documents": snapshot["documents"],
         "edges": snapshot["edges"],
         "synthetic_documents": snapshot["synthetic_documents"],
@@ -487,8 +626,41 @@ def _side_evidence(snapshot: dict[str, Any]) -> dict[str, Any]:
         "unresolved_uris": snapshot["unresolved_uris"],
         "unsupported_inventory": snapshot["unsupported_inventory"],
         "extraction": snapshot["extraction"],
+        "document_edge_extraction": snapshot.get("document_edge_extraction"),
         "error_summary": snapshot["error_summary"],
         "fact_locator_stats": snapshot["fact_locator_stats"],
+    }
+    if include_records:
+        side["concept_records"] = snapshot["concept_records"]
+        side["resource_records"] = snapshot["resource_records"]
+    return side
+
+
+def _sample_records(records: list[dict[str, Any]], *, limit: int = 3) -> list[dict[str, Any]]:
+    """Deterministic small samples ordered by canonical_json_bytes of canonical_record."""
+    ordered = sorted(
+        records,
+        key=lambda r: canonical_json_bytes(r.get("canonical_record") or r),
+    )
+    return ordered[:limit]
+
+
+def build_inspection_samples(
+    *,
+    online_snap: dict[str, Any],
+    offline_snap: dict[str, Any],
+) -> dict[str, Any]:
+    """Non-authoritative review samples; excluded from semantic_run_hash."""
+    return {
+        "samples_policy_version": SAMPLES_POLICY_VERSION,
+        "online": {
+            "concept_records": _sample_records(online_snap.get("concept_records") or []),
+            "resource_records": _sample_records(online_snap.get("resource_records") or []),
+        },
+        "offline": {
+            "concept_records": _sample_records(offline_snap.get("concept_records") or []),
+            "resource_records": _sample_records(offline_snap.get("resource_records") or []),
+        },
     }
 
 
@@ -502,6 +674,7 @@ def build_inspection_core(
     criteria: list[dict[str, Any]],
     compare: dict[str, Any],
     semantic_run_hash_value: str,
+    include_records: bool = False,
 ) -> dict[str, Any]:
     online_snap = online["snapshot"]
     offline_snap = offline["snapshot"]
@@ -518,8 +691,8 @@ def build_inspection_core(
             "version": online_snap["engine_version"],
             "config": online_snap["engine_config"],
         },
-        "online": _side_evidence(online_snap),
-        "offline": _side_evidence(offline_snap),
+        "online": _side_evidence(online_snap, include_records=include_records),
+        "offline": _side_evidence(offline_snap, include_records=include_records),
         "compare": strict_comparison_projection(compare),
         "success_criteria": criteria,
         "quality_issues": [i.to_dict() for i in draft.issues],
@@ -603,7 +776,12 @@ def run_pipeline_once(
             max_external_bytes=max_external,
         )
 
-        bindings = build_uri_bindings(draft, online)
+        bindings = build_uri_bindings(
+            draft,
+            online,
+            path_map=path_map,
+            captured_artifact_by_local_path=capture_detail["captured_artifact_by_local_path"],
+        )
         bindings_bytes = serialize_bindings(bindings)
         bindings_obj = store.put_bytes(bindings_bytes)
         if draft.artifact_by_path(URI_BINDINGS_LOGICAL_PATH) is None:
@@ -623,17 +801,15 @@ def run_pipeline_once(
                 )
             )
 
-        artifact_hashes = {a.logical_path: a.sha256 for a in draft.artifacts}
-        binding_errors = validate_bindings(
-            bindings,
-            manifest_artifacts=artifact_hashes,
-            entrypoint_document_uri=entrypoint_document_uri,
-        )
         coverage = check_binding_coverage(online, bindings, entrypoint_document_uri)
 
-        manifest = build_sterile_manifest(draft, entrypoint_document_uri=entrypoint_document_uri)
-        manifest_errors = validate_manifest(manifest)
-        manifest_errors.extend(binding_errors)
+        manifest = build_sterile_manifest(
+            draft,
+            entrypoint_document_uri=entrypoint_document_uri,
+            bindings_count=len(bindings),
+        )
+        manifest_errors = validate_manifest_structure(manifest)
+        manifest_errors.extend(validate_uri_bindings_pointer(manifest, bindings_bytes))
         payload_hash_value = manifest["payload_hash"]
 
         staging_dir = stage_candidate(accession_root, manifest)
@@ -665,7 +841,12 @@ def run_pipeline_once(
                 "network_attempts": [],
             }
             failed_dir = str(
-                discard_candidate(accession_root, staging_dir, reason="manifest invalid")
+                discard_candidate(
+                    accession_root,
+                    staging_dir,
+                    reason="manifest invalid",
+                    failure_code=FAILURE_MANIFEST_INVALID,
+                )
             )
         else:
             print(
@@ -695,39 +876,28 @@ def run_pipeline_once(
                     )
                 )
 
-            offline_ok = "error" not in offline and not any(
-                i.get("severity") == "fatal" for i in offline.get("issues", [])
-            )
-            if offline_ok:
-                promotion = promote_candidate(accession_root, staging_dir, manifest)
-                write_json_atomic(run_dir / "promotion.json", promotion)
-            else:
-                failed_dir = str(
-                    discard_candidate(
-                        accession_root, staging_dir, reason="offline replay validation failed"
-                    )
-                )
-
     online_snap = online.get("snapshot", {})
     offline_snap = offline.get("snapshot", {})
 
     online_docs = [
-        (d["canonical_uri"], d["content_sha256"], d["document_type"])
+        {
+            "document_uri": d.get("document_uri") or d["canonical_uri"],
+            "content_sha256": d["content_sha256"],
+            "document_type": d["document_type"],
+        }
         for d in online_snap.get("documents", [])
     ]
-    online_edges = [
-        (e["source_uri"], e["discovery_type"], e["target_uri"], e["normalized_href"])
-        for e in online_snap.get("edges", [])
-    ]
+    online_edges = list(online_snap.get("edges", []))
     closure_hash_online = closure_hash(online_docs, online_edges)
     offline_docs = [
-        (d["canonical_uri"], d["content_sha256"], d["document_type"])
+        {
+            "document_uri": d.get("document_uri") or d["canonical_uri"],
+            "content_sha256": d["content_sha256"],
+            "document_type": d["document_type"],
+        }
         for d in offline_snap.get("documents", [])
     ]
-    offline_edges = [
-        (e["source_uri"], e["discovery_type"], e["target_uri"], e["normalized_href"])
-        for e in offline_snap.get("edges", [])
-    ]
+    offline_edges = list(offline_snap.get("edges", []))
     closure_hash_offline = closure_hash(offline_docs, offline_edges)
 
     compare = compare_snapshots(
@@ -741,6 +911,32 @@ def run_pipeline_once(
         ),
     )
 
+    gate = pre_promotion_gate(
+        online,
+        offline,
+        compare,
+        draft,
+        coverage,
+        manifest_errors,
+        closure_hash_online=closure_hash_online,
+        closure_hash_offline=closure_hash_offline,
+    )
+
+    # Promote only after the pre-promotion gate; never before compare/extraction.
+    if failed_dir is None:
+        if gate["ok"]:
+            promotion = promote_candidate(accession_root, staging_dir, manifest)
+            write_json_atomic(Path(run_dir) / "promotion.json", promotion)
+        else:
+            failed_dir = str(
+                discard_candidate(
+                    accession_root,
+                    staging_dir,
+                    reason="; ".join(gate["reasons"]) or "pre-promotion gate failed",
+                    failure_code=gate["failure_code"],
+                )
+            )
+
     return {
         "draft": draft,
         "online": online,
@@ -752,6 +948,7 @@ def run_pipeline_once(
         "capture_detail": capture_detail,
         "coverage": coverage,
         "promotion": promotion,
+        "gate": gate,
         "failed_dir": failed_dir,
         "manifest_errors": manifest_errors,
         "run_dir": str(run_dir),
@@ -860,22 +1057,28 @@ def run_spike(args: argparse.Namespace) -> int:
     second: dict[str, Any] | None = None
 
     if args.repeat:
-        print("Repeating full pipeline in a fresh run directory ...")
-        second = run_pipeline_once(
-            cik=cik,
-            accession=accession,
-            accession_root=accession_root,
-            user_agent=user_agent,
-            max_file=max_file,
-            max_bundle=max_bundle,
-            max_external=max_external,
-            max_redirects=max_redirects,
-            min_interval=min_interval,
-            run_id=run_id + "-repeat",
-        )
-        repeat_partial = _partial_criteria(second)
-        payload_hash_repeat = second["payload_hash"]
-        semantic_hash_repeat = _semantic_hash_for(second, repeat_partial)
+        if not (first.get("gate") or {}).get("ok"):
+            print(
+                "Aborting repeat: first run failed pre-promotion gate "
+                f"({(first.get('gate') or {}).get('failure_code')})"
+            )
+        else:
+            print("Repeating full pipeline in a fresh run directory ...")
+            second = run_pipeline_once(
+                cik=cik,
+                accession=accession,
+                accession_root=accession_root,
+                user_agent=user_agent,
+                max_file=max_file,
+                max_bundle=max_bundle,
+                max_external=max_external,
+                max_redirects=max_redirects,
+                min_interval=min_interval,
+                run_id=run_id + "-repeat",
+            )
+            repeat_partial = _partial_criteria(second)
+            payload_hash_repeat = second["payload_hash"]
+            semantic_hash_repeat = _semantic_hash_for(second, repeat_partial)
 
     draft = first["draft"]
     criteria = evaluate_success_criteria(
@@ -898,6 +1101,7 @@ def run_spike(args: argparse.Namespace) -> int:
                 item["passed"] = False
                 item["detail"] = {"reason": "repeat not requested; criterion 9 requires --repeat"}
 
+    # Finalization: gates → semantic hashes → criterion 9 → write compact core.
     inspection_core = build_inspection_core(
         draft=draft,
         online=first["online"],
@@ -907,10 +1111,29 @@ def run_spike(args: argparse.Namespace) -> int:
         criteria=criteria,
         compare=first["compare"],
         semantic_run_hash_value=sem_hash_1,
+        include_records=False,
+    )
+    inspection_full = build_inspection_core(
+        draft=draft,
+        online=first["online"],
+        offline=first["offline"],
+        payload_hash_value=first["payload_hash"],
+        closure_hash_value=first["closure_hash_online"],
+        criteria=criteria,
+        compare=first["compare"],
+        semantic_run_hash_value=sem_hash_1,
+        include_records=True,
+    )
+    inspection_samples = build_inspection_samples(
+        online_snap=first["online"]["snapshot"],
+        offline_snap=first["offline"]["snapshot"],
     )
 
     run_dir = Path(first["run_dir"])
     write_json_atomic(run_dir / "inspection-core.json", inspection_core)
+    full_bytes = write_json_atomic(run_dir / "inspection-full.json", inspection_full)
+    write_json_atomic(run_dir / "inspection-samples.json", inspection_samples)
+    full_inspection_sha256 = sha256_hex(full_bytes)
     write_json_atomic(
         run_dir / "quality-issues.json",
         [i.to_dict() for i in draft.issues],
@@ -923,7 +1146,9 @@ def run_spike(args: argparse.Namespace) -> int:
         "closure_hash": first["closure_hash_online"],
         "semantic_run_hash": sem_hash_1,
         "promotion": first["promotion"],
+        "pre_promotion_gate": first.get("gate"),
         "failed_candidate_dir": first["failed_dir"],
+        "full_inspection_sha256": full_inspection_sha256,
         "command": list(sys.argv),
         "python": sys.version,
         "repeat_run_id": (run_id + "-repeat") if args.repeat else None,
@@ -963,8 +1188,11 @@ def run_spike(args: argparse.Namespace) -> int:
     print(f"concept_rels:     {online_snap['concept_relationship_occurrence_hash']}")
     print(f"resource_rels:    {online_snap['resource_relationship_occurrence_hash']}")
     print(f"promotion:        {(first['promotion'] or {}).get('outcome')}")
+    print(f"gate:             {(first.get('gate') or {}).get('ok')}")
     print(f"run:              {run_dir}")
     print(f"inspection:       {run_dir / 'inspection-core.json'}")
+    print(f"inspection-full:  {run_dir / 'inspection-full.json'}")
+    print(f"samples:          {run_dir / 'inspection-samples.json'}")
 
     return 0 if all_passed else 1
 

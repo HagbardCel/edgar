@@ -1,9 +1,11 @@
-"""Unit tests for uri-bindings-v1 construction and validation (no network)."""
+"""Unit tests for uri-bindings-v2 construction and validation (no network)."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+import pytest
 
 SPIKE_DIR = Path(__file__).resolve().parents[2] / "scripts" / "spikes"
 sys.path.insert(0, str(SPIKE_DIR))
@@ -156,3 +158,52 @@ def test_covered_uris_includes_aliases() -> None:
         ),
     ]
     assert covered_uris(bindings) == {ENTRYPOINT, "https://a.example/x"}
+
+
+def test_noncanonical_serialized_uri_rejected() -> None:
+    bindings = [
+        UriBinding(
+            "HTTPS://WWW.SEC.GOV/Archives/edgar/data/1/x/a.htm",
+            "accession/a.htm",
+            "aa" * 32,
+        ),
+    ]
+    errors = validate_bindings(
+        bindings, manifest_artifacts=_artifacts(), entrypoint_document_uri=ENTRYPOINT
+    )
+    assert any("not canonical" in e or "invalid document_uri" in e for e in errors)
+
+
+def test_canonical_equivalent_alias_collision() -> None:
+    bindings = [
+        UriBinding(
+            ENTRYPOINT,
+            "accession/a.htm",
+            "aa" * 32,
+            replay_aliases=["https://example.com:443/d.xsd"],
+        ),
+        UriBinding(
+            "https://example.com/d.xsd",
+            "external/cc/d.xsd",
+            "cc" * 32,
+        ),
+    ]
+    # Alias https://example.com:443/d.xsd canonicalizes to https://example.com/d.xsd
+    # which is a primary — but alias itself must already be canonical, so reject.
+    errors = validate_bindings(
+        bindings, manifest_artifacts=_artifacts(), entrypoint_document_uri=ENTRYPOINT
+    )
+    assert errors  # non-canonical alias and/or collision
+
+
+def test_parse_requires_uri_identity_version() -> None:
+    import json
+
+    from spike_lib import URI_BINDING_SCHEMA_VERSION
+
+    doc = {
+        "uri_binding_schema_version": URI_BINDING_SCHEMA_VERSION,
+        "bindings": [],
+    }
+    with pytest.raises(ValueError, match="uri_identity_version"):
+        parse_bindings(json.dumps(doc).encode("utf-8"))

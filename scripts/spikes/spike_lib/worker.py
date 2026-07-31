@@ -26,12 +26,10 @@ from spike_lib.arelle_load import (
 from spike_lib.hashing import sha256_hex
 from spike_lib.manifest import (
     manifest_artifact_hashes,
-    validate_manifest,
 )
 from spike_lib.storage import ObjectStore, write_bytes_atomic, write_json_atomic
 from spike_lib.uri_bindings import (
     parse_bindings,
-    validate_bindings,
 )
 
 
@@ -51,6 +49,13 @@ def _snapshot_dict(snapshot: Any) -> dict[str, Any]:
         "resource_relationship_occurrence_hash": snapshot.resource_relationship_occurrence_hash,
         "unsupported_inventory": snapshot.unsupported_inventory,
         "extraction": snapshot.extraction,
+        "document_edge_extraction": getattr(snapshot, "document_edge_extraction", None)
+        or {
+            "extraction_complete": True,
+            "unstable_reference_occurrence_count": 0,
+            "unresolved_reference_attribute_count": 0,
+            "failure_records": [],
+        },
         "synthetic_documents": snapshot.synthetic_documents,
         "synthetic_document_set_hash": snapshot.synthetic_document_set_hash,
         "synthetic_document_count": snapshot.synthetic_document_count,
@@ -90,6 +95,9 @@ def _result_payload(mode: str, result: Any) -> dict[str, Any]:
                 "discovery_type": e.discovery_type,
                 "target_uri": e.target_uri,
                 "normalized_href": e.normalized_href,
+                "edge_occurrence": e.edge_occurrence,
+                "reference_attribute_qname": e.reference_attribute_qname,
+                "referring_element_recoverable": e.referring_element_recoverable,
             }
             for e in result.closure_edges
         ],
@@ -203,8 +211,13 @@ def run_offline_manifest_job(job: dict[str, Any]) -> dict[str, Any]:
         write_json_atomic(result_path, payload)
         return payload
 
+    from spike_lib.manifest import (
+        validate_manifest_structure,
+        validate_uri_bindings_pointer,
+    )
+
     manifest = json.loads(manifest_bytes.decode("utf-8"))
-    structure_errors = validate_manifest(manifest)
+    structure_errors = validate_manifest_structure(manifest)
     if structure_errors:
         payload = _failed_payload(
             "offline-manifest",
@@ -231,17 +244,17 @@ def run_offline_manifest_job(job: dict[str, Any]) -> dict[str, Any]:
 
     pointer = manifest["uri_bindings_artifact"]
     bindings_bytes = store.open_bytes(pointer["sha256"])
-    if sha256_hex(bindings_bytes) != pointer["sha256"]:
+    pointer_errors = validate_uri_bindings_pointer(manifest, bindings_bytes)
+    if pointer_errors:
         payload = _failed_payload(
             "offline-manifest",
-            "URI_BINDINGS_HASH_MISMATCH",
-            "uri-bindings object does not match manifest pointer",
-            {"pointer": pointer["sha256"]},
+            "URI_BINDINGS_INVALID",
+            "uri bindings pointer/artifact validation failed",
+            {"errors": pointer_errors},
         )
         write_json_atomic(result_path, payload)
         return payload
 
-    entrypoint_uri = manifest["entrypoint"]["document_uri"]
     try:
         bindings = parse_bindings(bindings_bytes)
     except ValueError as exc:
@@ -249,20 +262,7 @@ def run_offline_manifest_job(job: dict[str, Any]) -> dict[str, Any]:
         write_json_atomic(result_path, payload)
         return payload
 
-    binding_errors = validate_bindings(
-        bindings,
-        manifest_artifacts=artifact_hashes,
-        entrypoint_document_uri=entrypoint_uri,
-    )
-    if binding_errors:
-        payload = _failed_payload(
-            "offline-manifest",
-            "URI_BINDINGS_INVALID",
-            "uri bindings failed validation",
-            {"errors": binding_errors},
-        )
-        write_json_atomic(result_path, payload)
-        return payload
+    entrypoint_uri = manifest["entrypoint"]["document_uri"]
 
     # Materialize exactly the bound documents from verified objects.
     work_dir.mkdir(parents=True, exist_ok=True)

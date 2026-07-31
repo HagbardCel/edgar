@@ -1,19 +1,15 @@
 """Effective relationship extraction with endpoint-aware occurrence identities.
 
-Identity model (xbrl-relationship-v1):
+Identity model (xbrl-relationship-v2):
 
-- ``arc_occurrence_hash``: identifies the effective arc element occurrence
-  (arc document URI + deterministic arc element locator).
-- ``relationship_occurrence_hash``: identifies the effective relationship
-  traversal = arc occurrence + source/target endpoint occurrence identities.
-- Endpoint occurrences are explicit: a locator-backed concept endpoint carries
-  the locator occurrence plus the resolved object identity; a local resource
-  endpoint carries its resource occurrence hash.
-
-Multiple locators resolving to the same concept therefore remain distinct
-traversals. True multiplicity is never collapsed by a semantic key; distinct
-occurrences are deduplicated only by identical occurrence hash, and a hash
-collision with different canonical bytes is an extraction error.
+- ``arc_occurrence_hash``: arc document URI + deterministic arc element locator.
+- Endpoint occurrence: locator-backed endpoints carry document URI + locator
+  only; resolved semantics live in the canonical compared record.
+- ``relationship_occurrence_hash``: arc occurrence hash + source/target
+  endpoint occurrence hashes.
+- Direct (non-locator) concept endpoints are extraction-incomplete: Clark
+  QName is never an occurrence identity.
+- Diagnostic provenance (xlink:label, source line) never enters any hash.
 
 Enumeration contract: one pass per exact base set. Exact base-set identities
 are Arelle ``baseSets`` keys whose link QName and arc QName slots are both
@@ -39,6 +35,14 @@ CONCEPT_LABEL_ARCROLE = "http://www.xbrl.org/2003/arcrole/concept-label"
 CONCEPT_REFERENCE_ARCROLE = "http://www.xbrl.org/2003/arcrole/concept-reference"
 FOOTNOTE_ARCROLE = "http://www.xbrl.org/2003/arcrole/fact-footnote"
 
+# XBRL Generic Labels 1.0 / Generic References — deferred for Slice 0.
+DEFERRED_GENERIC_RESOURCE_ARCROLES = frozenset(
+    {
+        "http://xbrl.org/arcrole/2008/element-label",
+        "http://xbrl.org/arcrole/2008/element-reference",
+    }
+)
+
 # Locked definition arcrole registry (XBRL Dimensions 1.0 + XBRL 2.1 definition links).
 DEFINITION_ARCROLES = frozenset(
     {
@@ -60,6 +64,10 @@ DEFINITION_LINK_CLARK = f"{{{LINK_NS}}}definitionLink"
 
 # Documented exclusions: counted but neither extracted nor failing.
 EXCLUDED_ARCROLES = frozenset({FOOTNOTE_ARCROLE})
+
+RELATIONSHIP_SET_LOAD_FAILED = "RELATIONSHIP_SET_LOAD_FAILED"
+ENDPOINT_FAMILY_MISMATCH = "ENDPOINT_FAMILY_MISMATCH"
+DIRECT_ENDPOINT_UNIDENTIFIABLE = "DIRECT_ENDPOINT_UNIDENTIFIABLE"
 
 ConceptDocUriResolver = Callable[[Any], str | None]
 
@@ -93,11 +101,15 @@ def _bool_or_none(value: Any) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
+def _str_or_none(value: Any) -> str | None:
+    return str(value) if value is not None else None
+
+
 def classify_network(arcrole: str, *, link_clark: str | None) -> str:
     """Relationship family under the Phase 1 registry.
 
     Returns one of: presentation, calculation, definition, resource,
-    excluded, unsupported.
+    excluded, deferred, unsupported.
     """
     if arcrole == PRESENTATION_ARCROLE:
         return "presentation"
@@ -109,6 +121,8 @@ def classify_network(arcrole: str, *, link_clark: str | None) -> str:
         return "resource"
     if arcrole in EXCLUDED_ARCROLES:
         return "excluded"
+    if arcrole in DEFERRED_GENERIC_RESOURCE_ARCROLES:
+        return "deferred"
     # Custom definition arcroles are supported when the link topology is a
     # definition link; the original arcrole URI is preserved in the record.
     if link_clark == DEFINITION_LINK_CLARK:
@@ -117,10 +131,10 @@ def classify_network(arcrole: str, *, link_clark: str | None) -> str:
 
 
 def arc_occurrence_record(arc_element: Any, *, canonical_document_uri: str) -> dict[str, Any]:
+    """Occurrence identity only: document URI + locator. No provenance."""
     return {
         "arc_document_uri": canonical_document_uri,
         "arc_locator": element_locator(arc_element),
-        "arc_provenance": occurrence_provenance(arc_element),
     }
 
 
@@ -128,10 +142,24 @@ def arc_occurrence_hash(record: dict[str, Any]) -> str:
     return versioned_record_hash(RELATIONSHIP_SERIALIZATION_VERSION, record)
 
 
+def endpoint_occurrence_record(
+    *, canonical_document_uri: str, locator_element: Any
+) -> dict[str, Any]:
+    """Locator-backed endpoint occurrence: document URI + locator only."""
+    return {
+        "document_uri": canonical_document_uri,
+        "locator": element_locator(locator_element),
+    }
+
+
+def endpoint_occurrence_hash(record: dict[str, Any]) -> str:
+    return versioned_record_hash(RELATIONSHIP_SERIALIZATION_VERSION, record)
+
+
 def resolved_object_identity(
     model_object: Any, *, canonical_doc_uri: ConceptDocUriResolver
 ) -> dict[str, Any] | None:
-    """Semantic identity of a dereferenced endpoint object."""
+    """Semantic identity of a dereferenced endpoint object (not an occurrence)."""
     from arelle.ModelDtsObject import ModelConcept, ModelResource
 
     if model_object is None:
@@ -155,6 +183,7 @@ def resolved_object_identity(
             return {
                 "kind": "resource",
                 "resource_occurrence_hash": serialized["resource_occurrence_hash"],
+                "resource_content_hash": serialized["resource_content_hash"],
             }
         return {"kind": "other_resource", "element": etree.QName(model_object.tag).text}
     return None
@@ -165,66 +194,98 @@ def endpoint_occurrence_identity(
     locator: Any,
     *,
     canonical_doc_uri: ConceptDocUriResolver,
-) -> tuple[dict[str, Any] | None, bool]:
-    """Endpoint occurrence identity; (identity, stable) pair.
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, bool, str | None]:
+    """Return (occurrence_identity, resolved_semantics, stable, failure_code).
 
-    A locator-backed endpoint identifies the specific XLink locator occurrence
-    plus the resolved object. A direct (non-locator) concept endpoint is
-    identified by its resolved object only. Anything else is unstable and
-    fails extraction completeness.
+    Locator-backed endpoints are stable when the locator document URI and
+    resolved object are available. Local filed resources are stable via their
+    resource occurrence hash. Direct concept endpoints (no locator) are
+    unstable — Clark QName is never an occurrence identity.
     """
     resolved = resolved_object_identity(model_object, canonical_doc_uri=canonical_doc_uri)
     if locator is not None:
         doc = getattr(locator, "modelDocument", None)
         doc_uri = canonical_doc_uri(doc) if doc is not None else None
         if doc_uri is None or resolved is None:
-            return None, False
+            return None, resolved, False, ENDPOINT_FAMILY_MISMATCH
+        occurrence = endpoint_occurrence_record(
+            canonical_document_uri=doc_uri, locator_element=locator
+        )
         return (
             {
                 "endpoint_kind": "locator",
-                "locator_occurrence": {
-                    "document_uri": doc_uri,
-                    "locator": element_locator(locator),
-                    "provenance": occurrence_provenance(locator),
-                },
-                "resolved_object": resolved,
+                "endpoint_occurrence_hash": endpoint_occurrence_hash(occurrence),
+                "endpoint_occurrence": occurrence,
             },
+            resolved,
             True,
-        )
-    if resolved is not None and resolved.get("kind") == "concept":
-        return (
-            {
-                "endpoint_kind": "direct_object",
-                "resolved_object": resolved,
-            },
-            True,
+            None,
         )
     if resolved is not None and resolved.get("kind") == "resource":
-        # Local (in-link) resource endpoint: the resource occurrence itself is
-        # the endpoint occurrence identity.
         return (
             {
                 "endpoint_kind": "local_resource",
-                "resource_occurrence_hash": resolved["resource_occurrence_hash"],
+                "endpoint_occurrence_hash": resolved["resource_occurrence_hash"],
             },
+            resolved,
             True,
+            None,
         )
-    return None, False
+    if resolved is not None and resolved.get("kind") == "concept":
+        # Direct concept with no filed locator: extraction incomplete.
+        return None, resolved, False, DIRECT_ENDPOINT_UNIDENTIFIABLE
+    return None, resolved, False, ENDPOINT_FAMILY_MISMATCH
 
 
 def relationship_occurrence_hash(
     arc_hash: str,
-    source_identity: dict[str, Any] | None,
-    target_identity: dict[str, Any] | None,
+    source_endpoint_hash: str | None,
+    target_endpoint_hash: str | None,
 ) -> str:
     return versioned_record_hash(
         RELATIONSHIP_SERIALIZATION_VERSION,
         {
             "arc_occurrence_hash": arc_hash,
-            "source_endpoint_occurrence_identity": source_identity,
-            "target_endpoint_occurrence_identity": target_identity,
+            "source_endpoint_occurrence_hash": source_endpoint_hash,
+            "target_endpoint_occurrence_hash": target_endpoint_hash,
         },
     )
+
+
+def canonical_relationship_record(record_fields: dict[str, Any]) -> dict[str, Any]:
+    """Explicit inclusion builder for collection-hash inputs.
+
+    Only named fields enter semantic identity; diagnostic provenance cannot
+    leak in by default.
+    """
+    network = record_fields["network_type"]
+    base: dict[str, Any] = {
+        "relationship_occurrence_hash": record_fields["relationship_occurrence_hash"],
+        "network_type": network,
+        "arcrole_uri": record_fields["arcrole_uri"],
+        "link_role_uri": record_fields["link_role_uri"],
+        "arc_occurrence_hash": record_fields["arc_occurrence_hash"],
+        "source_endpoint_occurrence_identity": record_fields["source_endpoint_occurrence_identity"],
+        "target_endpoint_occurrence_identity": record_fields["target_endpoint_occurrence_identity"],
+        "source_semantic_identity": record_fields["source_semantic_identity"],
+        "target_semantic_identity": record_fields["target_semantic_identity"],
+        "order": record_fields["order"],
+    }
+    if network == "resource":
+        base["resource_relationship_kind"] = record_fields["resource_relationship_kind"]
+        base["source_concept"] = record_fields["source_concept"]
+        base["resource_occurrence_hash"] = record_fields.get("resource_occurrence_hash")
+        base["resource_content_hash"] = record_fields.get("resource_content_hash")
+    else:
+        base["source_concept"] = record_fields["source_concept"]
+        base["target_concept"] = record_fields["target_concept"]
+        base["weight"] = record_fields.get("weight")
+        base["preferred_label_role"] = record_fields.get("preferred_label_role")
+        base["target_role"] = record_fields.get("target_role")
+        base["closed"] = record_fields.get("closed")
+        base["usable"] = record_fields.get("usable")
+        base["context_element"] = record_fields.get("context_element")
+    return base
 
 
 def _canonical_doc_uri_from_aliases(aliases: dict[str, str]) -> ConceptDocUriResolver:
@@ -235,6 +296,12 @@ def _canonical_doc_uri_from_aliases(aliases: dict[str, str]) -> ConceptDocUriRes
         return aliases.get(uri)
 
     return resolve
+
+
+def _endpoint_hash(identity: dict[str, Any] | None) -> str | None:
+    if identity is None:
+        return None
+    return identity.get("endpoint_occurrence_hash")
 
 
 def collect_relationships(
@@ -269,25 +336,51 @@ def collect_relationships(
     seen: dict[str, bytes] = {}
     duplicate_inconsistencies = 0
     unstable_endpoints = 0
+    endpoint_family_failures = 0
+    base_set_load_failures: list[dict[str, Any]] = []
+    endpoint_family_failure_records: list[dict[str, Any]] = []
     encountered: dict[str, int] = {}
     supported_counts: dict[str, int] = {}
     excluded_counts: dict[str, int] = {}
+    deferred_counts: dict[str, int] = {}
     unsupported_counts: dict[str, int] = {}
     family_counts: dict[str, int] = {}
 
     for arcrole, linkrole, link_qname, arc_qname in sorted(exact_keys, key=key_sort):
         arcrole_uri = str(arcrole)
         link_clark = _clark_qname(link_qname)
+        arc_clark = _clark_qname(arc_qname)
         network = classify_network(arcrole_uri, link_clark=link_clark)
         try:
             rel_set = model_xbrl.relationshipSet(arcrole, linkrole, link_qname, arc_qname)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            failure = {
+                "failure_code": RELATIONSHIP_SET_LOAD_FAILED,
+                "arcrole_uri": arcrole_uri,
+                "link_role_uri": str(linkrole) if linkrole else None,
+                "link_qname": link_clark,
+                "arc_qname": arc_clark,
+            }
+            base_set_load_failures.append(failure)
+            # Operational diagnostics (not semantic identity).
+            failure_diagnostic = {
+                **failure,
+                "exception_class": type(exc).__name__,
+                "exception_message": str(exc),
+            }
+            endpoint_family_failure_records.append(failure_diagnostic)
             continue
+
         model_rels = list(getattr(rel_set, "modelRelationships", None) or [])
         count = len(model_rels)
         encountered[arcrole_uri] = encountered.get(arcrole_uri, 0) + count
         if network == "excluded":
             excluded_counts[arcrole_uri] = excluded_counts.get(arcrole_uri, 0) + count
+            continue
+        if network == "deferred":
+            deferred_counts[arcrole_uri] = deferred_counts.get(arcrole_uri, 0) + count
+            # Deferred generic resource arcroles fail closed for Slice 0.
+            unsupported_counts[arcrole_uri] = unsupported_counts.get(arcrole_uri, 0) + count
             continue
         if network == "unsupported":
             unsupported_counts[arcrole_uri] = unsupported_counts.get(arcrole_uri, 0) + count
@@ -306,6 +399,7 @@ def collect_relationships(
                 continue
             arc_record = arc_occurrence_record(arc_element, canonical_document_uri=arc_doc_uri)
             arc_hash = arc_occurrence_hash(arc_record)
+            arc_diag = occurrence_provenance(arc_element)
 
             from_model = getattr(rel, "fromModelObject", None)
             to_model = getattr(rel, "toModelObject", None)
@@ -318,18 +412,74 @@ def collect_relationships(
             except Exception:  # noqa: BLE001
                 to_locator = None
 
-            source_identity, source_stable = endpoint_occurrence_identity(
-                from_model, from_locator, canonical_doc_uri=canonical_doc_uri
+            source_identity, source_resolved, source_stable, source_fail = (
+                endpoint_occurrence_identity(
+                    from_model, from_locator, canonical_doc_uri=canonical_doc_uri
+                )
             )
-            target_identity, target_stable = endpoint_occurrence_identity(
-                to_model, to_locator, canonical_doc_uri=canonical_doc_uri
+            target_identity, target_resolved, target_stable, target_fail = (
+                endpoint_occurrence_identity(
+                    to_model, to_locator, canonical_doc_uri=canonical_doc_uri
+                )
             )
             if not source_stable or not target_stable:
                 unstable_endpoints += 1
+                code = source_fail or target_fail or ENDPOINT_FAMILY_MISMATCH
+                endpoint_family_failures += 1
+                endpoint_family_failure_records.append(
+                    {
+                        "failure_code": code,
+                        "arcrole_uri": arcrole_uri,
+                        "arc_occurrence_hash": arc_hash,
+                        "source_stable": source_stable,
+                        "target_stable": target_stable,
+                    }
+                )
 
-            rel_hash = relationship_occurrence_hash(arc_hash, source_identity, target_identity)
+            # Endpoint-family topology checks for supported networks.
+            family_ok = True
+            if network in ("presentation", "calculation", "definition"):
+                src_concept = _concept_clark(from_model)
+                tgt_concept = _concept_clark(to_model)
+                if src_concept is None or tgt_concept is None:
+                    family_ok = False
+                    endpoint_family_failures += 1
+                    endpoint_family_failure_records.append(
+                        {
+                            "failure_code": ENDPOINT_FAMILY_MISMATCH,
+                            "arcrole_uri": arcrole_uri,
+                            "arc_occurrence_hash": arc_hash,
+                            "reason": "concept_network_requires_concept_endpoints",
+                        }
+                    )
+            elif network == "resource":
+                src_concept = _concept_clark(from_model)
+                resource_ok = False
+                if to_model is not None:
+                    local_name = getattr(to_model, "localName", None)
+                    namespace = getattr(to_model, "namespaceURI", None)
+                    if namespace == LINK_NS and local_name in ("label", "reference"):
+                        resource_ok = True
+                if src_concept is None or not resource_ok:
+                    family_ok = False
+                    endpoint_family_failures += 1
+                    endpoint_family_failure_records.append(
+                        {
+                            "failure_code": ENDPOINT_FAMILY_MISMATCH,
+                            "arcrole_uri": arcrole_uri,
+                            "arc_occurrence_hash": arc_hash,
+                            "reason": "resource_network_requires_label_or_reference_target",
+                        }
+                    )
 
-            base_record: dict[str, Any] = {
+            if not family_ok:
+                unstable_endpoints += 1
+
+            rel_hash = relationship_occurrence_hash(
+                arc_hash, _endpoint_hash(source_identity), _endpoint_hash(target_identity)
+            )
+
+            fields: dict[str, Any] = {
                 "network_type": network,
                 "arcrole_uri": arcrole_uri,
                 "link_role_uri": str(linkrole) if linkrole else None,
@@ -337,8 +487,18 @@ def collect_relationships(
                 "arc_occurrence_hash": arc_hash,
                 "source_endpoint_occurrence_identity": source_identity,
                 "target_endpoint_occurrence_identity": target_identity,
+                "source_semantic_identity": source_resolved,
+                "target_semantic_identity": target_resolved,
                 "relationship_occurrence_hash": rel_hash,
             }
+
+            diagnostic: dict[str, Any] = {
+                "arc_provenance": arc_diag,
+            }
+            if from_locator is not None:
+                diagnostic["source_locator_provenance"] = occurrence_provenance(from_locator)
+            if to_locator is not None:
+                diagnostic["target_locator_provenance"] = occurrence_provenance(to_locator)
 
             if network == "resource":
                 resource = None
@@ -356,49 +516,88 @@ def collect_relationships(
                             )
                 if resource is None:
                     unstable_endpoints += 1
-                record = {
-                    **base_record,
-                    "source_concept": _concept_clark(from_model),
-                    "resource": resource,
-                    "resource_relationship_kind": (
-                        "concept_label"
-                        if arcrole_uri == CONCEPT_LABEL_ARCROLE
-                        else "concept_reference"
-                    ),
-                }
+                    endpoint_family_failures += 1
+                fields.update(
+                    {
+                        "source_concept": _concept_clark(from_model),
+                        "resource_relationship_kind": (
+                            "concept_label"
+                            if arcrole_uri == CONCEPT_LABEL_ARCROLE
+                            else "concept_reference"
+                        ),
+                        "resource_occurrence_hash": (
+                            resource["resource_occurrence_hash"] if resource else None
+                        ),
+                        "resource_content_hash": (
+                            resource["resource_content_hash"] if resource else None
+                        ),
+                    }
+                )
+                if resource is not None:
+                    diagnostic["resource_diagnostic_provenance"] = resource.get(
+                        "diagnostic_provenance"
+                    )
+                    diagnostic["resource_full"] = resource
                 target_records = resource_records
-                family_key = record["resource_relationship_kind"]
+                family_key = fields["resource_relationship_kind"]
             else:
-                record = {
-                    **base_record,
-                    "source_concept": _concept_clark(from_model),
-                    "target_concept": _concept_clark(to_model),
-                    "weight": _decimal_or_none(getattr(rel, "weight", None)),
-                    "preferred_label_role": _str_or_none(getattr(rel, "preferredLabel", None)),
-                    "target_role": _str_or_none(getattr(rel, "targetRole", None)),
-                    "closed": _bool_or_none(getattr(rel, "closed", None)),
-                    "usable": _bool_or_none(getattr(rel, "usable", None)),
-                    "context_element": _str_or_none(getattr(rel, "contextElement", None)),
-                }
+                fields.update(
+                    {
+                        "source_concept": _concept_clark(from_model),
+                        "target_concept": _concept_clark(to_model),
+                        "weight": _decimal_or_none(getattr(rel, "weight", None)),
+                        "preferred_label_role": _str_or_none(getattr(rel, "preferredLabel", None)),
+                        "target_role": _str_or_none(getattr(rel, "targetRole", None)),
+                        "closed": _bool_or_none(getattr(rel, "closed", None)),
+                        "usable": _bool_or_none(getattr(rel, "usable", None)),
+                        "context_element": _str_or_none(getattr(rel, "contextElement", None)),
+                    }
+                )
                 target_records = concept_records
                 family_key = network
 
-            canonical = canonical_json_bytes(record)
+            canonical = canonical_relationship_record(fields)
+            inspection_record = {
+                "canonical_record": canonical,
+                "diagnostic_provenance": diagnostic,
+            }
+            # Convenience mirrors used by evidence projections / tests.
+            inspection_record.update(fields)
+
+            canonical_bytes = canonical_json_bytes(canonical)
             prior = seen.get(rel_hash)
             if prior is not None:
-                if prior != canonical:
+                if prior != canonical_bytes:
                     duplicate_inconsistencies += 1
                 continue
-            seen[rel_hash] = canonical
-            target_records.append(record)
+            seen[rel_hash] = canonical_bytes
+            target_records.append(inspection_record)
             family_counts[family_key] = family_counts.get(family_key, 0) + 1
 
-    concept_records.sort(key=lambda r: canonical_json_bytes(r))
-    resource_records.sort(key=lambda r: canonical_json_bytes(r))
+    concept_records.sort(key=lambda r: canonical_json_bytes(r["canonical_record"]))
+    resource_records.sort(key=lambda r: canonical_json_bytes(r["canonical_record"]))
+
+    # Semantic failure inventory: stable codes only (no exception text).
+    semantic_base_set_failures = [
+        {
+            "failure_code": f["failure_code"],
+            "arcrole_uri": f["arcrole_uri"],
+            "link_role_uri": f["link_role_uri"],
+            "link_qname": f["link_qname"],
+            "arc_qname": f["arc_qname"],
+        }
+        for f in base_set_load_failures
+    ]
 
     unsupported_total = sum(unsupported_counts.values())
+    deferred_total = sum(deferred_counts.values())
     extraction_complete = (
-        unstable_endpoints == 0 and unsupported_total == 0 and duplicate_inconsistencies == 0
+        unstable_endpoints == 0
+        and unsupported_total == 0
+        and deferred_total == 0
+        and duplicate_inconsistencies == 0
+        and len(base_set_load_failures) == 0
+        and endpoint_family_failures == 0
     )
 
     return {
@@ -420,16 +619,23 @@ def collect_relationships(
             "encountered_arcrole_counts": dict(sorted(encountered.items())),
             "supported_arcrole_counts": dict(sorted(supported_counts.items())),
             "excluded_arcrole_counts": dict(sorted(excluded_counts.items())),
+            "deferred_arcrole_counts": dict(sorted(deferred_counts.items())),
             "unsupported_arcrole_counts": dict(sorted(unsupported_counts.items())),
+            "deferred_generic_resource_arcroles": sorted(DEFERRED_GENERIC_RESOURCE_ARCROLES),
         },
         "extraction": {
             "extraction_complete": extraction_complete,
             "unstable_endpoint_occurrence_count": unstable_endpoints,
-            "unsupported_failing_relationship_count": unsupported_total,
+            "unsupported_failing_relationship_count": unsupported_total + deferred_total,
             "duplicate_occurrence_inconsistency_count": duplicate_inconsistencies,
+            "base_set_load_failure_count": len(base_set_load_failures),
+            "endpoint_family_failure_count": endpoint_family_failures,
+            "base_set_load_failures": semantic_base_set_failures,
+            "endpoint_family_failure_records": [
+                {k: v for k, v in rec.items() if k not in ("exception_class", "exception_message")}
+                for rec in endpoint_family_failure_records
+                if rec.get("failure_code") != RELATIONSHIP_SET_LOAD_FAILED
+                or "exception_class" not in rec
+            ],
         },
     }
-
-
-def _str_or_none(value: Any) -> str | None:
-    return str(value) if value is not None else None

@@ -8,7 +8,10 @@ the run and forces review, so new failure modes can never slip through.
 
 A code enters RECOGNIZED_NONBLOCKING_CODES only with a written rationale
 showing that (a) it diagnoses filed content, not the extraction process, and
-(b) the affected structures are still extracted and occurrence-identified.
+(b) the affected structures remain present in Arelle's collections with
+matching online/offline counts and stable document/relationship closure.
+Slice 0 does not claim validated fact-value fidelity or complete fact
+occurrence identities.
 """
 
 from __future__ import annotations
@@ -27,14 +30,17 @@ RECOGNIZED_NONBLOCKING_CODES: dict[str, str] = {
     # eBay 10-K (and many EDGAR filings) use the legacy SEC inline XBRL
     # transformation namespace http://www.sec.gov/inlineXBRL/transformation/2015-08-31,
     # which Arelle's iXBRL 1.1 transformation registry does not recognize.
-    # Arelle retains the facts; fact counts and closure are unaffected.
+    # Arelle retains the facts in its fact collection; online/offline fact
+    # counts and document/relationship closure remain stable.
     "ix11.10.1.2:invalidTransformation": (
         "legacy SEC transformation namespace unrecognized by the iXBRL 1.0 "
-        "registry; facts are retained and occurrence-identified"
+        "registry; facts remain present in Arelle's fact collection with "
+        "matching online/offline counts and stable document/relationship closure"
     ),
     "ix11.11.1.2:invalidTransformation": (
         "legacy SEC transformation namespace unrecognized by the iXBRL 1.1 "
-        "registry; facts are retained and occurrence-identified"
+        "registry; facts remain present in Arelle's fact collection with "
+        "matching online/offline counts and stable document/relationship closure"
     ),
 }
 
@@ -91,6 +97,26 @@ class ErrorCapture(logging.Handler):
         )
 
 
+def canonical_error_identity_records(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Canonical error identity for semantic comparison: code + document + multiplicity.
+
+    Source line is excluded (evidence-only) to avoid depending on Arelle
+    line-reporting consistency.
+    """
+    identity: dict[tuple[str, str | None], int] = {}
+    for rec in errors:
+        code = rec.get("code")
+        if code is None:
+            continue
+        doc = rec.get("document_uri")
+        key = (str(code), str(doc) if doc is not None else None)
+        identity[key] = identity.get(key, 0) + int(rec.get("count") or 1)
+    return [
+        {"code": code, "document_uri": doc, "multiplicity": count}
+        for (code, doc), count in sorted(identity.items())
+    ]
+
+
 def summarize_errors(
     records: list[StructuredError],
     *,
@@ -130,11 +156,13 @@ def summarize_errors(
     warnings = project(warning_counts)
     recognized_errors = [e for e in errors if e["code"] in recognized]
     unrecognized_errors = [e for e in errors if e["code"] not in recognized]
+    canonical_records = canonical_error_identity_records(errors)
     return {
         "arelle_error_policy_version": ARELLE_ERROR_POLICY_VERSION,
         "recognized_nonblocking_codes": sorted(recognized),
         "errors": errors,
         "warnings": warnings,
+        "canonical_error_records": canonical_records,
         "error_count": sum(error_counts.values()),
         "warning_count": sum(warning_counts.values()),
         "recognized_nonblocking_error_count": sum(e["count"] for e in recognized_errors),

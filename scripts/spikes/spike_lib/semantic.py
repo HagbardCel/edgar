@@ -1,11 +1,12 @@
-"""Semantic run identity (semantic-run-v1): non-circular, independently comparable.
+"""Semantic run identity (semantic-run-v2): non-circular, independently comparable.
 
 ``semantic_run_hash`` covers the semantic identity only: payload identity,
 engine identity, canonical closure documents/edges (source-backed partition),
 concept/resource relationship occurrence collections, counts, unsupported
-inventory, entrypoint, and criterion outcomes *excluding* the repeat criterion
-(id 9) and all repeat-derived fields. Operational data (paths, logs, timings,
-promotion state) never participates.
+inventory, entrypoint, structured error identity, document-edge extraction,
+and criterion outcomes *excluding* the repeat criterion (id 9) and all
+repeat-derived fields. Operational data (paths, logs, timings, promotion
+state), samples, and the full-inspection digest never participate.
 
 ``build_semantic_run_identity`` constructs the hash input by explicit
 inclusion keyed to SEMANTIC_RUN_SCHEMA_VERSION. It never embeds
@@ -18,11 +19,16 @@ from typing import Any
 
 from spike_lib import (
     ACQUISITION_POLICY_VERSION,
+    CLOSURE_SERIALIZATION_VERSION,
     MANIFEST_SCHEMA_VERSION,
     PAYLOAD_HASH_SCHEMA_VERSION,
+    RELATIONSHIP_SERIALIZATION_VERSION,
+    RESOURCE_SERIALIZATION_VERSION,
     SEMANTIC_RUN_SCHEMA_VERSION,
     URI_BINDING_SCHEMA_VERSION,
+    URI_IDENTITY_VERSION,
 )
+from spike_lib.arelle_errors import canonical_error_identity_records
 from spike_lib.hashing import canonical_json_bytes, sha256_hex
 
 REPEAT_CRITERION_ID = 9
@@ -30,6 +36,7 @@ REPEAT_CRITERION_ID = 9
 
 def _side_projection(snapshot: dict[str, Any]) -> dict[str, Any]:
     """Semantic projection of one (online or offline) inspection snapshot."""
+    error_summary = snapshot.get("error_summary") or {}
     return {
         "concept_count": snapshot["concept_count"],
         "context_count": snapshot["context_count"],
@@ -49,6 +56,17 @@ def _side_projection(snapshot: dict[str, Any]) -> dict[str, Any]:
         "unresolved_uris": snapshot["unresolved_uris"],
         "unsupported_inventory": snapshot["unsupported_inventory"],
         "extraction": snapshot["extraction"],
+        "document_edge_extraction": snapshot.get("document_edge_extraction"),
+        "error_identity": {
+            "arelle_error_policy_version": error_summary.get("arelle_error_policy_version"),
+            "canonical_error_records": error_summary.get("canonical_error_records")
+            or canonical_error_identity_records(error_summary.get("errors") or []),
+            "recognized_nonblocking_error_count": error_summary.get(
+                "recognized_nonblocking_error_count"
+            ),
+            "unrecognized_error_count": error_summary.get("unrecognized_error_count"),
+            "policy_passed": error_summary.get("policy_passed"),
+        },
     }
 
 
@@ -72,6 +90,10 @@ def build_semantic_run_identity(
             "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
             "payload_hash_schema_version": PAYLOAD_HASH_SCHEMA_VERSION,
             "uri_binding_schema_version": URI_BINDING_SCHEMA_VERSION,
+            "uri_identity_version": URI_IDENTITY_VERSION,
+            "relationship_serialization_version": RELATIONSHIP_SERIALIZATION_VERSION,
+            "resource_serialization_version": RESOURCE_SERIALIZATION_VERSION,
+            "closure_serialization_version": CLOSURE_SERIALIZATION_VERSION,
         },
         "cik": cik,
         "accession": accession,

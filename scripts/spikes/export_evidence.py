@@ -2,10 +2,10 @@
 """Export sanitized, versioned spike evidence for repository commit.
 
 The exporter copies exact bytes (no reserialization) of the promoted bundle
-manifest, the URI-bindings artifact, and the inspection core, and derives
-deterministic expectation files. It refuses to run unless HEAD equals the
-supplied source commit and the working tree is clean, so committed evidence
-provably reflects the implementation commit that produced it.
+manifest, the URI-bindings artifact, the compact inspection core, and the
+inspection samples. It verifies the full inspection digest against the run's
+inspection-full.json (local only; not committed). It refuses to run unless
+HEAD equals the supplied source commit and the working tree is clean.
 
 Usage:
   uv run python scripts/spikes/export_evidence.py \
@@ -27,17 +27,22 @@ SPIKE_DIR = Path(__file__).resolve().parent
 if str(SPIKE_DIR) not in sys.path:
     sys.path.insert(0, str(SPIKE_DIR))
 
-from spike_lib import EVIDENCE_EXPORTER_VERSION, EVIDENCE_SCHEMA_VERSION  # noqa: E402
+from spike_lib import (  # noqa: E402
+    EVIDENCE_EXPORTER_VERSION,
+    EVIDENCE_SCHEMA_VERSION,
+    SAMPLES_POLICY_VERSION,
+)
 from spike_lib.hashing import sha256_hex  # noqa: E402
 from spike_lib.storage import write_json_atomic  # noqa: E402
 
-EVIDENCE_FILES = (
+# Files committed and listed in evidence_file_sha256 (metadata itself excluded).
+EVIDENCE_HASHED_FILES = (
     "bundle-manifest.json",
     "uri-bindings.json",
     "inspection-core.json",
+    "inspection-samples.json",
     "acquisition-expectations.json",
     "parser-expectations.json",
-    "evidence-metadata.json",
 )
 
 
@@ -91,6 +96,7 @@ def parser_expectations(inspection: dict[str, Any]) -> dict[str, Any]:
         ],
         "unsupported_inventory": online["unsupported_inventory"],
         "extraction": online["extraction"],
+        "document_edge_extraction": online.get("document_edge_extraction"),
         "criteria_passed": {str(c["id"]): c["passed"] for c in inspection["success_criteria"]},
     }
 
@@ -153,19 +159,47 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: uri-bindings object hash mismatch", file=sys.stderr)
         return 1
 
-    inspection_bytes = (run_dir / "inspection-core.json").read_bytes()
+    inspection_core_path = run_dir / "inspection-core.json"
+    inspection_full_path = run_dir / "inspection-full.json"
+    samples_path = run_dir / "inspection-samples.json"
+    if not inspection_core_path.is_file():
+        print("ERROR: missing inspection-core.json in run dir", file=sys.stderr)
+        return 1
+    if not inspection_full_path.is_file():
+        print("ERROR: missing inspection-full.json in run dir", file=sys.stderr)
+        return 1
+    if not samples_path.is_file():
+        print("ERROR: missing inspection-samples.json in run dir", file=sys.stderr)
+        return 1
+
+    inspection_bytes = inspection_core_path.read_bytes()
     inspection = json.loads(inspection_bytes.decode("utf-8"))
+    samples_bytes = samples_path.read_bytes()
+
+    full_bytes = inspection_full_path.read_bytes()
+    full_sha = sha256_hex(full_bytes)
+    run_full_sha = run_meta.get("full_inspection_sha256") or inspection.get(
+        "full_inspection_sha256"
+    )
+    if run_full_sha and run_full_sha != full_sha:
+        print(
+            f"ERROR: inspection-full.json digest mismatch: run={run_full_sha} actual={full_sha}",
+            file=sys.stderr,
+        )
+        return 1
 
     output.mkdir(parents=True, exist_ok=True)
     (output / "bundle-manifest.json").write_bytes(manifest_bytes)
     (output / "uri-bindings.json").write_bytes(bindings_bytes)
     (output / "inspection-core.json").write_bytes(inspection_bytes)
+    (output / "inspection-samples.json").write_bytes(samples_bytes)
     write_json_atomic(output / "acquisition-expectations.json", acquisition_expectations(manifest))
     write_json_atomic(output / "parser-expectations.json", parser_expectations(inspection))
 
     metadata = {
         "evidence_schema_version": EVIDENCE_SCHEMA_VERSION,
         "exporter_version": EVIDENCE_EXPORTER_VERSION,
+        "samples_policy_version": SAMPLES_POLICY_VERSION,
         "source_commit": args.source_commit,
         "source_run_id": run_meta["run_id"],
         "working_tree_was_dirty": dirty,
@@ -174,9 +208,11 @@ def main(argv: list[str] | None = None) -> int:
         "payload_hash": manifest["payload_hash"],
         "semantic_run_hash": inspection["semantic_run_hash"],
         "evidence_file_sha256": {
-            name: sha256_hex((output / name).read_bytes())
-            for name in EVIDENCE_FILES
-            if name != "evidence-metadata.json"
+            name: sha256_hex((output / name).read_bytes()) for name in EVIDENCE_HASHED_FILES
+        },
+        "full_inspection": {
+            "sha256": full_sha,
+            "verification_scope": "verified_by_exporter_from_source_run_not_committed",
         },
     }
     write_json_atomic(output / "evidence-metadata.json", metadata)
@@ -184,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  source_commit: {args.source_commit}")
     print(f"  payload_hash:  {manifest['payload_hash']}")
     print(f"  semantic_run:  {inspection['semantic_run_hash']}")
+    print(f"  full_inspection (local): {full_sha}")
     return 0
 
 

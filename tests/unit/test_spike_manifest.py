@@ -211,11 +211,45 @@ def test_promote_conflict_is_fatal(tmp_path: Path) -> None:
 
 def test_discard_moves_candidate_to_failed(tmp_path: Path) -> None:
     staging, _manifest = _stage(tmp_path)
-    failed = discard_candidate(tmp_path, staging, reason="replay failed")
+    failed = discard_candidate(
+        tmp_path, staging, reason="replay failed", failure_code="PRE_PROMOTION_GATE_FAILED"
+    )
     assert ".failed" in str(failed)
     assert not staging.exists()
     assert (failed / "failure.json").is_file()
-    assert json.loads((failed / "failure.json").read_text())["reason"] == "replay failed"
+    failure = json.loads((failed / "failure.json").read_text())
+    assert failure["reason"] == "replay failed"
+    assert failure["failure_code"] == "PRE_PROMOTION_GATE_FAILED"
+
+
+def test_duplicate_logical_path_rejected() -> None:
+    draft = _draft()
+    draft.artifacts.append(
+        _artifact("accession/a.htm", "ff" * 32, 50),
+    )
+    with pytest.raises(ValueError, match="duplicate logical_path"):
+        build_sterile_manifest(draft, entrypoint_document_uri=ENTRYPOINT_URI)
+
+
+def test_promote_exact_bytes_required_on_reuse(tmp_path: Path) -> None:
+    staging1, manifest1 = _stage(tmp_path)
+    promote_candidate(tmp_path, staging1, manifest1)
+
+    # Same promotion identity projection but different sterile artifact notes would
+    # not apply; instead mutate a non-identity-affecting field that still changes
+    # bytes while keeping the same payload_hash path key by forcing write.
+    staging2, manifest2 = _stage(tmp_path)
+    # Corrupt staged bytes while keeping JSON-parseable structure with same
+    # promotion identity keys but different whitespace / key order is hard;
+    # instead change an artifact description (sterile field) which changes bytes
+    # without changing promotion_identity or payload entries.
+    manifest2["artifacts"][0]["sec_description"] = "tampered"
+    # Recompute would change payload hash only if in_payload entries change;
+    # sec_description is not in payload identity, so payload_hash stays same.
+    write_path = staging2 / "manifest.json"
+    write_path.write_text(json.dumps(manifest2, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="different manifest bytes"):
+        promote_candidate(tmp_path, staging2, manifest2)
 
 
 def test_manifest_artifact_hashes(tmp_path: Path) -> None:
@@ -224,3 +258,7 @@ def test_manifest_artifact_hashes(tmp_path: Path) -> None:
     hashes = manifest_artifact_hashes(manifest)
     assert hashes["accession/a.htm"] == "aa" * 32
     assert hashes[URI_BINDINGS_LOGICAL_PATH] == "dd" * 32
+    pointer = manifest["uri_bindings_artifact"]
+    assert pointer["schema_version"] == "uri-bindings-v2"
+    assert pointer["uri_identity_version"] == "uri-identity-v1"
+    assert "binding_count" in pointer

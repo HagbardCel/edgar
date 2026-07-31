@@ -117,7 +117,9 @@ def test_offline_worker_loads_strictly_from_manifest(tmp_path: Path) -> None:
         artifacts=artifacts,
         artifact_by_path=lambda path: next((a for a in artifacts if a.logical_path == path), None),
     )
-    manifest = build_sterile_manifest(draft, entrypoint_document_uri=normalize_uri(EX_XSD_URI))
+    manifest = build_sterile_manifest(
+        draft, entrypoint_document_uri=normalize_uri(EX_XSD_URI), bindings_count=len(bindings)
+    )
     manifest_path = tmp_path / "manifest.json"
     write_json_atomic(manifest_path, manifest)
 
@@ -139,14 +141,19 @@ def test_offline_worker_loads_strictly_from_manifest(tmp_path: Path) -> None:
     assert "error" not in payload, payload.get("issues")
     snapshot = payload["snapshot"]
 
-    doc_uris = {d["canonical_uri"] for d in snapshot["documents"]}
+    doc_uris = {d.get("document_uri") or d.get("canonical_uri") for d in snapshot["documents"]}
     assert doc_uris == {normalize_uri(EX_XSD_URI), normalize_uri(EX_LAB_URI)}
-    by_uri = {d["canonical_uri"]: d for d in snapshot["documents"]}
+    by_uri = {(d.get("document_uri") or d.get("canonical_uri")): d for d in snapshot["documents"]}
     assert by_uri[normalize_uri(EX_XSD_URI)]["content_sha256"] == xsd_obj.sha256
     assert by_uri[normalize_uri(EX_LAB_URI)]["content_sha256"] == lab_obj.sha256
 
     edge_pairs = {
-        (e["source_uri"], e["discovery_type"], e["target_uri"]) for e in snapshot["edges"]
+        (
+            e.get("source_document_uri") or e.get("source_uri"),
+            e.get("reference_kind") or e.get("discovery_type"),
+            e.get("target_document_uri") or e.get("target_uri"),
+        )
+        for e in snapshot["edges"]
     }
     assert (
         normalize_uri(EX_XSD_URI),

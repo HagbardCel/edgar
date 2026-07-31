@@ -10,6 +10,7 @@ from types import SimpleNamespace
 SPIKE_DIR = Path(__file__).resolve().parents[2] / "scripts" / "spikes"
 sys.path.insert(0, str(SPIKE_DIR))
 
+from spike_lib import SAMPLES_POLICY_VERSION  # noqa: E402
 from spike_lib.hashing import sha256_hex  # noqa: E402
 from spike_lib.manifest import build_sterile_manifest  # noqa: E402
 from spike_lib.semantic import (  # noqa: E402
@@ -37,8 +38,6 @@ def _side() -> dict[str, object]:
         "resource_relationship_counts": {"concept_label": 0},
         "concept_relationship_occurrence_hash": "a" * 64,
         "resource_relationship_occurrence_hash": "b" * 64,
-        "concept_records": [],
-        "resource_records": [],
         "documents": [],
         "edges": [],
         "synthetic_documents": [],
@@ -51,7 +50,19 @@ def _side() -> dict[str, object]:
         "unresolved_uris": [],
         "unsupported_inventory": {},
         "extraction": {"extraction_complete": True},
-        "error_summary": {"policy_passed": True},
+        "document_edge_extraction": {
+            "extraction_complete": True,
+            "unstable_reference_occurrence_count": 0,
+            "unresolved_reference_attribute_count": 0,
+            "failure_records": [],
+        },
+        "error_summary": {
+            "policy_passed": True,
+            "arelle_error_policy_version": "arelle-error-policy-v2",
+            "canonical_error_records": [],
+            "recognized_nonblocking_error_count": 0,
+            "unrecognized_error_count": 0,
+        },
         "fact_locator_stats": {},
     }
 
@@ -95,7 +106,9 @@ def _package(evidence_dir: Path) -> dict[str, object]:
         artifacts=artifacts,
         artifact_by_path=lambda path: next((a for a in artifacts if a.logical_path == path), None),
     )
-    manifest = build_sterile_manifest(draft, entrypoint_document_uri=ENTRYPOINT_URI)
+    manifest = build_sterile_manifest(
+        draft, entrypoint_document_uri=ENTRYPOINT_URI, bindings_count=1
+    )
 
     compare = {
         "strict_diffs": [],
@@ -120,7 +133,7 @@ def _package(evidence_dir: Path) -> dict[str, object]:
 
     inspection = {
         "spike": "arelle_offline_closure",
-        "schema_versions": {"semantic_run_schema_version": "semantic-run-v1"},
+        "schema_versions": {"semantic_run_schema_version": "semantic-run-v2"},
         "cik": manifest["cik"],
         "accession": manifest["accession"],
         "payload_hash": manifest["payload_hash"],
@@ -132,6 +145,11 @@ def _package(evidence_dir: Path) -> dict[str, object]:
         "compare": strict_comparison_projection(compare),
         "success_criteria": criteria,
         "quality_issues": [],
+    }
+    samples = {
+        "samples_policy_version": SAMPLES_POLICY_VERSION,
+        "concept_samples": [],
+        "resource_samples": [],
     }
 
     acquisition_expectations = {
@@ -146,7 +164,7 @@ def _package(evidence_dir: Path) -> dict[str, object]:
         "entrypoint": manifest["entrypoint"],
     }
     parser_expectations = {
-        "semantic_run_schema_version": "semantic-run-v1",
+        "semantic_run_schema_version": "semantic-run-v2",
         "payload_hash": manifest["payload_hash"],
         "closure_hash": "2" * 64,
         "semantic_run_hash": sem_hash,
@@ -160,28 +178,36 @@ def _package(evidence_dir: Path) -> dict[str, object]:
         "offline_resource_relationship_occurrence_hash": "b" * 64,
         "unsupported_inventory": {},
         "extraction": {"extraction_complete": True},
+        "document_edge_extraction": _side()["document_edge_extraction"],
         "criteria_passed": {str(i): True for i in range(1, 11)},
     }
+
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    files = {
+        "bundle-manifest.json": json.dumps(manifest).encode("utf-8"),
+        "uri-bindings.json": bindings_bytes,
+        "inspection-core.json": json.dumps(inspection).encode("utf-8"),
+        "inspection-samples.json": json.dumps(samples).encode("utf-8"),
+        "acquisition-expectations.json": json.dumps(acquisition_expectations).encode("utf-8"),
+        "parser-expectations.json": json.dumps(parser_expectations).encode("utf-8"),
+    }
+    for name, data in files.items():
+        (evidence_dir / name).write_bytes(data)
     metadata = {
-        "evidence_schema_version": "evidence-v1",
-        "exporter_version": "evidence-export-v1",
+        "evidence_schema_version": "evidence-v2",
+        "exporter_version": "evidence-export-v2",
+        "samples_policy_version": SAMPLES_POLICY_VERSION,
         "source_commit": None,
         "cik": manifest["cik"],
         "accession": manifest["accession"],
         "payload_hash": manifest["payload_hash"],
         "semantic_run_hash": sem_hash,
+        "evidence_file_sha256": {name: sha256_hex(data) for name, data in files.items()},
+        "full_inspection": {
+            "sha256": "f" * 64,
+            "verification_scope": "verified_by_exporter_from_source_run_not_committed",
+        },
     }
-
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    (evidence_dir / "bundle-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-    (evidence_dir / "uri-bindings.json").write_bytes(bindings_bytes)
-    (evidence_dir / "inspection-core.json").write_text(json.dumps(inspection), encoding="utf-8")
-    (evidence_dir / "acquisition-expectations.json").write_text(
-        json.dumps(acquisition_expectations), encoding="utf-8"
-    )
-    (evidence_dir / "parser-expectations.json").write_text(
-        json.dumps(parser_expectations), encoding="utf-8"
-    )
     (evidence_dir / "evidence-metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
     return {"manifest": manifest, "inspection": inspection, "sem_hash": sem_hash}
 
@@ -205,6 +231,10 @@ def test_privacy_detects_local_paths_and_user_agent(tmp_path: Path) -> None:
     problems = check_privacy(doc3, path="root", label="test")
     assert any("user_agent" in p for p in problems)
 
+    # Filed label text that looks like a path must NOT trigger privacy.
+    filed = {"resource_content": {"text": "/looks/like/a/path but is filed text"}}
+    assert check_privacy(filed, path="root", label="test") == []
+
     clean = {"documents": [{"canonical_uri": "https://www.sec.gov/a.htm"}]}
     assert check_privacy(clean, path="root", label="test") == []
 
@@ -212,18 +242,24 @@ def test_privacy_detects_local_paths_and_user_agent(tmp_path: Path) -> None:
 def test_tampered_bindings_fail_verification(tmp_path: Path) -> None:
     evidence_dir = tmp_path / "evidence"
     _package(evidence_dir)
-    bindings = json.loads((evidence_dir / "uri-bindings.json").read_text(encoding="utf-8"))
-    bindings["bindings"][0]["content_sha256"] = "ff" * 32
-    (evidence_dir / "uri-bindings.json").write_text(json.dumps(bindings), encoding="utf-8")
+    path = evidence_dir / "uri-bindings.json"
+    path.write_bytes(path.read_bytes() + b" ")
     problems = verify(evidence_dir)
-    assert any("uri-bindings" in p for p in problems)
+    assert any("digest" in p or "uri-bindings" in p for p in problems)
 
 
 def test_tampered_manifest_payload_fails(tmp_path: Path) -> None:
     evidence_dir = tmp_path / "evidence"
-    _package(evidence_dir)
-    manifest = json.loads((evidence_dir / "bundle-manifest.json").read_text(encoding="utf-8"))
-    manifest["artifacts"][0]["byte_size"] = 999
+    pkg = _package(evidence_dir)
+    manifest = pkg["manifest"]
+    assert isinstance(manifest, dict)
+    manifest["payload_hash"] = "00" * 32
     (evidence_dir / "bundle-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    # Update digest map so presence/digest checks don't short-circuit first.
+    metadata = json.loads((evidence_dir / "evidence-metadata.json").read_text(encoding="utf-8"))
+    metadata["evidence_file_sha256"]["bundle-manifest.json"] = sha256_hex(
+        (evidence_dir / "bundle-manifest.json").read_bytes()
+    )
+    (evidence_dir / "evidence-metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
     problems = verify(evidence_dir)
-    assert any("payload_hash mismatch" in p for p in problems)
+    assert any("payload_hash" in p for p in problems)

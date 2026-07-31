@@ -2,11 +2,19 @@
 
 Strict diffs fail the spike; allowed diffs must match a registered
 normalization rule. Free-form prose cannot waive strict diffs.
+
+Edge comparison uses sorted canonical record lists retaining duplicates
+(or Counter over canonical bytes) — never sets. Structured error identity
+compares code + canonical document URI + multiplicity (source line is
+evidence-only).
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
+
+from spike_lib.hashing import canonical_json_bytes
 
 NORMALIZATION_RULES = {
     "ENTRYPOINT_LOCAL_PATH_NORMALIZED": "uri-alias-v1",
@@ -15,23 +23,51 @@ NORMALIZATION_RULES = {
 }
 
 
+def _canonical_edge_key(edge: dict[str, Any]) -> bytes:
+    """Canonical compared form of one edge occurrence (no diagnostic fields)."""
+    record = {
+        "edge_occurrence": edge.get("edge_occurrence"),
+        "source_document_uri": edge.get("source_document_uri") or edge.get("source_uri"),
+        "target_document_uri": edge.get("target_document_uri") or edge.get("target_uri"),
+        "reference_kind": edge.get("reference_kind") or edge.get("discovery_type"),
+        "normalized_reference_uri": (
+            edge.get("normalized_reference_uri") or edge.get("normalized_href")
+        ),
+        "reference_attribute_qname": edge.get("reference_attribute_qname"),
+    }
+    return canonical_json_bytes(record)
+
+
+def _edge_multiset(snapshot: dict[str, Any]) -> Counter[bytes]:
+    return Counter(_canonical_edge_key(e) for e in snapshot.get("edges", []))
+
+
 def _doc_set(snapshot: dict[str, Any]) -> set[tuple[str, str, str]]:
-    return {
-        (d["canonical_uri"], d["content_sha256"], d["document_type"])
-        for d in snapshot.get("documents", [])
-    }
+    docs = snapshot.get("documents", [])
+    result: set[tuple[str, str, str]] = set()
+    for d in docs:
+        uri = d.get("document_uri") or d.get("canonical_uri")
+        result.add((uri, d["content_sha256"], d["document_type"]))
+    return result
 
 
-def _edge_set(snapshot: dict[str, Any]) -> set[tuple[str, str, str, str]]:
-    return {
-        (
-            e["source_uri"],
-            e["discovery_type"],
-            e["target_uri"],
-            e["normalized_href"],
-        )
-        for e in snapshot.get("edges", [])
-    }
+def _error_identity_records(error_summary: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Canonical error identity: code + document URI + multiplicity (no source line)."""
+    if not error_summary:
+        return []
+    records = error_summary.get("canonical_error_records") or error_summary.get("errors") or []
+    identity: dict[tuple[str, str | None], int] = {}
+    for rec in records:
+        code = rec.get("code") or rec.get("error_code")
+        doc = rec.get("document_uri") or rec.get("canonical_document_uri")
+        if code is None:
+            continue
+        key = (str(code), str(doc) if doc is not None else None)
+        identity[key] = identity.get(key, 0) + int(rec.get("count") or rec.get("multiplicity") or 1)
+    return [
+        {"code": code, "document_uri": doc, "multiplicity": count}
+        for (code, doc), count in sorted(identity.items())
+    ]
 
 
 def compare_snapshots(
@@ -107,19 +143,19 @@ def compare_snapshots(
             }
         )
 
-    online_edges = _edge_set(online)
-    offline_edges = _edge_set(offline)
+    online_edges = _edge_multiset(online)
+    offline_edges = _edge_multiset(offline)
     if online_edges != offline_edges:
+        only_online = sum((online_edges - offline_edges).values())
+        only_offline = sum((offline_edges - online_edges).values())
         strict.append(
             {
-                "code": "STRICT_DISCOVERY_EDGE_SET_MISMATCH",
-                "only_online_count": len(online_edges - offline_edges),
-                "only_offline_count": len(offline_edges - online_edges),
+                "code": "STRICT_DISCOVERY_EDGE_MULTISET_MISMATCH",
+                "only_online_count": only_online,
+                "only_offline_count": only_offline,
             }
         )
 
-    # Synthetic structures have their own strict comparison invariant:
-    # online/offline synthetic inventories must match exactly.
     if online.get("synthetic_document_set_hash") != offline.get("synthetic_document_set_hash"):
         strict.append(
             {
@@ -148,6 +184,28 @@ def compare_snapshots(
             }
         )
 
+    online_errors = _error_identity_records(online.get("error_summary"))
+    offline_errors = _error_identity_records(offline.get("error_summary"))
+    if online_errors != offline_errors:
+        strict.append(
+            {
+                "code": "STRICT_ERROR_IDENTITY_MISMATCH",
+                "online": online_errors,
+                "offline": offline_errors,
+            }
+        )
+
+    online_edge_ext = online.get("document_edge_extraction") or {}
+    offline_edge_ext = offline.get("document_edge_extraction") or {}
+    if online_edge_ext.get("extraction_complete") != offline_edge_ext.get("extraction_complete"):
+        strict.append(
+            {
+                "code": "STRICT_DOCUMENT_EDGE_EXTRACTION_MISMATCH",
+                "online": online_edge_ext,
+                "offline": offline_edge_ext,
+            }
+        )
+
     if offline_network_attempt_count != 0:
         strict.append(
             {
@@ -164,7 +222,6 @@ def compare_snapshots(
             }
         )
 
-    # Entry-point local path differences are allowed when content hashes match.
     online_eps = set(online.get("entry_points") or [])
     offline_eps = set(offline.get("entry_points") or [])
     if online_eps != offline_eps:

@@ -3,10 +3,10 @@
 ``resource_content_hash`` is a deterministic content fingerprint for
 comparability: identical canonical content hashes indicate byte-identical
 canonical content, not full semantic equivalence. ``resource_occurrence_hash``
-identifies one occurrence in one source document.
+identifies one occurrence in one source document (document URI + locator only).
 
-Serialization contract: xbrl-resource-v1. Any change to canonicalization
-rules requires a serialization-version bump.
+Serialization contract: xbrl-resource-v2. Diagnostic provenance (xlink:label,
+source line) is retained beside the canonical record and never enters any hash.
 """
 
 from __future__ import annotations
@@ -84,11 +84,10 @@ def resource_content_hash(content_record: dict[str, Any]) -> str:
 
 
 def resource_occurrence_record(element: Any, *, canonical_document_uri: str) -> dict[str, Any]:
-    """Occurrence identity for a resource element in one source document."""
+    """Occurrence identity: document URI + deterministic locator only."""
     return {
         "document_uri": canonical_document_uri,
         "locator": element_locator(element),
-        "provenance": occurrence_provenance(element),
     }
 
 
@@ -99,12 +98,26 @@ def resource_occurrence_hash(occurrence_record: dict[str, Any]) -> str:
 def serialize_resource(
     element: Any, *, resource_type: str, canonical_document_uri: str
 ) -> dict[str, Any]:
-    """Full resource record: occurrence identity plus canonical content."""
+    """Full resource record: occurrence identity plus canonical content.
+
+    Structure: ``canonical_record`` (hashed) beside ``diagnostic_provenance``.
+    """
     occurrence = resource_occurrence_record(element, canonical_document_uri=canonical_document_uri)
+    occurrence_hash = resource_occurrence_hash(occurrence)
     content = resource_content_record(element, resource_type=resource_type)
-    return {
+    content_hash = resource_content_hash(content)
+    canonical = {
         "resource_occurrence": occurrence,
-        "resource_occurrence_hash": resource_occurrence_hash(occurrence),
+        "resource_occurrence_hash": occurrence_hash,
         "resource_content": content,
-        "resource_content_hash": resource_content_hash(content),
+        "resource_content_hash": content_hash,
+    }
+    return {
+        "canonical_record": canonical,
+        "diagnostic_provenance": occurrence_provenance(element),
+        # Convenience mirrors for callers that need the hashes directly.
+        "resource_occurrence_hash": occurrence_hash,
+        "resource_content_hash": content_hash,
+        "resource_occurrence": occurrence,
+        "resource_content": content,
     }
