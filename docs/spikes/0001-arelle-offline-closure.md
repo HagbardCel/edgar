@@ -255,35 +255,3 @@ v3 corrects the identity and promotion contracts after the v2 review:
 ### ADR impact (v3)
 
 ADR 0007 remains **Accepted** and is amended for the v3 contracts (three-projection identities, explicit provenance, non-circular gate with single-run certification, compact non-self-referential evidence, deferred 2008 generic arcroles).
-
----
-
-## Conclusions vs production commitments
-
-**Slice 0 establishes semantic and replay requirements, not production module boundaries, persistence schemas, serialization formats, or fixture layout.**
-
-| Carry forward | Do not carry forward as production API/model |
-| --- | --- |
-| Arelle as authoritative XBRL semantic engine | Replication of `ModelXbrl` / the entire loaded DTS in PostgreSQL |
-| Effective presentation, calculation and definition relationships | Raw XLink locator/arc/linkbase tables |
-| Immutable filing bundle and deterministic offline replay | Every Slice 0 hash and serialization version |
-| Explicit URI→artifact resolution for replay-required documents | `uri-bindings-v2` serialization as a permanent application API |
-| Atomic immutable artifact publication | Staged promotion identity / sterile-manifest-v3 ceremony |
-| Unknown Arelle diagnostics must not silently yield a successful semantic extraction | `semantic-run-v2` error identity / code+URI+multiplicity hashing and online/offline hash equivalence |
-| Arelle-exposed labels and references as semantic inputs for mapping | Generic graph-edge persistence model for resource relationships |
-| Source locators where required for provenance or occurrence semantics | Multi-projection occurrence-hash framework |
-| Semantic fixture assertions | Giant inspection snapshots as the normal fixture pattern |
-
-The diagnostics invariant is about **truthfulness**, not a prescribed runtime failure mode. Production may retain artifacts and diagnostics and mark extraction incomplete / needs classification; it need not throw away the filing. Exception-versus-status mechanics are a later production design choice.
-
-The committed multi-file evidence package is a Slice 0 verification fixture, not the default production fixture structure.
-
-### Next steps (high-level)
-
-1. Bound Slice-0 provenance (freeze the evidence package, not the repository).
-2. Post-spike architecture / data-model simplification.
-3. Filesystem-first durable acquisition + offline replay.
-4. Database / catalog foundation.
-5. Thin Arelle persistence projection.
-6. Document text structure.
-7. Phase-1 acceptance; retire Slice-0 executable machinery (including verifier / CI).

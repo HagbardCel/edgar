@@ -10,38 +10,9 @@ Slice 0 v1 replayed filings offline from a manifest plus regenerable catalog, bu
 
 v2 introduced sterile manifests, URI bindings, occurrence identities, staged promotion, and committed evidence, but review found that occurrence hashes still mixed provenance and resolved semantics, URI aliases could be inferred by content digest, promotion preceded the full semantic gate, committed inspection evidence was unreviewably large, and several completeness/error-identity gaps remained. v3 corrects those contracts without changing the overall architecture.
 
-## Scope and production applicability
-
-**Accepted** means explicit deterministic offline replay is required. The Decision below records the Slice 0 verification realization used to establish that result. Production must preserve the replay invariants identified here, not the exact Slice 0 serialization, hashing, or promotion mechanisms.
-
-```text
-Accepted:
-  explicit deterministic offline replay is required
-
-Slice-0 realization:
-  manifest-v3-spike + uri-bindings-v2 + hashes +
-  promotion machinery + evidence formats
-
-Production realization:
-  TBD, but must preserve the accepted replay invariants
-```
-
-Production preserves:
-
-- immutable verified artifact bytes
-- **explicit canonical URI→artifact resolution for replay-required documents**
-- an identified entry point
-- network-independent Arelle loading
-
-while simplifying implementation and persistence. Offline replay cannot rely on a prior Arelle cache or infer URI ownership from identical bytes.
-
-Occurrence hashes, `semantic_run_hash`, sterile-manifest v3, promotion identity, evidence-package formats, and the listed `*-v2`/`*-v3` wire formats are **Slice 0 verification mechanisms**, not mandatory production APIs. Exact production persistence details belong in a subsequent ADR or architecture revision.
-
-The deny-by-default `source_commit..HEAD` provenance gate is a Slice 0 evidence-freeze mechanism; before normal post-Slice-0 development begins, it must be bounded to the historical implementation-to-evidence interval or otherwise retired without weakening verification of the committed Slice 0 evidence.
-
 ## Decision
 
-For the Slice 0 verification design, offline replay is **manifest-only**. Slice 0 demonstrates the decision through the following concrete mechanism: the replay worker receives exactly three inputs—the sterile manifest bytes (verified against an expected SHA-256), the content-addressed object store, and the serialized `uri-bindings-v2` artifact. No online cache, environment, prior run state, or content-hash fallback is consulted.
+Offline replay is **manifest-only**. The replay worker receives exactly three inputs: the sterile manifest bytes (verified against an expected SHA-256), the content-addressed object store, and the serialized `uri-bindings-v2` artifact. No online cache, environment, prior run state, or content-hash fallback is consulted.
 
 1. **Sterile manifest (`manifest-v3-spike`, acquisition `acq-v2-spike`).** The manifest contains no volatile retrieval fields. `payload_hash` is the explicit `payload-v1` construction over sorted `{logical_path, sha256, byte_size}` artifact identities (unchanged). The URI-bindings pointer carries `logical_path`, `sha256`, `byte_size`, `binding_count`, `schema_version`, and `uri_identity_version`. Validation is split: `validate_manifest_structure` (inventory, uniqueness, payload hash, pointer path/SHA/size) and `validate_uri_bindings_pointer` (bytes vs pointer, parsed count/versions, binding rules). Duplicate logical paths are fatal.
 
