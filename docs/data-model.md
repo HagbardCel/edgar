@@ -6,10 +6,12 @@ SQL table names and physical uniqueness constraints may change during implementa
 
 Related:
 
-- Architecture: [`docs/architecture.md`](architecture.md)
+- Architecture: [`architecture.md`](architecture.md)
 - Lean XBRL projection decision: [ADR 0008](adr/0008-lean-xbrl-semantic-projection.md)
 - Effective networks: [ADR 0004](adr/0004-preserve-xbrl-semantic-networks.md)
 - Offline replay / URI bindings: [ADR 0007](adr/0007-manifest-only-replay-uri-bindings.md)
+- Immutable raw layer / `payload_hash`: [ADR 0002](adr/0002-immutable-raw-layer.md)
+- Amendment relationships: [ADR 0005](adr/0005-amendment-restatement-semantics.md)
 
 Both offline branches of a FilingBundle appear below: Arelle semantic projection and document parsing.
 
@@ -40,6 +42,20 @@ filing
   └── filing_bundle
 ```
 
+### `filing_relationship`
+
+When discovery evidence supports it, record an explicit directed filing-to-filing relationship ([ADR 0005](adr/0005-amendment-restatement-semantics.md)):
+
+```text
+filing_relationship
+  source_filing
+  relationship_type = amends
+  target_filing
+  provenance / discovery evidence
+```
+
+Example: `10-K/A --amends--> 10-K`. This does **not** assert filing-wide supersession. Both filings remain independently queryable; no raw fact, section, or document from the original is deleted because an amendment exists. Point-in-time `known_at` / `superseded_at` observation semantics remain deferred. Physical table shape is not frozen here—`filing_relationship` is the conceptual home (not a premature `amends_filing_id` column).
+
 CIKs are zero-padded ten-digit strings. Accession numbers use canonical dashed form. Tickers are never issuer primary keys.
 
 Distinguish filing date, SEC acceptance timestamp, and report-period end; never substitute one for another.
@@ -51,12 +67,16 @@ Distinguish filing date, SEC acceptance timestamp, and report-period end; never 
 ## 2. FilingBundle and content identity
 
 ```text
-filing
-  └── filing_bundle
-         ├── xbrl_report_input / replay_entrypoint  (one or more)
-         │         └── entrypoint document(s) ──► bundle_uri_binding
-         ├── bundle_artifact ──► content_object
-         └── bundle_uri_binding ──► bundle_artifact
+Immutable replay state
+  filing
+    └── filing_bundle
+           ├── xbrl_report_input / replay_entrypoint  (one or more)
+           │         └── entrypoint document(s) ──► bundle_uri_binding
+           ├── bundle_artifact ──► content_object
+           └── bundle_uri_binding ──► bundle_artifact
+
+Mutable / append-only operational history (adjacent; not replay membership)
+  artifact_acquisition_observation  ──► (references artifact / bundle context)
 ```
 
 ### `content_object`
@@ -66,7 +86,7 @@ filing
 - CAS location (`objects/sha256/{aa}/{sha256}`)
 - immutable bytes
 
-Same bytes may back multiple artifacts. SHA equality never creates URI ownership.
+Same verified bytes may back multiple artifacts. SHA equality never creates URI ownership.
 
 ### `filing_bundle`
 
@@ -77,9 +97,8 @@ An immutable replay snapshot comprising:
 - payload
 - identified replay entrypoints / report inputs
 - authoritative URI bindings
-- publication / provenance metadata as needed
 
-One filing may have multiple immutable acquisition snapshots.
+Bundle-level publication metadata may exist, but it does **not** substitute for per-artifact retrieval observations (below). One filing may have multiple immutable acquisition snapshots.
 
 ### `xbrl_report_input` / replay entrypoint
 
@@ -94,9 +113,9 @@ Phase 1 requires the **primary SEC IXDS/report**. Additional independently proce
 
 ### `payload_hash`
 
-Identity of deterministic payload artifact contents only. URI bindings are a **separate replay contract** ([ADR 0007](adr/0007-manifest-only-replay-uri-bindings.md)).
+Identifies the deterministic **payload snapshot/inventory** under the applicable payload-hash contract ([ADR 0002](adr/0002-immutable-raw-layer.md)). It excludes the authoritative replay contract (report inputs / URI bindings) and volatile operational metadata such as retrieval timestamps. Exact production hash construction is deferred.
 
-`payload_hash` alone—or filing + policy + `payload_hash`—must **not** be assumed to provide complete FilingBundle identity. Bundles with identical payload bytes but different authoritative URI mappings remain distinguishable. Exact bundle equality/reuse and physical uniqueness constraints are deferred to implementation. **Do not introduce another permanent production `bundle_hash` here.**
+`payload_hash` alone—or filing + policy + `payload_hash`—must **not** be assumed to provide complete FilingBundle identity. Bundles with identical payload snapshot/inventory but different authoritative URI mappings remain distinguishable. Exact bundle equality/reuse and physical uniqueness constraints are deferred to implementation. **Do not introduce another permanent production `bundle_hash` here.**
 
 ### `bundle_artifact`
 
@@ -104,6 +123,29 @@ Identity of deterministic payload artifact contents only. URI bindings are a **s
 - logical path
 - kind / content type
 - content object
+
+### `artifact_acquisition_observation`
+
+Operational provenance for how bytes were obtained (distinct from replay identity):
+
+```text
+artifact_acquisition_observation
+  bundle_artifact          # conceptual reference for published bundles; FK not frozen
+  source/retrieval URI
+  retrieved_at / observed_at
+  relevant HTTP metadata
+  acquisition attempt (if useful)
+```
+
+Rules:
+
+- Retrieval / observation times stay distinct from filing, acceptance, and projection times.
+- Observations are **operational** and **must not participate in `payload_hash` or immutable FilingBundle identity**.
+- `artifact_acquisition_observation` is adjacent operational provenance referencing an artifact/bundle context; it is **not itself immutable FilingBundle membership or replay state**. Appending an observation does not mutate the replay snapshot.
+- Repeated acquisition/observation of the same CAS-backed artifact can append observations without duplicating the immutable bundle.
+- Non-replay artifacts need not have a `bundle_uri_binding`; acquisition provenance still applies.
+- An acquisition observation does **not by itself** establish an authoritative replay URI binding. Replay bindings remain explicit domain relationships, and SHA equality never creates one. Observations often contribute evidence for a binding, but the two notions are not identical.
+- Do not freeze a physical foreign key to `bundle_artifact` in this PR—an implementation may retain observations from acquisition attempts that never reached bundle publication.
 
 ### `bundle_uri_binding`
 
@@ -383,3 +425,5 @@ A Phase 1 data-model change is complete only when all of the following are unamb
 16. **QName stability:** Can semantically identical QNames with different source prefixes resolve to the same QName identity while source representation can be preserved for provenance?
 17. **XBRL report input:** Can one semantic projection be loaded from a multi-document SEC IXDS without pretending that one URI is the complete entrypoint, and can independently loadable XBRL reports within one bundle remain distinguishable?
 18. **Document projection identity:** Can multiple independently parsed documents in one FilingBundle produce distinct document projections while exact reruns of the same parse target reuse the same logical projection?
+19. **Amendment relationship:** When discovery evidence supports it, can a directed `amends` relationship be recorded without implying filing-wide supersession or deleting original filing evidence?
+20. **Acquisition provenance:** Can per-artifact retrieval/observation metadata (including `retrieved_at`) be retained without entering `payload_hash` or FilingBundle replay identity, including for artifacts without URI bindings—and without treating an observation as an automatic replay binding?
