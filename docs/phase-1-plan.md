@@ -84,7 +84,7 @@ Therefore, Phase 1 must preserve this evidence even though canonical metric mapp
   - presentation relationships
   - calculation relationships
   - definition relationships
-- Versioned parser runs and structured quality issues
+- Versioned semantic/document projections plus operational attempts, and structured quality issues
 - Local PostgreSQL
 - Alembic migrations
 - CLI commands
@@ -133,15 +133,15 @@ Repeating discovery, retrieval, parsing, or loading must not create duplicate fi
 
 ### 4.5 Traceability
 
-Every parsed value must retain enough provenance to locate its source:
+Every parsed or projected value must be traceable through the persisted model to its source evidence and logical interpretation:
 
-- accession number
-- filing document
-- source artifact and SHA-256
-- DOM/XPath or Inline XBRL identifier
-- taxonomy/linkbase source
-- parser version
-- ingestion run
+- accession number / filing
+- FilingBundle
+- the applicable `semantic_projection` or `document_projection`
+- source artifact / URI binding and locator where applicable
+- projection/parser version
+
+Operational acquisition and projection attempts remain separately traceable where relevant. Do not require a single owning ingestion run on a projection. Globally reusable identity records need not themselves own a projection when projection-scoped records provide that traceability.
 
 ### 4.6 Deterministic core pipeline
 
@@ -155,8 +155,11 @@ Store separately:
 - filing date
 - report-period end
 - amendment status
-- source retrieval time
-- parser-run time
+- source retrieval time (acquisition observation)
+- projection-attempt start/finish timestamps
+- projection materialization timestamps if retained as metadata, **never** as interpretation identity
+
+Logical `semantic_projection` / `document_projection` identity remains bundle + report input or parse target + versions/config—not wall-clock time. Multiple attempts may revalidate the same projection.
 
 ### 4.8 Small vertical slices and Phase 1 gates
 
@@ -165,16 +168,17 @@ Slice 0 validates the acquisition and offline-replay approach.
 After Slice 0:
 
 ```text
-Slice 0: acquisition/replay spike
-  -> Phase 1A: Acquisition Foundation
-       -> Phase 1B: XBRL Evidence          \
-       -> Phase 1C: Document Structure     /  may proceed in parallel
-            -> Phase 1D: Acceptance & Hardening
+Slice 0
+  → Phase 1A filesystem acquisition
+  → DB/catalog foundation
+       ├→ Phase 1B XBRL projection
+       └→ Phase 1C document projection
+  → Phase 1D acceptance
 ```
 
-Durable retrieval (Phase 1A) is the input dependency for both parsers. Do not claim that raw-retrieval and parsing run in parallel: Phase 1B and 1C start only after Phase 1A produces a valid immutable bundle.
+Phase 1B and 1C may proceed in parallel after a valid immutable FilingBundle exists **and** catalog foundation is in place. Do not claim that raw retrieval and parsing run in parallel with acquisition: parsers start only after Phase 1A produces a valid immutable bundle and the catalog can record it.
 
-Parser outputs are versioned, regenerable materializations of immutable filing bundles. Curated review and mapping decisions are separate, non-regenerable source data that must be transactionally stored, exported and backed up.
+Parser outputs are versioned, regenerable materializations (`semantic_projection` / `document_projection`) of immutable filing bundles, with separate operational attempts. Curated review and mapping decisions are separate, non-regenerable source data that must be transactionally stored, exported and backed up.
 
 Implement one complete path before broadening coverage:
 

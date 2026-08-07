@@ -115,10 +115,10 @@ Persist timezone-aware UTC timestamps and distinguish:
 - SEC acceptance timestamp
 - report-period end
 - retrieval time
-- parser-run time
+- projection-attempt start/finish time
 - later `known_at` and `superseded_at` semantics
 
-Never substitute one timestamp for another.
+Never substitute one timestamp for another. Projection materialization timestamps, if retained, are metadata only—never interpretation identity.
 
 ### Numeric facts
 
@@ -152,14 +152,17 @@ Never substitute one timestamp for another.
 
 ### Versioning and provenance
 
-Every parsed output must trace to:
+Every parsed or projected output must be traceable through the persisted model to:
 
-- accession
-- document
-- source artifact hash
-- source locator
-- parser version
-- ingestion run
+- filing/accession
+- FilingBundle
+- the applicable `semantic_projection` or `document_projection`
+- source bundle artifact / URI binding and locator where applicable
+- projection/parser version
+
+Globally reusable identity records need not themselves own a projection when projection-scoped records provide that traceability.
+
+Operational acquisition and projection attempts are separate provenance. A projection must not acquire a single owning attempt merely for traceability.
 
 A parser behavior change that alters persisted output requires a version change.
 
