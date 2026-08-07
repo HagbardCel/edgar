@@ -286,4 +286,4 @@ The committed multi-file evidence package is a Slice 0 verification fixture, not
 4. Database / catalog foundation.
 5. Thin Arelle persistence projection.
 6. Document text structure.
-7. Phase-1 acceptance; retire Slice-0 executable machinery (including verifier / CI).
+7. Phase-1 acceptance; retire Slice-0 executable machinery and semantic verifier/CI, while retaining the compact historical evidence package and a minimal byte-immutability check against its boundary commit.

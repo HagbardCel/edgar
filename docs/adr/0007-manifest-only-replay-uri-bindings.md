@@ -41,7 +41,7 @@ The deny-by-default `source_commit..HEAD` provenance gate is a Slice 0 evidence-
 
 ## Decision
 
-For the Slice 0 verification design, offline replay is **manifest-only**. Slice 0 demonstrates the decision through the following concrete mechanism: the replay worker receives exactly three inputs—the sterile manifest bytes (verified against an expected SHA-256), the content-addressed object store, and the serialized `uri-bindings-v2` artifact. No online cache, environment, prior run state, or content-hash fallback is consulted.
+Offline replay is **manifest-only**. The replay worker receives exactly three inputs: the sterile manifest bytes (verified against an expected SHA-256), the content-addressed object store, and the serialized `uri-bindings-v2` artifact. No online cache, environment, prior run state, or content-hash fallback is consulted.
 
 1. **Sterile manifest (`manifest-v3-spike`, acquisition `acq-v2-spike`).** The manifest contains no volatile retrieval fields. `payload_hash` is the explicit `payload-v1` construction over sorted `{logical_path, sha256, byte_size}` artifact identities (unchanged). The URI-bindings pointer carries `logical_path`, `sha256`, `byte_size`, `binding_count`, `schema_version`, and `uri_identity_version`. Validation is split: `validate_manifest_structure` (inventory, uniqueness, payload hash, pointer path/SHA/size) and `validate_uri_bindings_pointer` (bytes vs pointer, parsed count/versions, binding rules). Duplicate logical paths are fatal.
 
