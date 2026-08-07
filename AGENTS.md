@@ -30,7 +30,7 @@ Before changing code:
 2. Read `docs/phase-1-plan.md`.
 3. Read `docs/project-roadmap.md`.
 4. Read `docs/architecture.md` and `docs/fixture-policy.md`.
-5. Read `docs/data-model.md` when present (after Slice 0).
+5. Read `docs/data-model.md`.
 6. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.
 7. Read relevant ADRs under `docs/adr/`.
 8. Inspect nearest tests and interfaces.
@@ -139,6 +139,7 @@ Never substitute one timestamp for another.
 - Do not infer canonical financial metrics during Phase 1.
 - Do not remove apparently duplicate facts without preserving source occurrences or a documented equivalence relationship.
 - XBRL engine-specific objects must not escape the adapter boundary.
+- Production modules must not import from `scripts/spikes/`. Slice-0 serialization versions, promotion ceremony, occurrence/semantic hash frameworks, and evidence formats are historical verification mechanisms rather than production compatibility contracts. Reuse of an underlying idea requires an independent production abstraction.
 
 ### Parsed text
 
@@ -193,6 +194,7 @@ Rules:
 - SQLAlchemy models are not the universal domain API.
 - Arelle objects stay inside the XBRL adapter.
 - Canonical ingestion/parsing modules do not import LLM implementations.
+- Production modules under `src/` must not import from `scripts/spikes/`.
 - Notebooks are exploratory only; reusable logic belongs in `src/`.
 
 ---
