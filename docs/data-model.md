@@ -75,7 +75,7 @@ Immutable replay state
            ├── bundle_artifact ──► content_object
            └── bundle_uri_binding ──► bundle_artifact
 
-Mutable / append-only operational history (adjacent; not replay membership)
+Append-only operational history (adjacent; not replay membership)
   artifact_acquisition_observation  ──► (references artifact / bundle context)
 ```
 
@@ -142,6 +142,7 @@ Rules:
 - Retrieval / observation times stay distinct from filing, acceptance, and projection times.
 - Observations are **operational** and **must not participate in `payload_hash` or immutable FilingBundle identity**.
 - `artifact_acquisition_observation` is adjacent operational provenance referencing an artifact/bundle context; it is **not itself immutable FilingBundle membership or replay state**. Appending an observation does not mutate the replay snapshot.
+- Once recorded, an acquisition observation is immutable; corrections or later observations are appended as new observations rather than rewriting prior evidence.
 - Repeated acquisition/observation of the same CAS-backed artifact can append observations without duplicating the immutable bundle.
 - Non-replay artifacts need not have a `bundle_uri_binding`; acquisition provenance still applies.
 - An acquisition observation does **not by itself** establish an authoritative replay URI binding. Replay bindings remain explicit domain relationships, and SHA equality never creates one. Observations often contribute evidence for a binding, but the two notions are not identical.

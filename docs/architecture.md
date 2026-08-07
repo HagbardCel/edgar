@@ -60,10 +60,10 @@ Laptop-first design ([ADR 0001](adr/0001-postgres-and-filesystem.md), [ADR 0002]
 | --- | --- |
 | Metadata and structured evidence | Local PostgreSQL |
 | Immutable bytes | Content-addressed filesystem (`objects/sha256/{aa}/{sha256}`) |
-| Payload content identity | `payload_hash` over deterministic payload artifact contents |
+| Payload snapshot identity | `payload_hash` identifies the deterministic payload snapshot/inventory under the applicable payload-hash contract |
 | Replay contract | Explicit canonical URI → bundle artifact bindings (separate from `payload_hash`) |
 
-No object-storage service is required in Phase 1. `payload_hash` identifies payload contents; it is not a complete FilingBundle identity by itself (see [`docs/data-model.md`](data-model.md)).
+No object-storage service is required in Phase 1. `payload_hash` identifies the deterministic payload snapshot/inventory; exact production hash construction is deferred. It is not a complete FilingBundle identity (see [`data-model.md`](data-model.md)).
 
 ## Acquisition outline
 

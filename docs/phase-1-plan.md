@@ -240,7 +240,7 @@ var/   # or configured data root
 ```
 
 - Immutable bytes live under `objects/sha256/{aa}/{sha256}`.
-- `payload_hash` identifies deterministic payload artifact contents; URI bindings are a separate replay contract.
+- `payload_hash` identifies the deterministic payload snapshot/inventory under the applicable payload-hash contract; exact production hash construction is deferred. URI bindings are a separate replay contract. `payload_hash` is not a complete FilingBundle identity.
 - A FilingBundle is an immutable replay snapshot (filing, acquisition policy/version, payload, report inputs, URI bindings)—not an accession-path mutable tree.
 - The database stores relative paths, hashes, content types, and provenance. Large source files are not stored as PostgreSQL blobs.
 
@@ -459,7 +459,7 @@ SEC_MAX_CONCURRENCY=2
 
 ### Exit criteria
 
-- one filing can be acquired as a complete hashed FilingBundle.
+- one filing can be acquired as a complete, verified immutable FilingBundle with content-object and payload integrity validated.
 - verified artifacts are not overwritten with different bytes.
 - altered artifacts fail deterministic hash validation.
 - offline Arelle load works without network and without ambient cache leakage.
