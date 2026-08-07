@@ -37,7 +37,7 @@ while simplifying implementation and persistence. Offline replay cannot rely on 
 
 Occurrence hashes, `semantic_run_hash`, sterile-manifest v3, promotion identity, evidence-package formats, and the listed `*-v2`/`*-v3` wire formats are **Slice 0 verification mechanisms**, not mandatory production APIs. Exact production persistence details belong in a subsequent ADR or architecture revision.
 
-The deny-by-default `source_commit..HEAD` provenance gate is a Slice 0 evidence-freeze mechanism; before normal post-Slice-0 development begins, it must be bounded to the historical implementation-to-evidence interval or otherwise retired without weakening verification of the committed Slice 0 evidence.
+Slice-0 provenance is bounded to the historical implementation-to-evidence interval (`261d658..596642d`). The verifier additionally requires the seven committed Slice-0 evidence files to remain byte-identical to their versions at `596642d`, both at `HEAD` and in the working tree. Changes after that evidence boundary are unrestricted by the Slice-0 provenance gate.
 
 ## Decision
 

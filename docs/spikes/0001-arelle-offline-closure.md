@@ -213,7 +213,7 @@ The unsupported-arcrole inventory is exhaustive: every encountered arcrole is cl
 ### v2 evidence and verification
 
 - `fixtures/manifests/0001065088-24-000036/` contains exact byte copies of the promoted `bundle-manifest.json`, `uri-bindings.json`, and `inspection-core.json`, plus deterministic `acquisition-expectations.json` / `parser-expectations.json` projections and `evidence-metadata.json` (source commit, run id, evidence file hashes).
-- `scripts/spikes/verify_evidence.py` checks JSON well-formedness, sterile-manifest validity, pointer hash consistency, binding rules, expectation projections, privacy (no user agents, `file:` URIs, or absolute local paths), non-circular `semantic_run_hash` recomputation, and provenance (source commit ancestry; deny-by-default path allowlist for post-implementation changes). CI runs it on every push/PR.
+- `scripts/spikes/verify_evidence.py` checks JSON well-formedness, sterile-manifest validity, pointer hash consistency, binding rules, expectation projections, privacy (no user agents, `file:` URIs, or absolute local paths), non-circular `semantic_run_hash` recomputation, and provenance. At the time of the v2/v3 evidence freeze, provenance used source-commit ancestry plus a deny-by-default post-implementation path allowlist. PR #2 later bounded that check to the immutable implementation-to-evidence interval and froze the seven evidence files at the boundary commit. CI runs it on every push/PR.
 
 ### ADR impact (v2)
 
@@ -280,7 +280,7 @@ The committed multi-file evidence package is a Slice 0 verification fixture, not
 
 ### Next steps (high-level)
 
-1. Bound Slice-0 provenance (freeze the evidence package, not the repository).
+1. Slice-0 provenance bounded; seven committed evidence files remain byte-frozen.
 2. Post-spike architecture / data-model simplification.
 3. Filesystem-first durable acquisition + offline replay.
 4. Database / catalog foundation.
