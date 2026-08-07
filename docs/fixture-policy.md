@@ -38,7 +38,7 @@ uv run edgar fixtures fetch
 uv run edgar fixtures verify
 ```
 
-"Frozen" means pinned by accession, acquisition-policy version, and expected payload hashes.
+"Frozen" means pinned by accession, acquisition policy/version, expected **payload snapshot/inventory**, and the authoritative replay contract, including required report input(s) and URI bindings necessary to reproduce offline loading. `payload_hash` alone does not identify the complete replay bundle.
 
 ## Attachment policy
 

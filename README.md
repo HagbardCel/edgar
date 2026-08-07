@@ -2,7 +2,7 @@
 
 Reproducible, point-in-time-aware platform for SEC company filings.
 
-**Status:** Phase 1 foundation. Planning documents are in place; Slice 0 (Arelle offline-closure spike) is the first executable work.
+**Status:** Slice 0 is complete. The Phase 1 production architecture and conceptual data model are established; Phase 1A filesystem-first acquisition is next.
 
 Apache-2.0 covers this project's software and documentation. It does **not** automatically license third-party SEC filing content or taxonomies retrieved from EDGAR.
 
@@ -14,7 +14,9 @@ Apache-2.0 covers this project's software and documentation. It does **not** aut
 - Offline replay must succeed with network disabled.
 - Local LLMs are optional development aids, never required for ingestion or parsing.
 
-## Quick start (Slice 0 spike)
+## Quick start (historical Slice 0 spike)
+
+The production acquisition CLI is not yet implemented. The Slice 0 spike remains available for local replay experiments and is **not** a production API:
 
 ```bash
 cp .env.example .env   # set SEC_USER_AGENT to "Name email@example.com"
@@ -40,7 +42,7 @@ Use `--clean --repeat` for a full independent revalidation.
 | Topic | Document |
 | --- | --- |
 | System boundaries | [docs/architecture.md](docs/architecture.md) |
-| Tables and invariants | [docs/data-model.md](docs/data-model.md) (after Slice 0) |
+| Tables and invariants | [docs/data-model.md](docs/data-model.md) |
 | Fixture and attachment policy | [docs/fixture-policy.md](docs/fixture-policy.md) |
 | Phase sequencing | [docs/phase-1-plan.md](docs/phase-1-plan.md) |
 | Roadmap | [docs/project-roadmap.md](docs/project-roadmap.md) |

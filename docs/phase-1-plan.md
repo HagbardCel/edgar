@@ -1,8 +1,12 @@
-# EDGAR Scraper — Phase 1 Scaffolding Plan
+# edgar — Phase 1 Scaffolding Plan
 
-**Document status:** Updated design baseline  
-**Phase objective:** Establish a trustworthy, offline-replayable filing and XBRL evidence layer  
+**Document status:** Reconciled with post–Slice 0 production architecture and [`docs/data-model.md`](data-model.md) (PR #3)
+
+**Phase objective:** Establish a trustworthy, offline-replayable filing and XBRL evidence layer
+
 **Important boundary:** Phase 1 preserves the semantic evidence required for metric mapping, but does not yet create canonical financial metrics.
+
+**Authoritative model:** Conceptual persistence contracts live in [`docs/data-model.md`](data-model.md) and [ADR 0008](adr/0008-lean-xbrl-semantic-projection.md). This plan describes sequencing and capabilities; it must not contradict those documents.
 
 ---
 
@@ -80,7 +84,7 @@ Therefore, Phase 1 must preserve this evidence even though canonical metric mapp
   - presentation relationships
   - calculation relationships
   - definition relationships
-- Versioned parser runs and structured quality issues
+- Versioned semantic/document projections plus operational attempts, and structured quality issues
 - Local PostgreSQL
 - Alembic migrations
 - CLI commands
@@ -129,15 +133,15 @@ Repeating discovery, retrieval, parsing, or loading must not create duplicate fi
 
 ### 4.5 Traceability
 
-Every parsed value must retain enough provenance to locate its source:
+Every parsed or projected value must be traceable through the persisted model to its source evidence and logical interpretation:
 
-- accession number
-- filing document
-- source artifact and SHA-256
-- DOM/XPath or Inline XBRL identifier
-- taxonomy/linkbase source
-- parser version
-- ingestion run
+- accession number / filing
+- FilingBundle
+- the applicable `semantic_projection` or `document_projection`
+- source artifact / URI binding and locator where applicable
+- projection/parser version
+
+Operational acquisition and projection attempts remain separately traceable where relevant. Do not require a single owning ingestion run on a projection. Globally reusable identity records need not themselves own a projection when projection-scoped records provide that traceability.
 
 ### 4.6 Deterministic core pipeline
 
@@ -151,8 +155,11 @@ Store separately:
 - filing date
 - report-period end
 - amendment status
-- source retrieval time
-- parser-run time
+- source retrieval time (acquisition observation)
+- projection-attempt start/finish timestamps
+- projection materialization timestamps if retained as metadata, **never** as interpretation identity
+
+Logical `semantic_projection` / `document_projection` identity remains bundle + report input or parse target + versions/config—not wall-clock time. Multiple attempts may revalidate the same projection.
 
 ### 4.8 Small vertical slices and Phase 1 gates
 
@@ -161,16 +168,17 @@ Slice 0 validates the acquisition and offline-replay approach.
 After Slice 0:
 
 ```text
-Slice 0: acquisition/replay spike
-  -> Phase 1A: Acquisition Foundation
-       -> Phase 1B: XBRL Evidence          \
-       -> Phase 1C: Document Structure     /  may proceed in parallel
-            -> Phase 1D: Acceptance & Hardening
+Slice 0
+  → Phase 1A filesystem acquisition
+  → DB/catalog foundation
+       ├→ Phase 1B XBRL projection
+       └→ Phase 1C document projection
+  → Phase 1D acceptance
 ```
 
-Durable retrieval (Phase 1A) is the input dependency for both parsers. Do not claim that raw-retrieval and parsing run in parallel: Phase 1B and 1C start only after Phase 1A produces a valid immutable bundle.
+Phase 1B and 1C may proceed in parallel after a valid immutable FilingBundle exists **and** catalog foundation is in place. Do not claim that raw retrieval and parsing run in parallel with acquisition: parsers start only after Phase 1A produces a valid immutable bundle and the catalog can record it.
 
-Parser outputs are versioned, regenerable materializations of immutable filing bundles. Curated review and mapping decisions are separate, non-regenerable source data that must be transactionally stored, exported and backed up.
+Parser outputs are versioned, regenerable materializations (`semantic_projection` / `document_projection`) of immutable filing bundles, with separate operational attempts. Curated review and mapping decisions are separate, non-regenerable source data that must be transactionally stored, exported and backed up.
 
 Implement one complete path before broadening coverage:
 
@@ -216,25 +224,25 @@ CIK
 
 ### Local storage
 
+Content-addressed immutable bytes and FilingBundle identity ([ADR 0001](adr/0001-postgres-and-filesystem.md), [ADR 0002](adr/0002-immutable-raw-layer.md), [`docs/architecture.md`](architecture.md)):
+
 ```text
-var/
-  raw/
-    sec/
-      {cik_10_digit}/
-        {accession_without_dashes}/
-          manifest.json
-          filing-index.html
-          complete-submission.txt
-          documents/
-          xbrl/
-          exhibits/
-  derived/
-    parser-runs/
+var/   # or configured data root
+  objects/
+    sha256/
+      {aa}/
+        {sha256}
+  bundles/                 # layout illustrative; implementation may vary
+    .../                   # FilingBundle: artifacts, report inputs, URI bindings
+  derived/                 # regenerable parser / projection outputs
   cache/
   logs/
 ```
 
-The database stores relative paths, hashes, content types, and provenance. Large source files are not stored as PostgreSQL blobs.
+- Immutable bytes live under `objects/sha256/{aa}/{sha256}`.
+- `payload_hash` identifies the deterministic payload snapshot/inventory under the applicable payload-hash contract; exact production hash construction is deferred. URI bindings are a separate replay contract. `payload_hash` is not a complete FilingBundle identity.
+- A FilingBundle is an immutable replay snapshot (filing, acquisition policy/version, payload, report inputs, URI bindings)—not an accession-path mutable tree.
+- The database stores relative paths, hashes, content types, and provenance. Large source files are not stored as PostgreSQL blobs.
 
 ### Local LLM interface
 
@@ -252,8 +260,10 @@ The repository must remain fully functional with `LLM_ENABLED=false`.
 
 ## 6. Proposed repository structure
 
+Illustrative layout (package name is `edgar`; modules appear as implementation proceeds):
+
 ```text
-edgar-scraper/
+edgar/
 ├── AGENTS.md
 ├── README.md
 ├── pyproject.toml
@@ -271,38 +281,36 @@ edgar-scraper/
 │   ├── architecture.md
 │   ├── data-model.md
 │   ├── fixture-policy.md
+│   ├── spikes/
 │   └── adr/
 │       ├── 0001-postgres-and-filesystem.md
 │       ├── 0002-immutable-raw-layer.md
 │       ├── 0003-no-llm-in-critical-path.md
-│       └── 0004-preserve-xbrl-semantic-networks.md
+│       ├── 0004-preserve-xbrl-semantic-networks.md
+│       ├── 0005-amendment-restatement-semantics.md
+│       ├── 0006-regenerable-parser-outputs-vs-curated-overlays.md
+│       ├── 0007-manifest-only-replay-uri-bindings.md
+│       └── 0008-lean-xbrl-semantic-projection.md
 ├── src/
-│   └── edgar_scraper/
+│   └── edgar/
 │       ├── cli.py
 │       ├── config.py
-│       ├── logging.py
 │       ├── domain/
 │       ├── db/
 │       ├── sec/
 │       ├── storage/
 │       ├── ingestion/
 │       ├── parsing/
-│       ├── xbrl/
-│       │   ├── adapter.py
-│       │   ├── arelle_adapter.py
-│       │   ├── concepts.py
-│       │   ├── resources.py
-│       │   ├── relationships.py
-│       │   ├── contexts.py
-│       │   ├── facts.py
-│       │   └── normalize.py
-│       └── llm/
+│       ├── xbrl/          # thin Arelle adapter + projection (no ModelXbrl leakage)
+│       └── llm/           # optional; never required for canonical path
 ├── tests/
 │   ├── unit/
 │   ├── integration/
 │   ├── contract/
 │   └── fixtures/
 ├── scripts/
+│   └── spikes/            # historical Slice 0; not a production import surface
+├── fixtures/
 └── notebooks/
     └── exploration/
 ```
@@ -311,318 +319,18 @@ edgar-scraper/
 
 ## 7. Phase 1 data model
 
-Use internal immutable keys, preserve natural identifiers, and enforce uniqueness at the database level.
+**Superseded as the authoritative conceptual model.** Use [`docs/data-model.md`](data-model.md) and [ADR 0008](adr/0008-lean-xbrl-semantic-projection.md).
 
-### 7.1 Operational provenance
+The provisional sketches formerly in this section (global monolithic `xbrl_concept`, opaque `dimensions_json`, production `relationship_hash` / `fact_hash` / `context_hash`, accession-path artifacts as the primary model) are obsolete. Required distinctions that survive include:
 
-#### `ingestion_run`
+- issuer / filing catalog with point-in-time timestamp separation
+- FilingBundle, content objects, bundle artifacts, URI bindings, and multi-document `xbrl_report_input` (IXDS)
+- component-level projection attempts vs `semantic_projection` / `document_projection` (with `document_parse_target`)
+- concept identity vs concept declaration; declaration-endpoint relationships with required `link_role_uri` and `arcrole_uri`
+- normalized reported context dimensions (no fabricated defaults); fact occurrences with source + locator and value fidelity
+- quality issues scoped to operational vs semantic vs document
 
-- `id`
-- `run_type`
-- `started_at`
-- `finished_at`
-- `status`
-- `code_version`
-- `config_json`
-- `error_summary`
-
-#### `parser_version`
-
-- `id`
-- `component`
-- `version`
-- `git_commit`
-- `configuration_hash`
-- `created_at`
-
-#### `quality_issue`
-
-- `id`
-- `filing_id`
-- `document_id`
-- `component`
-- `severity`
-- `code`
-- `message`
-- `context_json`
-- `parser_version_id`
-- `created_at`
-
-Example stable codes:
-
-```text
-PRIMARY_DOCUMENT_NOT_FOUND
-SECTION_SEQUENCE_INVALID
-ARTIFACT_HASH_MISMATCH
-XBRL_CONTEXT_UNRESOLVED
-XBRL_ROLE_UNRESOLVED
-XBRL_RELATIONSHIP_ENDPOINT_MISSING
-DUPLICATE_FACT_OCCURRENCE
-```
-
-### 7.2 Issuer, filing, and artifacts
-
-#### `issuer`
-
-- `id`
-- `cik`
-- `legal_name`
-- `sic`
-- `fiscal_year_end`
-- timestamps
-
-Unique: `cik`.
-
-#### `filing`
-
-- `id`
-- `issuer_id`
-- `accession_number`
-- `form_type`
-- `base_form_type`
-- `is_amendment`
-- `filed_date`
-- `accepted_at`
-- `report_period_end`
-- `primary_document_name`
-- `sec_archive_path`
-- `discovered_at`
-- `retrieved_at`
-- `parse_status`
-
-Unique: `accession_number`.
-
-#### `filing_document`
-
-- `id`
-- `filing_id`
-- `sequence`
-- `filename`
-- `document_type`
-- `description`
-- `content_type`
-- `role`
-- `is_primary`
-- `artifact_id`
-
-#### `artifact`
-
-- `id`
-- `filing_id`
-- `kind`
-- `relative_path`
-- `source_url`
-- `sha256`
-- `byte_size`
-- `content_type`
-- HTTP metadata
-- `retrieved_at`
-
-#### `artifact_manifest`
-
-- `id`
-- `filing_id`
-- `manifest_version`
-- `manifest_sha256`
-- `relative_path`
-- `created_at`
-
-### 7.3 Text structure
-
-#### `document_block`
-
-- `id`
-- `filing_document_id`
-- `parent_block_id`
-- `ordinal`
-- `ordinal_path`
-- `block_type`
-- `heading_level`
-- `plain_text`
-- `normalized_text`
-- `source_xpath`
-- `source_anchor`
-- `content_hash`
-- `parser_version_id`
-
-Initial block types:
-
-```text
-heading
-paragraph
-list
-list_item
-table
-caption
-footnote
-signature
-other
-```
-
-#### `filing_section`
-
-- `id`
-- `filing_id`
-- `filing_document_id`
-- `canonical_section_code`
-- `raw_heading`
-- `part_number`
-- `item_number`
-- `ordinal`
-- `start_block_id`
-- `end_block_id`
-- `plain_text`
-- `text_hash`
-- `extraction_method`
-- `confidence`
-- `parser_version_id`
-
-### 7.4 XBRL concepts and semantic resources
-
-#### `xbrl_concept`
-
-- `id`
-- `taxonomy_uri`
-- `namespace`
-- `local_name`
-- `qname`
-- `data_type`
-- `period_type`
-- `balance_type`
-- `substitution_group`
-- `is_abstract`
-- `is_nillable`
-- `is_standard_taxonomy`
-
-Unique identity must account for taxonomy namespace and local name.
-
-#### `xbrl_label`
-
-One concept can have multiple labels.
-
-- `id`
-- `concept_id`
-- `role_uri`
-- `language`
-- `text`
-- `source_artifact_id`
-
-Examples include standard, terse, verbose, total, negated, period-start, and period-end labels.
-
-#### `xbrl_reference`
-
-- `id`
-- `concept_id`
-- `role_uri`
-- `reference_parts_json`
-- `source_artifact_id`
-
-Preserve authoritative reference parts rather than flattening them into one string.
-
-#### `xbrl_role_type`
-
-- `id`
-- `filing_id`
-- `role_uri`
-- `definition`
-- `used_on_json`
-- `source_artifact_id`
-
-#### `xbrl_arcrole_type`
-
-- `id`
-- `filing_id`
-- `arcrole_uri`
-- `definition`
-- `cycles_allowed`
-- `used_on_json`
-- `source_artifact_id`
-
-### 7.5 XBRL relationship networks
-
-Use a generic relationship table plus typed views or repository methods.
-
-#### `xbrl_relationship`
-
-- `id`
-- `filing_id`
-- `network_type`
-- `role_uri`
-- `arcrole_uri`
-- `source_concept_id`
-- `target_concept_id`
-- `order_value`
-- `weight`
-- `preferred_label_role`
-- `closed`
-- `usable`
-- `target_role_uri`
-- `attributes_json`
-- `source_artifact_id`
-- `relationship_hash`
-- `parser_version_id`
-
-`network_type` initially includes:
-
-```text
-presentation
-calculation
-definition
-```
-
-This table must preserve issuer extension relationships as filed.
-
-### 7.6 Contexts, units, and facts
-
-#### `xbrl_context`
-
-- `id`
-- `filing_id`
-- `source_context_id`
-- `entity_identifier`
-- `period_type`
-- `period_start`
-- `period_end`
-- `instant_date`
-- `dimensions_json`
-- `scenario_xml_hash`
-- `context_hash`
-
-#### `xbrl_unit`
-
-- `id`
-- `filing_id`
-- `source_unit_id`
-- `numerator_measures_json`
-- `denominator_measures_json`
-- `canonical_unit`
-- `unit_hash`
-
-#### `xbrl_fact`
-
-- `id`
-- `filing_id`
-- `filing_document_id`
-- `concept_id`
-- `context_id`
-- `unit_id`
-- `raw_value`
-- `numeric_value`
-- `text_value`
-- `decimals`
-- `precision`
-- `scale`
-- `sign`
-- `is_nil`
-- `inline_fact_id`
-- `source_xpath`
-- `source_artifact_id`
-- `fact_hash`
-- `parser_version_id`
-
-Financial values use Python `Decimal` and PostgreSQL `NUMERIC`.
-
-Do not deduplicate facts solely because concept, context, unit, and value are equal. Preserve source occurrences or explicitly represent occurrence equivalence.
+Use internal immutable keys, preserve natural identifiers, and enforce uniqueness at the database level when physical schema is introduced. Do not encode Slice-0 serialization or semantic-hash frameworks as permanent production APIs.
 
 ---
 
@@ -677,6 +385,14 @@ Every mutating command should support, where meaningful:
 
 ## 9. Milestones
 
+**Authoritative post–Slice 0 implementation dependency order** (capability names below may still use historical milestone numbers in older prose):
+
+```text
+filesystem acquisition → DB/catalog foundation → XBRL / document projections → acceptance
+```
+
+Milestone sections below are reordered to match that dependency.
+
 ## Milestone 0 — Decisions and invariants
 
 ### Deliverables
@@ -689,6 +405,7 @@ Every mutating command should support, where meaningful:
 - architecture decision records
 - `.env.example`
 - fixture policy
+- production architecture and conceptual data model ([`docs/architecture.md`](architecture.md), [`docs/data-model.md`](data-model.md), ADR 0008)
 
 ### Exit criteria
 
@@ -716,33 +433,7 @@ A new contributor can identify project scope, commands, semantic invariants, and
 
 ---
 
-## Milestone 2 — Database skeleton and repositories
-
-### Deliverables
-
-- SQLAlchemy models
-- initial Alembic migrations
-- repositories for:
-  - issuers
-  - filings
-  - artifacts
-  - text
-  - XBRL taxonomy resources
-  - XBRL relationships
-  - contexts, units, and facts
-  - quality issues
-- transactional filing operations
-
-### Exit criteria
-
-- migrations create the complete Phase 1 schema.
-- repeated inserts do not duplicate natural entities.
-- failed operations roll back correctly.
-- raw artifacts are not deleted with parser outputs.
-
----
-
-## Milestone 3 — SEC client, discovery, and raw retrieval
+## Milestone 2 — SEC client, discovery, and filesystem acquisition
 
 ### Deliverables
 
@@ -753,9 +444,9 @@ A new contributor can identify project scope, commands, semantic invariants, and
 - retry and timeout policy
 - submissions parsing
 - archive-path resolution
-- atomic retrieval
-- artifact manifests
-- offline bundle validation
+- content-addressed object storage
+- immutable FilingBundle publication (artifacts, report inputs, URI bindings)
+- offline bundle validation / Arelle smoke load with networking denied
 - mocked contract tests
 - opt-in live smoke test
 
@@ -768,10 +459,33 @@ SEC_MAX_CONCURRENCY=2
 
 ### Exit criteria
 
-- one filing can be downloaded as a complete hashed bundle.
-- verified artifacts are not unnecessarily redownloaded.
+- one filing can be acquired as a complete, verified immutable FilingBundle with content-object and payload integrity validated.
+- verified artifacts are not overwritten with different bytes.
 - altered artifacts fail deterministic hash validation.
-- downstream parsing works without network access.
+- offline Arelle load works without network and without ambient cache leakage.
+- URI ownership is explicit (SHA equality never creates URI ownership).
+
+---
+
+## Milestone 3 — Database skeleton and catalog foundation
+
+### Deliverables
+
+- SQLAlchemy models aligned with [`docs/data-model.md`](data-model.md)
+- initial Alembic migrations
+- repositories for:
+  - issuers and filings
+  - FilingBundles, content objects, artifacts, URI bindings
+  - projection attempts / quality issues (as needed for catalog)
+  - later: text and XBRL projection tables as those milestones land
+- transactional filing / bundle operations
+
+### Exit criteria
+
+- migrations create the Phase 1 catalog schema needed for acquisition persistence.
+- repeated inserts do not duplicate natural entities.
+- failed operations roll back correctly.
+- raw artifacts are not deleted with parser outputs.
 
 ---
 
@@ -779,19 +493,20 @@ SEC_MAX_CONCURRENCY=2
 
 ### Deliverables
 
-- deterministic primary-document selection
+- bundle-scoped `filing_document` / `document_parse_target` identity
+- `document_projection` keyed by bundle + parse target + parser/config
 - ordered block tree
 - headings, paragraphs, lists, tables, footnotes, signatures
-- source locators
-- stable content hashes
-- parser-version records
+- source locators (`locator_scheme` + `locator_value`)
+- parser-version / projection records
 - golden tests
 
 ### Exit criteria
 
 - stored blocks reconstruct document reading order.
 - every block traces to a source locator.
-- same parser version produces stable hashes.
+- multiple documents in one bundle produce distinct document projections.
+- exact reruns of the same parse target reuse the same logical projection.
 - normalization edge cases are tested.
 
 ---
@@ -842,28 +557,26 @@ part_2.item_1a.risk_factors
 
 ---
 
-## Milestone 6 — XBRL taxonomy and semantic-network extraction
+## Milestone 6 — Thin Arelle semantic projection (taxonomy and networks)
 
 ### Deliverables
 
-- internal XBRL adapter protocol
-- Arelle adapter
-- concepts and schema attributes
-- labels and references
-- role and arcrole definitions
-- presentation relationships
-- calculation relationships
-- definition/dimensional relationships
-- source-artifact provenance
+- internal XBRL adapter protocol (Arelle objects do not escape the adapter)
+- `semantic_projection` for primary `xbrl_report_input` (including multi-document IXDS)
+- concept identity vs concept declaration
+- supported labels and references (distinct link / arcrole / resource roles)
+- role and arcrole declarations
+- effective presentation, calculation, and definition relationships (`link_role_uri` + `arcrole_uri` required)
+- source URI-binding + locator provenance
 - relationship-network inspection CLI
 
 ### Exit criteria
 
-- a complete statement presentation tree can be reconstructed for fixture roles.
+- a complete statement presentation tree can be reconstructed for fixture roles, including link-role and arcrole identity.
 - calculation weights and orders are preserved.
 - extension concepts and relationships are retained.
-- concept labels and references are queryable by role and language.
-- relationship endpoints and role references validate.
+- concept labels and references are queryable as supported occurrences.
+- exact reruns reuse the same logical `semantic_projection`; parser/config changes coexist as new projections.
 
 ---
 
@@ -871,15 +584,15 @@ part_2.item_1a.risk_factors
 
 ### Deliverables
 
-- instant and duration contexts
-- explicit and typed dimensions
-- units
-- numeric and non-numeric facts
-- nil facts
-- scale/sign/decimals/precision
-- inline document positions
-- stable hashes
-- quality rules
+- contexts with period kinds `instant` | `duration` | `forever`
+- normalized reported dimensions (segment/scenario; no fabricated defaults)
+- units with expanded-QName measures
+- fact occurrences with concept declaration / context / nullable unit FKs
+- retained lexical and Arelle-resolved typed values where produced
+- nil / invalid / unresolved distinguishable
+- scale/sign/decimals/precision and other interpretation-relevant attributes
+- source binding + locator (not Arelle object ids)
+- quality rules scoped to semantic projection
 
 ### Exit criteria
 
@@ -887,6 +600,7 @@ part_2.item_1a.risk_factors
 - exact decimal values round-trip.
 - extension facts are retained.
 - duplicate source occurrences are not destructively collapsed.
+- unrecognized Arelle diagnostics prevent clean/complete status without mandatory filing discard.
 
 ---
 
@@ -1048,13 +762,14 @@ Golden updates must be explicit and reviewed. A parser change must not automatic
 
 ## 13. First implementation sequence
 
-1. Repository bootstrap and documentation.
-2. Slice 0 acquisition/offline-replay spike (exit gate for approach validation).
-3. Phase 1A — Acquisition foundation (identifiers, storage, SEC client, immutable bundles).
-4. Phase 1B — XBRL evidence (concepts, labels, references, roles, networks, contexts, units, facts) and Phase 1C — Document structure (semantic HTML, regulatory sections) in parallel after 1A.
-5. Phase 1D — Integration, idempotency acceptance, and hardening.
-6. Frozen fixture corpus expansion.
-7. Provenance inspection commands.
-8. Phase 2 mapping-readiness review.
+1. Repository bootstrap and documentation (including production architecture / data model — PR #3).
+2. Slice 0 acquisition/offline-replay spike (complete; provenance bounded).
+3. Phase 1A — Filesystem-first acquisition foundation (identifiers, CAS storage, SEC client, immutable FilingBundles, offline smoke load).
+4. Database / catalog foundation for issuer, filing, and bundle metadata.
+5. Phase 1B — Thin Arelle semantic projection and Phase 1C — Document structure in parallel after catalog exists.
+6. Phase 1D — Integration, idempotency acceptance, and hardening; retire Slice-0 executable machinery while retaining frozen evidence + minimal immutability guard.
+7. Frozen fixture corpus expansion.
+8. Provenance inspection commands.
+9. Phase 2 mapping-readiness review.
 
 Do not begin canonical metric mapping until Phase 1 fixtures demonstrate reliable taxonomy, network, context, dimensional, and provenance handling.
