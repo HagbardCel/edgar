@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 SPIKE_DIR = Path(__file__).resolve().parents[2] / "scripts" / "spikes"
 sys.path.insert(0, str(SPIKE_DIR))
 
@@ -23,7 +25,15 @@ from spike_lib.uri_bindings import (  # noqa: E402
     UriBinding,
     serialize_bindings,
 )
-from verify_evidence import check_privacy, verify  # noqa: E402
+from verify_evidence import (  # noqa: E402
+    EVIDENCE_FROZEN_FILES,
+    SLICE0_EVIDENCE_COMMIT,
+    SLICE0_EVIDENCE_DIR,
+    SLICE0_IMPLEMENTATION_COMMIT,
+    check_privacy,
+    verify,
+    verify_slice0_provenance,
+)
 
 ENTRYPOINT_URI = "https://www.sec.gov/Archives/edgar/data/1/x/a.htm"
 
@@ -263,3 +273,414 @@ def test_tampered_manifest_payload_fails(tmp_path: Path) -> None:
     (evidence_dir / "evidence-metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
     problems = verify(evidence_dir)
     assert any("payload_hash" in p for p in problems)
+
+
+def _frozen_raw(payload: bytes = b"frozen-bytes") -> dict[str, bytes]:
+    return {name: payload for name in EVIDENCE_FROZEN_FILES}
+
+
+class _GitStub:
+    """Deterministic git stub for verify_slice0_provenance unit tests."""
+
+    def __init__(
+        self,
+        *,
+        repo_root: Path,
+        toplevel_rc: int = 0,
+        cat_file: dict[str, int] | None = None,
+        ancestors: dict[tuple[str, str], int] | None = None,
+        diff_rc: int = 0,
+        diff_names: str = "",
+        blobs: dict[tuple[str, str], tuple[int, bytes]] | None = None,
+    ) -> None:
+        self.repo_root = repo_root
+        self.toplevel_rc = toplevel_rc
+        self.cat_file = cat_file or {
+            SLICE0_IMPLEMENTATION_COMMIT: 0,
+            SLICE0_EVIDENCE_COMMIT: 0,
+        }
+        self.ancestors = ancestors or {
+            (SLICE0_IMPLEMENTATION_COMMIT, SLICE0_EVIDENCE_COMMIT): 0,
+            (SLICE0_EVIDENCE_COMMIT, "HEAD"): 0,
+        }
+        self.diff_rc = diff_rc
+        self.diff_names = diff_names
+        self.blobs = blobs or {}
+
+    def git(self, repo_root: Path, *args: str) -> tuple[int, str]:
+        if args[:2] == ("rev-parse", "--show-toplevel"):
+            if self.toplevel_rc != 0:
+                return self.toplevel_rc, ""
+            return 0, str(self.repo_root)
+        if args[:2] == ("cat-file", "-e"):
+            commit = args[2].removesuffix("^{commit}")
+            return self.cat_file.get(commit, 1), ""
+        if args[:2] == ("merge-base", "--is-ancestor"):
+            return self.ancestors.get((args[2], args[3]), 1), ""
+        if args[:2] == ("diff", "--name-only"):
+            return self.diff_rc, self.diff_names
+        raise AssertionError(f"unexpected git args: {args}")
+
+    def git_blob(self, repo_root: Path, revision: str, path: str) -> tuple[int, bytes]:
+        return self.blobs.get((revision, path), (1, b""))
+
+
+def _passing_blobs(payload: bytes = b"frozen-bytes") -> dict[tuple[str, str], tuple[int, bytes]]:
+    blobs: dict[tuple[str, str], tuple[int, bytes]] = {}
+    for name in EVIDENCE_FROZEN_FILES:
+        relpath = (SLICE0_EVIDENCE_DIR / name).as_posix()
+        blobs[(SLICE0_EVIDENCE_COMMIT, relpath)] = (0, payload)
+        blobs[("HEAD", relpath)] = (0, payload)
+    return blobs
+
+
+def _allowed_diff_names() -> str:
+    return "\n".join(
+        [
+            f"{SLICE0_EVIDENCE_DIR.as_posix()}/evidence-metadata.json",
+            "docs/spikes/0001-arelle-offline-closure.md",
+            "docs/adr/0007-manifest-only-replay-uri-bindings.md",
+        ]
+    )
+
+
+def test_noncanonical_null_source_commit_skips_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    evidence_dir = tmp_path / "synthetic"
+    evidence_dir.mkdir()
+    stub = _GitStub(repo_root=tmp_path / "repo")
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    assert (
+        verify_slice0_provenance(
+            evidence_dir=evidence_dir,
+            raw=_frozen_raw(),
+            metadata={"source_commit": None},
+        )
+        == []
+    )
+
+
+def test_noncanonical_source_commit_unsupported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    evidence_dir = tmp_path / "synthetic"
+    evidence_dir.mkdir()
+    stub = _GitStub(repo_root=tmp_path / "repo")
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("noncanonical" in p for p in problems)
+
+
+@pytest.mark.parametrize("source_commit", ["", "deadbeef"])
+def test_noncanonical_empty_or_wrong_source_commit_unsupported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source_commit: str
+) -> None:
+    import verify_evidence as ve
+
+    evidence_dir = tmp_path / "synthetic"
+    evidence_dir.mkdir()
+    stub = _GitStub(repo_root=tmp_path / "repo")
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": source_commit},
+    )
+    assert any("noncanonical" in p for p in problems)
+
+
+def test_outside_git_null_source_commit_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    evidence_dir = tmp_path / "synthetic"
+    evidence_dir.mkdir()
+    stub = _GitStub(repo_root=tmp_path / "repo", toplevel_rc=128)
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    assert (
+        verify_slice0_provenance(
+            evidence_dir=evidence_dir,
+            raw=_frozen_raw(),
+            metadata={"source_commit": None},
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("source_commit", ["", SLICE0_IMPLEMENTATION_COMMIT])
+def test_outside_git_declared_source_commit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source_commit: str
+) -> None:
+    import verify_evidence as ve
+
+    evidence_dir = tmp_path / "synthetic"
+    evidence_dir.mkdir()
+    stub = _GitStub(repo_root=tmp_path / "repo", toplevel_rc=128)
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": source_commit},
+    )
+    assert any("git repository provenance is unavailable" in p for p in problems)
+
+
+def test_canonical_null_source_commit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    stub = _GitStub(repo_root=repo_root)
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": None},
+    )
+    assert any("requires source_commit" in p for p in problems)
+
+
+def test_canonical_wrong_source_commit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    stub = _GitStub(repo_root=repo_root)
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": "0" * 40},
+    )
+    assert any("source_commit mismatch" in p for p in problems)
+
+
+def test_canonical_passing_provenance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    payload = b"frozen-bytes"
+    stub = _GitStub(
+        repo_root=repo_root,
+        diff_names=_allowed_diff_names(),
+        blobs=_passing_blobs(payload),
+    )
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    assert (
+        verify_slice0_provenance(
+            evidence_dir=evidence_dir,
+            raw=_frozen_raw(payload),
+            metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+        )
+        == []
+    )
+
+
+def test_historical_disallowed_path_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    stub = _GitStub(
+        repo_root=repo_root,
+        diff_names="fixtures/manifests/other/package.json\n",
+        blobs=_passing_blobs(),
+    )
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("outside allowlist" in p for p in problems)
+
+
+def test_historical_diff_command_failure_is_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    stub = _GitStub(repo_root=repo_root, diff_rc=1, blobs=_passing_blobs())
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("historical evidence-window diff failed" in p for p in problems)
+
+
+def test_missing_implementation_commit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    stub = _GitStub(
+        repo_root=repo_root,
+        cat_file={SLICE0_IMPLEMENTATION_COMMIT: 1, SLICE0_EVIDENCE_COMMIT: 0},
+        blobs=_passing_blobs(),
+    )
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("implementation commit" in p and "not found" in p for p in problems)
+
+
+def test_evidence_not_ancestor_of_head_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    stub = _GitStub(
+        repo_root=repo_root,
+        ancestors={
+            (SLICE0_IMPLEMENTATION_COMMIT, SLICE0_EVIDENCE_COMMIT): 0,
+            (SLICE0_EVIDENCE_COMMIT, "HEAD"): 1,
+        },
+        diff_names=_allowed_diff_names(),
+        blobs=_passing_blobs(),
+    )
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("not an ancestor of HEAD" in p for p in problems)
+
+
+def test_baseline_blob_retrieval_failure_is_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    stub = _GitStub(
+        repo_root=repo_root,
+        diff_names=_allowed_diff_names(),
+        blobs={},
+    )
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(),
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("failed to read baseline blob" in p for p in problems)
+
+
+def test_head_byte_drift_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    payload = b"frozen-bytes"
+    blobs = _passing_blobs(payload)
+    meta_rel = (SLICE0_EVIDENCE_DIR / "evidence-metadata.json").as_posix()
+    blobs[("HEAD", meta_rel)] = (0, b"altered-at-head")
+    stub = _GitStub(repo_root=repo_root, diff_names=_allowed_diff_names(), blobs=blobs)
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=_frozen_raw(payload),
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("evidence-metadata.json drifted" in p for p in problems)
+
+
+def test_local_raw_byte_drift_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    payload = b"frozen-bytes"
+    stub = _GitStub(
+        repo_root=repo_root,
+        diff_names=_allowed_diff_names(),
+        blobs=_passing_blobs(payload),
+    )
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    raw = _frozen_raw(payload)
+    raw["evidence-metadata.json"] = b'{"source_run_id": "something-else"}\n'
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=raw,
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("evidence-metadata.json drifted" in p for p in problems)
+
+
+def test_metadata_only_whitespace_drift_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import verify_evidence as ve
+
+    repo_root = tmp_path / "repo"
+    evidence_dir = repo_root / SLICE0_EVIDENCE_DIR
+    evidence_dir.mkdir(parents=True)
+    payload = b'{"source_run_id":"x"}\n'
+    stub = _GitStub(
+        repo_root=repo_root,
+        diff_names=_allowed_diff_names(),
+        blobs=_passing_blobs(payload),
+    )
+    monkeypatch.setattr(ve, "_git", stub.git)
+    monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
+    raw = _frozen_raw(payload)
+    raw["evidence-metadata.json"] = payload + b"\n"
+    problems = verify_slice0_provenance(
+        evidence_dir=evidence_dir,
+        raw=raw,
+        metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
+    )
+    assert any("evidence-metadata.json drifted" in p for p in problems)
