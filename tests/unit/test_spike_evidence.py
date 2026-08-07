@@ -542,8 +542,18 @@ def test_historical_diff_command_failure_is_fatal(
     assert any("historical evidence-window diff failed" in p for p in problems)
 
 
-def test_missing_implementation_commit_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("missing_commit", "label"),
+    [
+        (SLICE0_IMPLEMENTATION_COMMIT, "implementation commit"),
+        (SLICE0_EVIDENCE_COMMIT, "evidence commit"),
+    ],
+)
+def test_missing_pinned_commit_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing_commit: str,
+    label: str,
 ) -> None:
     import verify_evidence as ve
 
@@ -552,8 +562,12 @@ def test_missing_implementation_commit_fails(
     evidence_dir.mkdir(parents=True)
     stub = _GitStub(
         repo_root=repo_root,
-        cat_file={SLICE0_IMPLEMENTATION_COMMIT: 1, SLICE0_EVIDENCE_COMMIT: 0},
-        blobs=_passing_blobs(),
+        cat_file={
+            SLICE0_IMPLEMENTATION_COMMIT: (
+                1 if missing_commit == SLICE0_IMPLEMENTATION_COMMIT else 0
+            ),
+            SLICE0_EVIDENCE_COMMIT: 1 if missing_commit == SLICE0_EVIDENCE_COMMIT else 0,
+        },
     )
     monkeypatch.setattr(ve, "_git", stub.git)
     monkeypatch.setattr(ve, "_git_blob", stub.git_blob)
@@ -562,7 +576,7 @@ def test_missing_implementation_commit_fails(
         raw=_frozen_raw(),
         metadata={"source_commit": SLICE0_IMPLEMENTATION_COMMIT},
     )
-    assert any("implementation commit" in p and "not found" in p for p in problems)
+    assert any(label in p and "not found" in p for p in problems)
 
 
 def test_evidence_not_ancestor_of_head_fails(
