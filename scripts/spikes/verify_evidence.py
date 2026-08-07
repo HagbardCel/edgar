@@ -10,9 +10,10 @@ Checks, all fatal on failure:
 6. expectation files match deterministic projections of manifest/inspection
 7. schema-aware privacy on known identity/operational fields
 8. semantic_run_hash recomputes from the compact inspection (non-circular)
-9. provenance (when inside a git repository): source_commit exists, is an
-   ancestor of HEAD, and every change after source_commit touches only
-   allowlisted documentation/evidence paths
+9. Slice-0 provenance: for the canonical evidence package, freeze history to
+   the implementation→evidence commit window and require the seven evidence
+   files to remain byte-identical to the evidence commit at HEAD and locally;
+   noncanonical packages must not declare source_commit
 10. full_inspection digest is provenance-only (not CI-reproducible)
 
 Usage:
@@ -40,9 +41,11 @@ from spike_lib.manifest import (  # noqa: E402
 )
 from spike_lib.semantic import build_semantic_run_identity, semantic_run_hash  # noqa: E402
 
-# Deny-by-default: after the implementation commit, only these paths may change.
-POST_IMPLEMENTATION_PATH_ALLOWLIST_PREFIXES = (
-    "fixtures/manifests/",
+SLICE0_EVIDENCE_DIR = Path("fixtures/manifests/0001065088-24-000036")
+SLICE0_IMPLEMENTATION_COMMIT = "261d658539113a499f95db6527ed3ddedd7ae6d8"
+SLICE0_EVIDENCE_COMMIT = "596642d8ab1a1f5a53f6396ea7c8b9d7a7016bc6"
+SLICE0_EVIDENCE_WINDOW_ALLOWED_PREFIXES = (
+    f"{SLICE0_EVIDENCE_DIR.as_posix()}/",
     "docs/spikes/",
     "docs/adr/",
 )
@@ -55,6 +58,7 @@ EVIDENCE_HASHED_FILES = (
     "acquisition-expectations.json",
     "parser-expectations.json",
 )
+EVIDENCE_FROZEN_FILES = (*EVIDENCE_HASHED_FILES, "evidence-metadata.json")
 
 # Known identity/operational fields subject to local-path / file: privacy checks.
 _PRIVACY_URI_KEYS = frozenset(
@@ -147,6 +151,187 @@ def _git(repo_root: Path, *args: str) -> tuple[int, str]:
         check=False,
     )
     return proc.returncode, proc.stdout.strip()
+
+
+def _git_blob(repo_root: Path, revision: str, path: str) -> tuple[int, bytes]:
+    proc = subprocess.run(
+        ["git", "-C", str(repo_root), "show", f"{revision}:{path}"],
+        capture_output=True,
+        check=False,
+    )
+    return proc.returncode, proc.stdout
+
+
+def verify_slice0_provenance(
+    *,
+    evidence_dir: Path,
+    raw: dict[str, bytes],
+    metadata: dict[str, Any],
+) -> list[str]:
+    """Bound Slice-0 provenance to the historical evidence window and byte freeze.
+
+    Canonical identity is defined only after a git repository root is found.
+    ``source_commit is None`` means provenance is undeclared; any other value
+    (including ``""``) is a declared provenance claim.
+    """
+    source_commit = metadata.get("source_commit")
+
+    rc, toplevel = _git(evidence_dir, "rev-parse", "--show-toplevel")
+    if rc != 0:
+        if source_commit is None:
+            return []
+        return _failures(
+            "provenance",
+            ["source_commit is set but git repository provenance is unavailable"],
+        )
+
+    repo_root = Path(toplevel).resolve()
+    canonical_dir = (repo_root / SLICE0_EVIDENCE_DIR).resolve()
+    is_canonical = evidence_dir.resolve() == canonical_dir
+
+    if not is_canonical:
+        if source_commit is None:
+            return []
+        return _failures(
+            "provenance",
+            ["noncanonical evidence packages must not declare Slice-0 source_commit provenance"],
+        )
+
+    if source_commit is None:
+        return _failures(
+            "provenance",
+            ["canonical Slice-0 evidence package requires source_commit"],
+        )
+    if source_commit != SLICE0_IMPLEMENTATION_COMMIT:
+        return _failures(
+            "provenance",
+            [
+                "canonical source_commit mismatch: "
+                f"declared={source_commit!r} expected={SLICE0_IMPLEMENTATION_COMMIT}"
+            ],
+        )
+
+    problems: list[str] = []
+
+    rc, _ = _git(repo_root, "cat-file", "-e", f"{SLICE0_IMPLEMENTATION_COMMIT}^{{commit}}")
+    if rc != 0:
+        problems.extend(
+            _failures(
+                "provenance",
+                [f"implementation commit {SLICE0_IMPLEMENTATION_COMMIT} not found"],
+            )
+        )
+        return problems
+
+    rc, _ = _git(repo_root, "cat-file", "-e", f"{SLICE0_EVIDENCE_COMMIT}^{{commit}}")
+    if rc != 0:
+        problems.extend(
+            _failures(
+                "provenance",
+                [f"evidence commit {SLICE0_EVIDENCE_COMMIT} not found"],
+            )
+        )
+        return problems
+
+    rc, _ = _git(
+        repo_root,
+        "merge-base",
+        "--is-ancestor",
+        SLICE0_IMPLEMENTATION_COMMIT,
+        SLICE0_EVIDENCE_COMMIT,
+    )
+    if rc != 0:
+        problems.extend(
+            _failures(
+                "provenance",
+                [
+                    f"implementation commit {SLICE0_IMPLEMENTATION_COMMIT} is not an "
+                    f"ancestor of evidence commit {SLICE0_EVIDENCE_COMMIT}"
+                ],
+            )
+        )
+
+    rc, _ = _git(
+        repo_root,
+        "merge-base",
+        "--is-ancestor",
+        SLICE0_EVIDENCE_COMMIT,
+        "HEAD",
+    )
+    if rc != 0:
+        problems.extend(
+            _failures(
+                "provenance",
+                [f"evidence commit {SLICE0_EVIDENCE_COMMIT} is not an ancestor of HEAD"],
+            )
+        )
+
+    rc, names = _git(
+        repo_root,
+        "diff",
+        "--name-only",
+        f"{SLICE0_IMPLEMENTATION_COMMIT}..{SLICE0_EVIDENCE_COMMIT}",
+    )
+    if rc != 0:
+        problems.extend(
+            _failures(
+                "provenance",
+                [
+                    "historical evidence-window diff failed: "
+                    f"{SLICE0_IMPLEMENTATION_COMMIT}..{SLICE0_EVIDENCE_COMMIT}"
+                ],
+            )
+        )
+    else:
+        disallowed = [
+            name
+            for name in names.splitlines()
+            if name and not name.startswith(SLICE0_EVIDENCE_WINDOW_ALLOWED_PREFIXES)
+        ]
+        if disallowed:
+            problems.extend(
+                _failures(
+                    "provenance",
+                    [
+                        "historical evidence-window changes outside allowlist: "
+                        + ", ".join(sorted(disallowed))
+                    ],
+                )
+            )
+
+    for name in EVIDENCE_FROZEN_FILES:
+        relpath = (SLICE0_EVIDENCE_DIR / name).as_posix()
+        baseline_rc, baseline = _git_blob(repo_root, SLICE0_EVIDENCE_COMMIT, relpath)
+        if baseline_rc != 0:
+            problems.extend(
+                _failures(
+                    "provenance",
+                    [f"failed to read baseline blob {SLICE0_EVIDENCE_COMMIT}:{relpath}"],
+                )
+            )
+            continue
+        head_rc, head = _git_blob(repo_root, "HEAD", relpath)
+        if head_rc != 0:
+            problems.extend(
+                _failures(
+                    "provenance",
+                    [f"failed to read HEAD blob HEAD:{relpath}"],
+                )
+            )
+            continue
+        local = raw[name]
+        if baseline != head or baseline != local:
+            problems.extend(
+                _failures(
+                    "provenance",
+                    [
+                        f"{name} drifted from evidence commit {SLICE0_EVIDENCE_COMMIT} "
+                        "(baseline must equal HEAD and local bytes)"
+                    ],
+                )
+            )
+
+    return problems
 
 
 def verify(evidence_dir: Path) -> list[str]:
@@ -315,43 +500,13 @@ def verify(evidence_dir: Path) -> list[str]:
     except (KeyError, TypeError) as exc:
         problems.extend(_failures("semantic-hash", [f"cannot rebuild semantic identity: {exc}"]))
 
-    source_commit = metadata.get("source_commit")
-    rc, toplevel = _git(evidence_dir, "rev-parse", "--show-toplevel")
-    if source_commit and rc == 0:
-        repo_root = Path(toplevel)
-        rc, _ = _git(repo_root, "cat-file", "-e", f"{source_commit}^{{commit}}")
-        if rc != 0:
-            problems.extend(_failures("provenance", [f"source_commit {source_commit} not found"]))
-        else:
-            rc, _ = _git(repo_root, "merge-base", "--is-ancestor", source_commit, "HEAD")
-            if rc != 0:
-                problems.extend(
-                    _failures(
-                        "provenance",
-                        [f"source_commit {source_commit} is not an ancestor of HEAD"],
-                    )
-                )
-            rc, names = _git(repo_root, "diff", "--name-only", f"{source_commit}..HEAD")
-            if rc == 0:
-                disallowed = [
-                    name
-                    for name in names.splitlines()
-                    if name and not name.startswith(POST_IMPLEMENTATION_PATH_ALLOWLIST_PREFIXES)
-                ]
-                if disallowed:
-                    problems.extend(
-                        _failures(
-                            "provenance",
-                            [
-                                "post-implementation changes outside allowlist: "
-                                + ", ".join(sorted(disallowed))
-                            ],
-                        )
-                    )
-    elif source_commit:
-        problems.extend(
-            _failures("provenance", ["not inside a git repository; provenance skipped"])
+    problems.extend(
+        verify_slice0_provenance(
+            evidence_dir=evidence_dir,
+            raw=raw,
+            metadata=metadata,
         )
+    )
 
     return problems
 
