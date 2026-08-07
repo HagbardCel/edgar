@@ -29,11 +29,13 @@ Before changing code:
 1. Read this file.
 2. Read `docs/phase-1-plan.md`.
 3. Read `docs/project-roadmap.md`.
-4. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.
-5. Read relevant ADRs.
-6. Inspect nearest tests and interfaces.
-7. Check the git diff before editing.
-8. Keep the change within the active phase unless the task explicitly changes scope.
+4. Read `docs/architecture.md` and `docs/fixture-policy.md`.
+5. Read `docs/data-model.md` when present (after Slice 0).
+6. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.
+7. Read relevant ADRs under `docs/adr/`.
+8. Inspect nearest tests and interfaces.
+9. Check the git diff before editing.
+10. Keep the change within the active phase unless the task explicitly changes scope.
 
 Priority when requirements conflict:
 

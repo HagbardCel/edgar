@@ -1,0 +1,156 @@
+{
+  "bindings": [
+    {
+      "content_sha256": "5dbad94cecf42918b976449a8e1cb800d57e96442a9d0f5c00ca77e4da831827",
+      "document_uri": "http://www.xbrl.org/2003/xbrl-instance-2003-12-31.xsd",
+      "logical_path": "external/f2d315beea51d13a40a6243ffc4e83dc496f47f3d00e4cc3c6bcc06c603e1481/xbrl-instance-2003-12-31.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "f906cd30bc47a81bd1c97e24447f4917b21eb3d8a8b4fc520129ce2534ac5bca",
+      "document_uri": "http://www.xbrl.org/2003/xbrl-linkbase-2003-12-31.xsd",
+      "logical_path": "external/d34dcb87d97056490b8f09b014d610a23e6e592c4b5d19fcf32b300c271f0afe/xbrl-linkbase-2003-12-31.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "e28b0965d34f4879833b433a62d0d1e86e8b1f22e6b7642bab861983f5bb5818",
+      "document_uri": "http://www.xbrl.org/2003/xl-2003-12-31.xsd",
+      "logical_path": "external/53c316b3dbf3fad1e40da377eee16782c47a042cba2be0913c3092f7250cfe30/xl-2003-12-31.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "5ffa8cb747ccd11e0d6420cf5668b60e3b7a64e20915d0e1774e5559d3343971",
+      "document_uri": "http://www.xbrl.org/2003/xlink-2003-12-31.xsd",
+      "logical_path": "external/e31dcebaf73ee3c42c7fc13c9342cce3c6904eed17184e0527d2a52b2f03fd99/xlink-2003-12-31.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "caf850f08d74c087c7946e6ea6d9fb5c0e9f8edf63bf639ccb9143e77e3390c7",
+      "document_uri": "http://www.xbrl.org/2005/xbrldt-2005.xsd",
+      "logical_path": "external/e2c2e1e1f0811a266d6c339e233a0d1eb67a62cf43ab515f404f6faa83656cb9/xbrldt-2005.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "fae0144a41edf741c3b74c866988f64d24714dba4ca822258dea8b490b7904b7",
+      "document_uri": "http://www.xbrl.org/2006/ref-2006-02-27.xsd",
+      "logical_path": "external/18c9a960da0a89f7a263585a3a9c2be0d84bab23459eb88f4d4670d723a43409/ref-2006-02-27.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "b6b3fdd3bb93dad157f13586b5b9f14998b4940875c78af3f29d28116cc0092a",
+      "document_uri": "http://www.xbrl.org/lrr/role/negated-2009-12-16.xsd",
+      "logical_path": "external/2bc96ed9042a6cf448294ed48c18096170ce0484fe7d17da006ef797d003fb24/negated-2009-12-16.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "de7db88c29983dab5668dd437fdf659f9b66c1235e1e0240b79573305982a446",
+      "document_uri": "http://www.xbrl.org/lrr/role/net-2009-12-16.xsd",
+      "logical_path": "external/9cd5d482bbb5b0129df830801e348ca9a11b24cda954d68579ad085fd23b2c8c/net-2009-12-16.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec",
+      "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231.htm",
+      "logical_path": "accession/ebay-20231231.htm",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "c5867731183a88f1e619c9e14e325d7272e223bd0c34286d503f9c4adec52c11",
+      "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231.xsd",
+      "logical_path": "accession/ebay-20231231.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "e5ba5545fcfe36660d15b9a46c363d265e4cc55968e3c0b9b45aba14f2c3e1ae",
+      "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_cal.xml",
+      "logical_path": "accession/ebay-20231231_cal.xml",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "f10f2e47f743c159d03bb6ce8bb67abe049e51242e2c52bec7d6973887cc8683",
+      "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_def.xml",
+      "logical_path": "accession/ebay-20231231_def.xml",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "75d81938377db187698c9db5749e156567f9ac258154f7f9fd50ec23e0e7f341",
+      "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_lab.xml",
+      "logical_path": "accession/ebay-20231231_lab.xml",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "d2ba5d883e7418771f27a2dae2a287f140a66bc27f440fa5604c3ef26ab46915",
+      "document_uri": "https://www.sec.gov/Archives/edgar/data/1065088/000106508824000036/ebay-20231231_pre.xml",
+      "logical_path": "accession/ebay-20231231_pre.xml",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "17a021e3e3fd5ca2ff0cde05988c78f12a6cadd71077347e0ae4376a78b586e8",
+      "document_uri": "https://www.xbrl.org/2020/extensible-enumerations-2.0.xsd",
+      "logical_path": "external/9df3cb7629b1dda7fbcc766091493ca91a96b70f699fd9a34320459249182b1e/extensible-enumerations-2.0.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "a62f1f3635bc6b6cddd1422ab2c9ba00ebbe73cefc3500e207fa0e9c12ee0293",
+      "document_uri": "https://www.xbrl.org/dtr/type/2020-01-21/types.xsd",
+      "logical_path": "external/015dd3aed809e7c3a32f8629cb0c40bdc250c47715c31447a81d1d0f9a92eb5f/types.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "e7eb1bef6a68845cc0dd5d370d18ceda92978dd54a6809a22286d4e6af87ca4b",
+      "document_uri": "https://www.xbrl.org/dtr/type/2022-03-31/types.xsd",
+      "logical_path": "external/8f051a07d705ee1f2beedac2fd70ee18a5e399982d505fd3da89c6d105a8ae59/types.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "e6f6c3c94842807268aa6e6310bf23fbaf387e1530247d5a798cccb1f9f6672e",
+      "document_uri": "https://xbrl.fasb.org/srt/2023/elts/srt-2023.xsd",
+      "logical_path": "external/45541be54c4f1fbe0c41fbed1fb940da09d6d5d3b56918fdabef23791f2f3a07/srt-2023.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "168e9b14e9162bff89a16c4c8891c0af4d61cdf9d9ea5551fe4735d16b2c20bb",
+      "document_uri": "https://xbrl.fasb.org/srt/2023/elts/srt-roles-2023.xsd",
+      "logical_path": "external/58bd6c1a55d854539853dfeeabb641731d3ecf1506228d66b52bf24b3349dfef/srt-roles-2023.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "2d2425ad2291b3c8d1b31f4f91c1cbd43c85f1fbf4c19fefe7196c312f32879a",
+      "document_uri": "https://xbrl.fasb.org/srt/2023/elts/srt-types-2023.xsd",
+      "logical_path": "external/4c10f761b10c0188887429ec0f421c85e63ab29d798302c97dc432c376e60d5c/srt-types-2023.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "5b23edf9ea3f1a6e35a50214e72d8a21acc2c262c6490d606a72cee0c3fb342e",
+      "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-gaap-2023.xsd",
+      "logical_path": "external/fb94bc2f6d7a02554759ccd94b120375181b5026caf475dfe06fc3708b4d8a75/us-gaap-2023.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "207ca9dc6e2890ec585379643e7fa18cd6d8195b2f39e52d1aed9461519f95b3",
+      "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-roles-2023.xsd",
+      "logical_path": "external/d79d8aa44ea39ca82dc8cd2a8556248f7a4d2c2501b5a93e0d2674773faf373c/us-roles-2023.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "3edc0cab30fb34f4e600d4cd5a34eb2ba47dae9e5e710e15ec662b7bb18aeafe",
+      "document_uri": "https://xbrl.fasb.org/us-gaap/2023/elts/us-types-2023.xsd",
+      "logical_path": "external/2503eaafe87385552249df020a945ca97a3608ac57792fac4efed4faff5c1dca/us-types-2023.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "b020349116649ac236d9a201c1ccf9c934526a58ac12739c11ca4a72ef012ab7",
+      "document_uri": "https://xbrl.sec.gov/country/2023/country-2023.xsd",
+      "logical_path": "external/f014af905c4addc4b700ba5b0ce718882d066c46daa81f97809c906e5968253e/country-2023.xsd",
+      "replay_aliases": []
+    },
+    {
+      "content_sha256": "7467723f0ff8a1effe24c49a3306406915ee29c5d1269dddb4a30a43320a8af6",
+      "document_uri": "https://xbrl.sec.gov/dei/2023/dei-2023.xsd",
+      "logical_path": "external/bbb80d3b4f6d87a719fe2e4d7eb973b94e0d51fec94991b8a3a1c72f09b19ce5/dei-2023.xsd",
+      "replay_aliases": []
+    }
+  ],
+  "uri_binding_schema_version": "uri-bindings-v2",
+  "uri_identity_version": "uri-identity-v1"
+}

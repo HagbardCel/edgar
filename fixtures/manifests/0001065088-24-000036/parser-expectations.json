@@ -1,0 +1,72 @@
+{
+  "closure_hash": "32c8c2f3ed7fd01c37c5a0aa438feb875da5185f79582501caa08fd57aca020a",
+  "concept_count": 18527,
+  "concept_relationship_occurrence_hash": "180097534c9b9122dd33372c62057785f14b7232526220303c0a0b6efdff8a1f",
+  "context_count": 521,
+  "criteria_passed": {
+    "1": true,
+    "10": true,
+    "2": true,
+    "3": true,
+    "4": true,
+    "5": true,
+    "6": true,
+    "7": true,
+    "8": true,
+    "9": true
+  },
+  "document_edge_extraction": {
+    "document_conflict_count": 0,
+    "extraction_complete": true,
+    "failure_records": [],
+    "unresolved_reference_attribute_count": 0,
+    "unstable_reference_occurrence_count": 0
+  },
+  "extraction": {
+    "base_set_load_failure_count": 0,
+    "base_set_load_failures": [],
+    "duplicate_occurrence_inconsistency_count": 0,
+    "endpoint_family_failure_count": 0,
+    "endpoint_family_failure_records": [],
+    "extraction_complete": true,
+    "unstable_endpoint_occurrence_count": 0,
+    "unsupported_failing_relationship_count": 0
+  },
+  "fact_count": 2093,
+  "offline_concept_relationship_occurrence_hash": "180097534c9b9122dd33372c62057785f14b7232526220303c0a0b6efdff8a1f",
+  "offline_resource_relationship_occurrence_hash": "f64dc0655562b24323909e84ac1b720d5f2492ce3ec024438ba864669ccd8be0",
+  "payload_hash": "aa744cbb4c56d55163f6fcf37bdd5f519f41c3f97976b55c47ea93536843909a",
+  "resource_relationship_occurrence_hash": "f64dc0655562b24323909e84ac1b720d5f2492ce3ec024438ba864669ccd8be0",
+  "semantic_run_hash": "6a8ad055258229e56477c541eca03732962b601c631671f5c64f063f469efd49",
+  "semantic_run_schema_version": "semantic-run-v2",
+  "unit_count": 9,
+  "unsupported_inventory": {
+    "deferred_arcrole_counts": {},
+    "deferred_generic_resource_arcroles": [
+      "http://xbrl.org/arcrole/2008/element-label",
+      "http://xbrl.org/arcrole/2008/element-reference"
+    ],
+    "encountered_arcrole_counts": {
+      "http://www.xbrl.org/2003/arcrole/concept-label": 2190,
+      "http://www.xbrl.org/2003/arcrole/parent-child": 1516,
+      "http://www.xbrl.org/2003/arcrole/summation-item": 241,
+      "http://xbrl.org/int/dim/arcrole/all": 57,
+      "http://xbrl.org/int/dim/arcrole/dimension-default": 151,
+      "http://xbrl.org/int/dim/arcrole/dimension-domain": 151,
+      "http://xbrl.org/int/dim/arcrole/domain-member": 1291,
+      "http://xbrl.org/int/dim/arcrole/hypercube-dimension": 151
+    },
+    "excluded_arcrole_counts": {},
+    "supported_arcrole_counts": {
+      "http://www.xbrl.org/2003/arcrole/concept-label": 2190,
+      "http://www.xbrl.org/2003/arcrole/parent-child": 1516,
+      "http://www.xbrl.org/2003/arcrole/summation-item": 241,
+      "http://xbrl.org/int/dim/arcrole/all": 57,
+      "http://xbrl.org/int/dim/arcrole/dimension-default": 151,
+      "http://xbrl.org/int/dim/arcrole/dimension-domain": 151,
+      "http://xbrl.org/int/dim/arcrole/domain-member": 1291,
+      "http://xbrl.org/int/dim/arcrole/hypercube-dimension": 151
+    },
+    "unsupported_arcrole_counts": {}
+  }
+}

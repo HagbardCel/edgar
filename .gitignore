@@ -37,8 +37,12 @@ pyrightconfig.json
 data/
 filings/
 raw/
+var/
 *.dump
 *.sql.gz
+
+# Spike / local run outputs (evidence under var/spikes is local-only)
+scripts/spikes/**/__pycache__/
 
 # Local LLM / model artifacts
 models/

@@ -149,6 +149,22 @@ Build the offline-replayable evidence substrate.
 - provenance and quality issues
 - deterministic fixtures
 
+## Internal gates
+
+```text
+Slice 0: acquisition/replay spike
+  -> Phase 1A: Acquisition Foundation
+       -> Phase 1B: XBRL Evidence
+       -> Phase 1C: Document Structure
+            -> Phase 1D: Acceptance & Hardening
+```
+
+Phase 1B and Phase 1C may proceed in parallel only after Phase 1A produces a valid immutable filing bundle. Durable retrieval is the input dependency for both parser tracks.
+
+Parser outputs are versioned, regenerable materializations of immutable filing bundles. Curated review and mapping decisions are separate, non-regenerable source data that must be transactionally stored, exported and backed up.
+
+Amendment filings use a directed `amends` relationship (see ADR 0005); they do not supersede the original filing as a whole.
+
 ## Exit gate
 
 A fact can be traced from database row through statement network and inline location to an immutable source artifact. Phase 2 can perform mappings without reparsing filings.
