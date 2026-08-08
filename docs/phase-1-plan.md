@@ -556,6 +556,8 @@ part_2.item_1a.risk_factors
 
 ## Milestone 6 — Thin Arelle semantic projection (taxonomy and networks)
 
+**Status:** Implemented (PR #6 / Phase 1B, with Milestone 7).
+
 ### Deliverables
 
 - internal XBRL adapter protocol (Arelle objects do not escape the adapter)
@@ -578,6 +580,8 @@ part_2.item_1a.risk_factors
 ---
 
 ## Milestone 7 — Context, unit, and fact extraction
+
+**Status:** Implemented (PR #6 / Phase 1B, with Milestone 6).
 
 ### Deliverables
 

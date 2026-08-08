@@ -37,6 +37,21 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
 
 CATALOG_TABLE_NAMES = (
+    "xbrl_relationship",
+    "xbrl_fact",
+    "xbrl_unit_measure",
+    "xbrl_unit",
+    "xbrl_context_dimension",
+    "xbrl_context",
+    "concept_reference",
+    "concept_label",
+    "concept_declaration",
+    "concept_identity",
+    "role_declaration",
+    "arcrole_declaration",
+    "semantic_issue",
+    "semantic_projection_attempt",
+    "semantic_projection",
     "xbrl_report_input_member",
     "xbrl_report_input",
     "bundle_uri_binding",
@@ -201,6 +216,10 @@ def test_migration_upgrade_downgrade_upgrade(engine: Engine) -> None:
         with engine.connect() as conn:
             reg = conn.execute(text("SELECT to_regclass('public.filing_bundle')"))
             assert reg.scalar_one()
+            sem = conn.execute(text("SELECT to_regclass('public.semantic_projection')"))
+            assert sem.scalar_one()
+            fact = conn.execute(text("SELECT to_regclass('public.xbrl_fact')"))
+            assert fact.scalar_one()
     finally:
         command.upgrade(cfg, "head")
 

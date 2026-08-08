@@ -202,6 +202,20 @@ Exact rerun of the same bundle + **report input** + parser / Arelle / config **r
 
 Projected XBRL rows belong to a **`semantic_projection`**, not to a processing attempt.
 
+### `semantic_projection` configuration (implemented)
+
+Identity is `(xbrl_report_input_id, projection_version, arelle_version, semantic_config_fingerprint)` — there is **no** redundant `filing_bundle_id` on the projection row. Both `semantic_projection` and `semantic_projection_attempt` store the full `semantic_config` JSONB alongside `semantic_config_fingerprint`. On insert and reconstruct:
+
+```text
+fingerprint(canonicalize(semantic_config)) == semantic_config_fingerprint
+```
+
+Verified reuse compares normalized projection state (including this config). Config is never recovered by hunting for a completed attempt.
+
+### Preflight vs attempt
+
+Path validation, missing catalog rows, and filesystem↔catalog `bundles_equivalent` failures are **preflight** errors: they raise without writing a `semantic_projection_attempt`. `started_at` is recorded only once a valid cataloged ordinal-0 report input is about to be handed to Arelle. Worker / replay / extract / persist conflicts may then record a **failed** attempt (with full config, even when `arelle_version` is null); they must never leave a partial projection tree.
+
 ### Status (illustrative, not frozen enums)
 
 - Operational status on the attempt (e.g. running / completed / failed) — crashes, timeouts, runtime failures.
@@ -256,6 +270,10 @@ Separate conceptual entities. Both are **projection-scoped and source-provenance
 - `link_role_uri` (ELR)
 - `arcrole_uri` (concept-label / concept-reference / …)
 - source provenance
+
+**Dual provenance (implemented):** each label/reference row retains both the **resource** locator (authoritative text / reference parts) and the **arc** locator (authoritative concept↔resource relationship), each with its own bundle URI binding. Ordinary `xbrl_relationship` rows keep arc locator only.
+
+**Reference parts:** ordered JSONB occurrence list (not a map). Simple text parts carry `text`; nested markup is preserved in optional namespace-complete `xml` rather than silently flattened.
 
 Distinguish these three role concepts; do not collapse them to “role”:
 
@@ -320,7 +338,7 @@ typed:    typed_member_xml, typed_member_hash
 
 Dimension and explicit-member references are projection-scoped **declarations**. Segment-versus-scenario placement is part of context identity and must not be silently removed.
 
-**Reported vs default:** records filed context dimension occurrences **only**. An implicit default member must **not** be materialized as though it appeared in the source context. Dimension-default semantics remain in the effective definition network; any later effective-dimension view is derived.
+**Reported vs default:** records filed context dimension occurrences **only**, from filed `segDimValues` / `scenDimValues` (and unreproducible `errorDimValues` when they can be represented). An implicit default member must **not** be materialized as though it appeared in the source context — extractors must not consult `dimValue()`, `dimMemberQname(..., includeDefaults=True)`, or `qnameDimensionDefaults` as creators of context-dimension rows. Dimension-default semantics remain in the effective definition network; any later effective-dimension view is derived.
 
 **Typed member XML:** `typed_member_xml` means a **namespace-complete, self-contained** representation of the typed member value, or an equivalent lossless representation. It must not depend on namespace declarations that existed only on ancestors in the original source document. Do not freeze a canonicalization algorithm here.
 
@@ -350,6 +368,8 @@ concept_declaration_id
 context_id
 unit_id                   # nullable where not applicable
 ```
+
+**Unresolved required unit (implemented):** when concept, context, and source occurrence are known but `unitRef` is broken/missing for a numeric fact, the projection may complete as **incomplete** with `unit_id = NULL`, `value_status` in `{invalid, unresolved}`, and a `semantic_issue` (`UNRESOLVED_REQUIRED_UNIT`). Unresolved concept or required context still fails the attempt (no projection).
 
 Fact-value fidelity (Arelle is the semantic authority; the adapter projects Arelle semantics rather than independently reimplementing Inline XBRL processing):
 
