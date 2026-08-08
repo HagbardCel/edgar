@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import insert
 from edgar.db import schema as tables
 from edgar.xbrl.config import SEMANTIC_CONFIG_SCHEMA
 from edgar.xbrl.records import (
+    RESOLVED_VALUE_KINDS,
     ArcroleDeclarationRecord,
     ConceptDeclarationRecord,
     ConceptLabelRecord,
@@ -26,12 +27,17 @@ from edgar.xbrl.records import (
     FactRecord,
     ReferencePartRecord,
     RelationshipRecord,
+    ResolvedValueKind,
     RoleDeclarationRecord,
     SemanticIssueRecord,
     SemanticProjectionData,
     SourceLocator,
     UnitMeasureRecord,
     UnitRecord,
+)
+
+_NON_NUMERIC_RESOLVED_KINDS: frozenset[str] = frozenset(
+    kind for kind in RESOLVED_VALUE_KINDS if kind != "numeric"
 )
 
 
@@ -237,19 +243,40 @@ def _parse_filed_date(value: str | None, *, field: str) -> date | None:
     return date.fromisoformat(value)
 
 
-def _resolved_value_fields(fact: FactRecord) -> tuple[str | None, str | None, Decimal | None]:
-    """Persist FactRecord resolved fields as ``(kind, text, numeric)`` verbatim."""
-    kind = fact.resolved_value_kind
-    if kind == "numeric":
-        if fact.resolved_numeric_value is None:
-            raise SemanticProjectionConflict("numeric resolved_value_kind without numeric value")
-        return kind, str(fact.resolved_numeric_value), fact.resolved_numeric_value
+def _validate_resolved_value_fields(
+    kind: str | None,
+    text: str | None,
+    numeric: Decimal | None,
+) -> tuple[str | None, str | None, Decimal | None]:
+    """Require mutually coherent ``(kind, text, numeric)``; no inference."""
     if kind is None:
+        if text is not None or numeric is not None:
+            raise SemanticProjectionConflict(
+                "resolved_value_kind is NULL but resolved value columns are set"
+            )
         return None, None, None
-    if fact.resolved_text_value is None and kind != "numeric":
-        # Allow kind without text only when both absent (already handled).
-        return kind, fact.resolved_text_value, None
-    return kind, fact.resolved_text_value, None
+    if kind == "numeric":
+        if text is not None or numeric is None:
+            raise SemanticProjectionConflict(
+                "numeric resolved_value_kind requires resolved_numeric and null resolved_value_text"
+            )
+        return kind, None, numeric
+    if kind in _NON_NUMERIC_RESOLVED_KINDS:
+        if text is None or numeric is not None:
+            raise SemanticProjectionConflict(
+                f"{kind} resolved_value_kind requires resolved_value_text and null resolved_numeric"
+            )
+        return kind, text, None
+    raise SemanticProjectionConflict(f"unknown resolved_value_kind: {kind!r}")
+
+
+def _resolved_value_fields(fact: FactRecord) -> tuple[str | None, str | None, Decimal | None]:
+    """Persist FactRecord resolved fields as a coherent ``(kind, text, numeric)``."""
+    return _validate_resolved_value_fields(
+        fact.resolved_value_kind,
+        fact.resolved_text_value,
+        fact.resolved_numeric_value,
+    )
 
 
 def record_semantic_projection_failure(
@@ -880,14 +907,16 @@ def load_semantic_projection(
         int(row["id"]): ExpandedQName(
             namespace_uri=row["namespace_uri"], local_name=row["local_name"]
         )
-        for row in conn.execute(select(tables.concept_identity)).mappings()
+        for row in conn.execute(
+            select(tables.concept_identity).order_by(tables.concept_identity.c.id)
+        ).mappings()
     }
 
     decl_rows = list(
         conn.execute(
-            select(tables.concept_declaration).where(
-                tables.concept_declaration.c.semantic_projection_id == projection_id
-            )
+            select(tables.concept_declaration)
+            .where(tables.concept_declaration.c.semantic_projection_id == projection_id)
+            .order_by(tables.concept_declaration.c.id)
         ).mappings()
     )
     decl_by_id: dict[int, ConceptDeclarationRecord] = {}
@@ -935,9 +964,9 @@ def load_semantic_projection(
     contexts: list[ContextRecord] = []
     context_id_to_locator: dict[int, SourceLocator] = {}
     for row in conn.execute(
-        select(tables.xbrl_context).where(
-            tables.xbrl_context.c.semantic_projection_id == projection_id
-        )
+        select(tables.xbrl_context)
+        .where(tables.xbrl_context.c.semantic_projection_id == projection_id)
+        .order_by(tables.xbrl_context.c.id)
     ).mappings():
         locator = _load_locator_from_row(
             document_uri=uri_for_binding(int(row["source_bundle_uri_binding_id"])),
@@ -968,6 +997,7 @@ def load_semantic_projection(
             tables.xbrl_context.c.id == tables.xbrl_context_dimension.c.context_id,
         )
         .where(tables.xbrl_context.c.semantic_projection_id == projection_id)
+        .order_by(tables.xbrl_context_dimension.c.id)
     ).mappings():
         context_locator = context_id_to_locator[int(row["context_id"])]
         member = None
@@ -994,7 +1024,9 @@ def load_semantic_projection(
     unit_id_to_locator: dict[int, SourceLocator] = {}
     unit_id_to_source_id: dict[int, str] = {}
     for row in conn.execute(
-        select(tables.xbrl_unit).where(tables.xbrl_unit.c.semantic_projection_id == projection_id)
+        select(tables.xbrl_unit)
+        .where(tables.xbrl_unit.c.semantic_projection_id == projection_id)
+        .order_by(tables.xbrl_unit.c.id)
     ).mappings():
         locator = _load_locator_from_row(
             document_uri=uri_for_binding(int(row["source_bundle_uri_binding_id"])),
@@ -1012,6 +1044,11 @@ def load_semantic_projection(
         select(tables.xbrl_unit_measure)
         .join(tables.xbrl_unit, tables.xbrl_unit.c.id == tables.xbrl_unit_measure.c.unit_id)
         .where(tables.xbrl_unit.c.semantic_projection_id == projection_id)
+        .order_by(
+            tables.xbrl_unit_measure.c.unit_id,
+            tables.xbrl_unit_measure.c.side,
+            tables.xbrl_unit_measure.c.ordinal,
+        )
     ).mappings():
         unit_measures.append(
             UnitMeasureRecord(
@@ -1042,7 +1079,9 @@ def load_semantic_projection(
 
     facts: list[FactRecord] = []
     for row in conn.execute(
-        select(tables.xbrl_fact).where(tables.xbrl_fact.c.semantic_projection_id == projection_id)
+        select(tables.xbrl_fact)
+        .where(tables.xbrl_fact.c.semantic_projection_id == projection_id)
+        .order_by(tables.xbrl_fact.c.id)
     ).mappings():
         require_decl(int(row["concept_declaration_id"]))
         context_locator = context_id_to_locator.get(int(row["context_id"]))
@@ -1056,14 +1095,11 @@ def load_semantic_projection(
         kind = row["resolved_value_kind"]
         text_value = row["resolved_value_text"]
         numeric = row["resolved_numeric"]
-        resolved_text: str | None = None
-        resolved_numeric: Decimal | None = None
-        resolved_kind = kind
-        if kind == "numeric" or (kind is None and numeric is not None):
-            resolved_numeric = numeric
-            resolved_kind = "numeric" if numeric is not None else kind
-        elif kind is not None or text_value is not None:
-            resolved_text = text_value
+        if numeric is not None and not isinstance(numeric, Decimal):
+            numeric = Decimal(str(numeric))
+        resolved_kind, resolved_text, resolved_numeric = _validate_resolved_value_fields(
+            kind, text_value, numeric
+        )
         decl_record = decl_by_id[int(row["concept_declaration_id"])]
         resolved_type = None
         if resolved_text is not None or resolved_numeric is not None:
@@ -1084,7 +1120,7 @@ def load_semantic_projection(
                 raw_lexical_value=row["raw_lexical_value"],
                 resolved_text_value=resolved_text,
                 resolved_numeric_value=resolved_numeric,
-                resolved_value_kind=resolved_kind,
+                resolved_value_kind=cast(ResolvedValueKind | None, resolved_kind),
                 resolved_value_type=resolved_type,
                 reported_decimals=row["reported_decimals"],
                 reported_precision=row["reported_precision"],
@@ -1106,9 +1142,9 @@ def load_semantic_projection(
 
     relationships: list[RelationshipRecord] = []
     for row in conn.execute(
-        select(tables.xbrl_relationship).where(
-            tables.xbrl_relationship.c.semantic_projection_id == projection_id
-        )
+        select(tables.xbrl_relationship)
+        .where(tables.xbrl_relationship.c.semantic_projection_id == projection_id)
+        .order_by(tables.xbrl_relationship.c.id)
     ).mappings():
         relationships.append(
             RelationshipRecord(
@@ -1134,9 +1170,9 @@ def load_semantic_projection(
 
     labels: list[ConceptLabelRecord] = []
     for row in conn.execute(
-        select(tables.concept_label).where(
-            tables.concept_label.c.semantic_projection_id == projection_id
-        )
+        select(tables.concept_label)
+        .where(tables.concept_label.c.semantic_projection_id == projection_id)
+        .order_by(tables.concept_label.c.id)
     ).mappings():
         labels.append(
             ConceptLabelRecord(
@@ -1162,9 +1198,9 @@ def load_semantic_projection(
 
     references: list[ConceptReferenceRecord] = []
     for row in conn.execute(
-        select(tables.concept_reference).where(
-            tables.concept_reference.c.semantic_projection_id == projection_id
-        )
+        select(tables.concept_reference)
+        .where(tables.concept_reference.c.semantic_projection_id == projection_id)
+        .order_by(tables.concept_reference.c.id)
     ).mappings():
         parts = tuple(
             ReferencePartRecord.from_dict(part) for part in (row["reference_parts"] or [])
@@ -1192,9 +1228,9 @@ def load_semantic_projection(
 
     roles: list[RoleDeclarationRecord] = []
     for row in conn.execute(
-        select(tables.role_declaration).where(
-            tables.role_declaration.c.semantic_projection_id == projection_id
-        )
+        select(tables.role_declaration)
+        .where(tables.role_declaration.c.semantic_projection_id == projection_id)
+        .order_by(tables.role_declaration.c.id)
     ).mappings():
         roles.append(
             RoleDeclarationRecord(
@@ -1210,9 +1246,9 @@ def load_semantic_projection(
         )
     arcroles: list[ArcroleDeclarationRecord] = []
     for row in conn.execute(
-        select(tables.arcrole_declaration).where(
-            tables.arcrole_declaration.c.semantic_projection_id == projection_id
-        )
+        select(tables.arcrole_declaration)
+        .where(tables.arcrole_declaration.c.semantic_projection_id == projection_id)
+        .order_by(tables.arcrole_declaration.c.id)
     ).mappings():
         arcroles.append(
             ArcroleDeclarationRecord(
@@ -1230,9 +1266,9 @@ def load_semantic_projection(
 
     issues: list[SemanticIssueRecord] = []
     for row in conn.execute(
-        select(tables.semantic_issue).where(
-            tables.semantic_issue.c.semantic_projection_id == projection_id
-        )
+        select(tables.semantic_issue)
+        .where(tables.semantic_issue.c.semantic_projection_id == projection_id)
+        .order_by(tables.semantic_issue.c.id)
     ).mappings():
         ctx = dict(row["context"] or {})
         locator = None

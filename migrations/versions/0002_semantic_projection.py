@@ -501,6 +501,17 @@ def upgrade() -> None:
             "('numeric', 'text', 'boolean', 'date', 'datetime', 'time', 'qname')",
             name="ck_xbrl_fact_resolved_value_kind",
         ),
+        sa.CheckConstraint(
+            "CASE "
+            "WHEN resolved_value_kind IS NULL THEN "
+            "resolved_value_text IS NULL AND resolved_numeric IS NULL "
+            "WHEN resolved_value_kind = 'numeric' THEN "
+            "resolved_value_text IS NULL AND resolved_numeric IS NOT NULL "
+            "ELSE "
+            "resolved_value_text IS NOT NULL AND resolved_numeric IS NULL "
+            "END",
+            name="ck_xbrl_fact_resolved_value_coherence",
+        ),
         sa.ForeignKeyConstraint(
             ["concept_declaration_id"],
             ["concept_declaration.id"],

@@ -464,3 +464,98 @@ def test_supported_network_worker_error_records_failed_attempt(
             )
         ]
         assert ENDPOINT_FAMILY_MISMATCH in codes
+
+
+def test_worker_process_error_records_failed_attempt(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.projection.semantic import SemanticProjectionError
+    from edgar.xbrl.closure import WorkerProtocolError
+
+    settings = Settings().model_copy(
+        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+    )
+    bundle, bundle_dir, opaque = _publish(tmp_path)
+    with engine.begin() as conn:
+        catalog_bundle(conn, bundle, opaque)
+
+    def boom(*_args, **_kwargs):  # noqa: ANN001
+        raise WorkerProtocolError("worker exited without a result")
+
+    monkeypatch.setattr("edgar.xbrl.semantic.run_worker_process", boom)
+    service = SemanticProjectionService(settings, engine=engine)
+    with pytest.raises(SemanticProjectionError):
+        service.project_published_bundle(bundle_dir)
+
+    expected_config = build_semantic_config()
+    expected_fingerprint = semantic_config_fingerprint(expected_config)
+    with engine.begin() as conn:
+        rows = list(
+            conn.execute(
+                text(
+                    "SELECT status, arelle_version, semantic_config, "
+                    "semantic_config_fingerprint, semantic_projection_id "
+                    "FROM semantic_projection_attempt"
+                )
+            ).mappings()
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["status"] == "failed"
+        assert row["arelle_version"] is None
+        assert row["semantic_projection_id"] is None
+        assert dict(row["semantic_config"]) == expected_config.to_dict()
+        assert row["semantic_config_fingerprint"] == expected_fingerprint
+        assert int(conn.execute(text("SELECT count(*) FROM semantic_projection")).scalar_one()) == 0
+        codes = [
+            r[0]
+            for r in conn.execute(
+                text(
+                    "SELECT code FROM semantic_issue "
+                    "WHERE semantic_projection_attempt_id IS NOT NULL"
+                )
+            )
+        ]
+        assert codes == ["SEMANTIC_WORKER_PROCESS_FAILED"]
+
+
+def test_resolved_value_coherence_check_rejects_kind_null_with_numeric(
+    engine: Engine, tmp_path: Path
+) -> None:
+    from sqlalchemy.exc import IntegrityError
+
+    settings = Settings().model_copy(
+        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+    )
+    bundle, bundle_dir, opaque = _publish(tmp_path)
+    with engine.begin() as conn:
+        catalog_bundle(conn, bundle, opaque)
+    service = SemanticProjectionService(settings, engine=engine)
+    result = service.project_published_bundle(bundle_dir)
+    projection_id = result.projection.projection_id
+
+    with engine.begin() as conn:
+        numeric_facts = (
+            conn.execute(
+                text(
+                    "SELECT id, resolved_value_text, resolved_numeric "
+                    "FROM xbrl_fact "
+                    "WHERE semantic_projection_id = :pid AND resolved_value_kind = 'numeric'"
+                ),
+                {"pid": projection_id},
+            )
+            .mappings()
+            .all()
+        )
+        assert numeric_facts
+        for fact in numeric_facts:
+            assert fact["resolved_value_text"] is None
+            assert fact["resolved_numeric"] is not None
+
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
+            update(tables.xbrl_fact)
+            .where(tables.xbrl_fact.c.semantic_projection_id == projection_id)
+            .where(tables.xbrl_fact.c.resolved_value_kind == "numeric")
+            .values(resolved_value_kind=None)
+        )

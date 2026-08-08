@@ -384,6 +384,15 @@ resolved_value_kind            adapter-assigned runtime kind:
 value/validation status        enough to distinguish valid / nil / invalid / unresolved
 ```
 
+`resolved_value_kind`, `resolved_value_text`, and `resolved_numeric` are mutually coherent and never reconstructed by inference:
+
+```text
+kind IS NULL                         → text IS NULL AND numeric IS NULL
+kind = numeric                       → numeric NOT NULL AND text IS NULL
+kind ∈ text|boolean|date|datetime|time|qname
+                                     → text NOT NULL AND numeric IS NULL
+```
+
 `raw_lexical_value` is the adapter's retained lexical / source-level fact value, preserving the distinction from Arelle's resolved typed value. Its exact extraction semantics must be documented and versioned by the projection implementation. Immutable source bytes + locator remain authoritative and are **not** substituted by the lexical column. Numeric resolved values retain exact decimal semantics (Python `Decimal` / PostgreSQL `NUMERIC`). `resolved_value_type` remains the concept/item type QName and is distinct from `resolved_value_kind`.
 
 Also preserve interpretation-relevant filed attributes where applicable: transformation `format` QName, `xml:lang`, scale / sign, decimals / precision, nil, Inline XBRL continuation / escape semantics.

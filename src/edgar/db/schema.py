@@ -701,6 +701,17 @@ xbrl_fact = Table(
         "('numeric', 'text', 'boolean', 'date', 'datetime', 'time', 'qname')",
         name="ck_xbrl_fact_resolved_value_kind",
     ),
+    CheckConstraint(
+        "CASE "
+        "WHEN resolved_value_kind IS NULL THEN "
+        "resolved_value_text IS NULL AND resolved_numeric IS NULL "
+        "WHEN resolved_value_kind = 'numeric' THEN "
+        "resolved_value_text IS NULL AND resolved_numeric IS NOT NULL "
+        "ELSE "
+        "resolved_value_text IS NOT NULL AND resolved_numeric IS NULL "
+        "END",
+        name="ck_xbrl_fact_resolved_value_coherence",
+    ),
     Index("ix_xbrl_fact_concept_declaration", "concept_declaration_id"),
     Index("ix_xbrl_fact_context", "context_id"),
 )

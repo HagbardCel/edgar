@@ -68,12 +68,36 @@ def run_offline_semantic_projection(
         "object_store_root": str(store.data_root),
         "uri_bindings": [binding.to_dict() for binding in bundle.uri_bindings],
     }
-    run = run_worker_process(
-        job,
-        fetch_handler=_deny_fetch,
-        python_executable=python_executable,
-        timeout_seconds=timeout_seconds,
-    )
+    try:
+        run = run_worker_process(
+            job,
+            fetch_handler=_deny_fetch,
+            python_executable=python_executable,
+            timeout_seconds=timeout_seconds,
+        )
+    except Exception as exc:
+        raise SemanticWorkerError(
+            f"semantic worker process failed: {type(exc).__name__}: {exc}",
+            replay=NormalizedReplayView(
+                load_completed=False,
+                network_attempts=(),
+                unresolved_documents=(),
+                loaded_source_documents=(),
+                resolved_documents=(),
+                expected_binding_documents=(),
+                diagnostics=(),
+                errors=(f"{type(exc).__name__}: {exc}",),
+                closure_equal=False,
+            ),
+            issues=(
+                SemanticIssueRecord(
+                    severity="fatal",
+                    code="SEMANTIC_WORKER_PROCESS_FAILED",
+                    message=(f"semantic worker process failed: {type(exc).__name__}: {exc}"),
+                ),
+            ),
+            arelle_version=None,
+        ) from exc
     result = run.result
     replay = normalize_replay_for_bundle(result, bundle)
     arelle_version = str(result.get("engine_version") or "") or None
