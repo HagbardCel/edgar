@@ -478,3 +478,48 @@ def _insert_report_inputs(
                     bundle_uri_binding_id=binding_id,
                 )
             )
+
+
+def resolve_cataloged_bundle(
+    conn: Connection,
+    *,
+    cik: str,
+    accession: str,
+    opaque_id: str,
+) -> tuple[int, int]:
+    """Locate an already-cataloged bundle and its ordinal-0 report input.
+
+    Returns ``(filing_bundle_id, xbrl_report_input_id)``. Does not insert.
+    Raises ``LookupError`` when the catalog row or ordinal-0 report input is absent.
+    """
+    row = (
+        conn.execute(
+            select(tables.filing_bundle.c.id)
+            .join(tables.filing, tables.filing.c.id == tables.filing_bundle.c.filing_id)
+            .join(tables.issuer, tables.issuer.c.id == tables.filing.c.issuer_id)
+            .where(tables.issuer.c.cik == cik)
+            .where(tables.filing.c.accession_number == accession)
+            .where(tables.filing_bundle.c.opaque_id == opaque_id)
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if row is None:
+        raise LookupError(
+            f"cataloged filing_bundle not found for cik={cik} accession={accession} "
+            f"opaque_id={opaque_id}"
+        )
+    bundle_id = int(row["id"])
+    report = (
+        conn.execute(
+            select(tables.xbrl_report_input.c.id)
+            .where(tables.xbrl_report_input.c.filing_bundle_id == bundle_id)
+            .where(tables.xbrl_report_input.c.ordinal == 0)
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if report is None:
+        raise LookupError(f"ordinal-0 xbrl_report_input missing for filing_bundle id={bundle_id}")
+    return bundle_id, int(report["id"])
+
