@@ -271,10 +271,10 @@ class DocumentResolver:
         try:
             candidate = Path(text).resolve()
         except (OSError, ValueError) as exc:
-            self._diagnostics.append(f"local reference rejected ({exc}): {reference}")
+            self._note_unresolved(reference, f"local reference rejected ({exc})")
             return None
         if not any(candidate.is_relative_to(root) for root in self._allowed_roots):
-            self._diagnostics.append(f"local reference outside workspace denied: {reference}")
+            self._note_unresolved(reference, "local reference outside workspace denied")
             return None
         return str(candidate)
 

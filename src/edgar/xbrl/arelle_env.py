@@ -216,10 +216,14 @@ def create_isolated_controller(
 ) -> Any:
     """Create an Arelle ``Cntlr`` with no persistent config and a private cache.
 
-    The returned object is an Arelle controller; callers must keep it inside the
-    adapter boundary.
+    Taxonomy-package config is loaded from the controller's ``userAppDir``, which
+    under :func:`isolated_process_environment` is rooted at the private
+    ``XDG_CONFIG_HOME``. Ambient ``taxonomyPackages.json`` remappings therefore
+    cannot apply. The returned object is an Arelle controller; callers must keep
+    it inside the adapter boundary.
     """
     from arelle import Cntlr, PluginManager
+    from arelle.PackageManager import getInstance as get_package_manager
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     cntlr = Cntlr.Cntlr(logFileName="logToBuffer", disable_persistent_config=True)
@@ -231,6 +235,9 @@ def create_isolated_controller(
         for name in plugins:
             PluginManager.addPluginModule(name)
         PluginManager.reset()
+    # Cntlr skips package config when hasGui is false; load the isolated
+    # taxonomyPackages.json explicitly so remappings are empty unless seeded.
+    get_package_manager().init(cntlr, loadPackagesConfig=True)
     return cntlr
 
 

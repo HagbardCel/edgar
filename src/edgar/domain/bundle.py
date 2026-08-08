@@ -4,8 +4,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
+from edgar.domain.decode import (
+    BundleDecodeError,
+    require_bool,
+    require_exact_keys,
+    require_int,
+    require_list,
+    require_list_of_str,
+    require_nullable_canonical_date,
+    require_nullable_canonical_datetime,
+    require_object,
+    require_str,
+)
 from edgar.domain.identifiers import (
     SUPPORTED_FORMS,
     validate_accession,
@@ -33,6 +45,35 @@ ArtifactKind = Literal[
     "sec_generated",
     "other",
 ]
+
+ARTIFACT_KINDS: frozenset[str] = frozenset(get_args(ArtifactKind))
+
+_FILING_KEYS = frozenset(
+    {
+        "cik",
+        "accession",
+        "form_type",
+        "filing_date",
+        "accepted_at",
+        "report_period_end",
+        "primary_document",
+    }
+)
+_ARTIFACT_KEYS = frozenset({"logical_path", "sha256", "byte_size", "artifact_kind", "required"})
+_BINDING_KEYS = frozenset({"document_uri", "artifact_path", "content_sha256", "replay_aliases"})
+_INSTANCE_KEYS = frozenset({"kind", "document_uris"})
+_IXDS_KEYS = frozenset({"kind", "document_uris", "target"})
+_BUNDLE_KEYS = frozenset(
+    {
+        "schema_version",
+        "acquisition_policy_version",
+        "filing",
+        "payload_hash",
+        "artifacts",
+        "report_inputs",
+        "uri_bindings",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -84,23 +125,28 @@ class FilingIdentity:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FilingIdentity:
+        from edgar.domain.decode import require_canonical_date
         from edgar.domain.validation import (
             assert_canonical_serialized_accession,
             assert_canonical_serialized_cik,
         )
 
-        if not isinstance(data, dict):
-            raise ValueError("filing identity must be an object")
-        accepted = data.get("accepted_at")
-        period = data.get("report_period_end")
+        obj = require_object(data, label="filing")
+        require_exact_keys(obj, _FILING_KEYS, label="filing")
         return cls(
-            cik=assert_canonical_serialized_cik(data["cik"]),
-            accession=assert_canonical_serialized_accession(data["accession"]),
-            form_type=data["form_type"],
-            filing_date=date.fromisoformat(data["filing_date"]),
-            accepted_at=datetime.fromisoformat(accepted) if accepted else None,
-            report_period_end=date.fromisoformat(period) if period else None,
-            primary_document=data["primary_document"],
+            cik=assert_canonical_serialized_cik(require_str(obj["cik"], label="filing.cik")),
+            accession=assert_canonical_serialized_accession(
+                require_str(obj["accession"], label="filing.accession")
+            ),
+            form_type=require_str(obj["form_type"], label="filing.form_type"),
+            filing_date=require_canonical_date(obj["filing_date"], label="filing.filing_date"),
+            accepted_at=require_nullable_canonical_datetime(
+                obj["accepted_at"], label="filing.accepted_at"
+            ),
+            report_period_end=require_nullable_canonical_date(
+                obj["report_period_end"], label="filing.report_period_end"
+            ),
+            primary_document=require_str(obj["primary_document"], label="filing.primary_document"),
         )
 
 
@@ -134,11 +180,19 @@ class BundleArtifact:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BundleArtifact:
+        obj = require_object(data, label="artifact")
+        require_exact_keys(obj, _ARTIFACT_KEYS, label="artifact")
+        kind = require_str(obj["artifact_kind"], label="artifact.artifact_kind")
+        if kind not in ARTIFACT_KINDS:
+            raise BundleDecodeError(f"invalid artifact_kind: {kind!r}")
         return cls(
-            logical_path=data["logical_path"],
-            content=ContentObject(sha256=data["sha256"], byte_size=int(data["byte_size"])),
-            artifact_kind=data["artifact_kind"],
-            required=bool(data["required"]),
+            logical_path=require_str(obj["logical_path"], label="artifact.logical_path"),
+            content=ContentObject(
+                sha256=require_str(obj["sha256"], label="artifact.sha256"),
+                byte_size=require_int(obj["byte_size"], label="artifact.byte_size"),
+            ),
+            artifact_kind=kind,  # type: ignore[arg-type]
+            required=require_bool(obj["required"], label="artifact.required"),
         )
 
 
@@ -170,18 +224,14 @@ class UriBinding:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> UriBinding:
-        aliases = data.get("replay_aliases")
-        if aliases is None:
-            alias_tuple: tuple[str, ...] = ()
-        elif not isinstance(aliases, list):
-            raise ValueError("replay_aliases must be a list when present")
-        else:
-            alias_tuple = tuple(aliases)
+        obj = require_object(data, label="uri_binding")
+        require_exact_keys(obj, _BINDING_KEYS, label="uri_binding")
+        aliases = require_list_of_str(obj["replay_aliases"], label="uri_binding.replay_aliases")
         return cls(
-            document_uri=data["document_uri"],
-            artifact_path=data["artifact_path"],
-            content_sha256=data["content_sha256"],
-            replay_aliases=alias_tuple,
+            document_uri=require_str(obj["document_uri"], label="uri_binding.document_uri"),
+            artifact_path=require_str(obj["artifact_path"], label="uri_binding.artifact_path"),
+            content_sha256=require_str(obj["content_sha256"], label="uri_binding.content_sha256"),
+            replay_aliases=tuple(aliases),
         )
 
 
@@ -226,13 +276,22 @@ XbrlReportInput = InstanceReportInput | IxdsReportInput
 
 
 def report_input_from_dict(data: dict[str, Any]) -> XbrlReportInput:
-    kind = data["kind"]
-    uris = tuple(data["document_uris"])
+    obj = require_object(data, label="report_input")
+    if "kind" not in obj:
+        raise BundleDecodeError("report_input missing fields: ['kind']")
+    kind = require_str(obj["kind"], label="report_input.kind")
     if kind == "instance":
-        return InstanceReportInput(document_uris=uris)
+        require_exact_keys(obj, _INSTANCE_KEYS, label="report_input")
+        uris = require_list_of_str(obj["document_uris"], label="report_input.document_uris")
+        return InstanceReportInput(document_uris=tuple(uris))
     if kind == "ixds":
-        return IxdsReportInput(document_uris=uris, target=data.get("target", "default"))
-    raise ValueError(f"unknown report input kind: {kind!r}")
+        require_exact_keys(obj, _IXDS_KEYS, label="report_input")
+        uris = require_list_of_str(obj["document_uris"], label="report_input.document_uris")
+        target = require_str(obj["target"], label="report_input.target")
+        if target != "default":
+            raise BundleDecodeError(f"unsupported IXDS target: {target!r}")
+        return IxdsReportInput(document_uris=tuple(uris), target="default")
+    raise BundleDecodeError(f"unknown report input kind: {kind!r}")
 
 
 @dataclass(frozen=True)
@@ -273,44 +332,25 @@ class FilingBundle:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FilingBundle:
-        if not isinstance(data, dict):
-            raise ValueError("bundle descriptor must be an object")
-        required = {
-            "schema_version",
-            "acquisition_policy_version",
-            "filing",
-            "payload_hash",
-            "artifacts",
-            "report_inputs",
-            "uri_bindings",
-        }
-        missing = required - set(data)
-        if missing:
-            raise ValueError(f"bundle descriptor missing fields: {sorted(missing)}")
-        unknown = set(data) - required
-        if unknown:
-            raise ValueError(f"bundle descriptor has unknown fields: {sorted(unknown)}")
-        if not isinstance(data["artifacts"], list):
-            raise ValueError("artifacts must be a list")
-        if not isinstance(data["report_inputs"], list):
-            raise ValueError("report_inputs must be a list")
-        if not isinstance(data["uri_bindings"], list):
-            raise ValueError("uri_bindings must be a list")
-        payload_hash = data["payload_hash"]
-        if (
-            not isinstance(payload_hash, str)
-            or len(payload_hash) != 64
-            or any(c not in "0123456789abcdef" for c in payload_hash)
-        ):
-            raise ValueError(f"invalid payload_hash syntax: {payload_hash!r}")
+        obj = require_object(data, label="bundle")
+        require_exact_keys(obj, _BUNDLE_KEYS, label="bundle")
+        schema_version = require_int(obj["schema_version"], label="bundle.schema_version")
+        payload_hash = require_str(obj["payload_hash"], label="bundle.payload_hash")
+        if len(payload_hash) != 64 or any(c not in "0123456789abcdef" for c in payload_hash):
+            raise BundleDecodeError(f"invalid payload_hash syntax: {payload_hash!r}")
+        artifacts = require_list(obj["artifacts"], label="bundle.artifacts")
+        report_inputs = require_list(obj["report_inputs"], label="bundle.report_inputs")
+        uri_bindings = require_list(obj["uri_bindings"], label="bundle.uri_bindings")
         return cls(
-            schema_version=int(data["schema_version"]),
-            acquisition_policy_version=data["acquisition_policy_version"],
-            filing=FilingIdentity.from_dict(data["filing"]),
+            schema_version=schema_version,
+            acquisition_policy_version=require_str(
+                obj["acquisition_policy_version"], label="bundle.acquisition_policy_version"
+            ),
+            filing=FilingIdentity.from_dict(obj["filing"]),
             payload_hash=payload_hash,
-            artifacts=tuple(BundleArtifact.from_dict(a) for a in data["artifacts"]),
-            report_inputs=tuple(report_input_from_dict(r) for r in data["report_inputs"]),
-            uri_bindings=tuple(UriBinding.from_dict(b) for b in data["uri_bindings"]),
+            artifacts=tuple(BundleArtifact.from_dict(a) for a in artifacts),
+            report_inputs=tuple(report_input_from_dict(r) for r in report_inputs),
+            uri_bindings=tuple(UriBinding.from_dict(b) for b in uri_bindings),
         )
 
 

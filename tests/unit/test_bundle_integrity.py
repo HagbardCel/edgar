@@ -189,3 +189,95 @@ def test_path_cik_accession_mismatch(tmp_path: Path) -> None:
     (published.bundle_dir / "bundle.json").write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(BundleStorageError, match="does not match"):
         repo.list_published("0001065088", "0001065088-24-000036")
+
+
+def test_strict_decode_rejects_string_byte_size(tmp_path: Path) -> None:
+    from edgar.domain.decode import BundleDecodeError
+
+    store = ObjectStore(tmp_path)
+    data = _bundle_for(store).to_dict()
+    data["artifacts"][0]["byte_size"] = "1"
+    with pytest.raises(BundleDecodeError, match="byte_size"):
+        FilingBundle.from_dict(data)
+
+
+def test_strict_decode_rejects_string_schema_version(tmp_path: Path) -> None:
+    from edgar.domain.decode import BundleDecodeError
+
+    store = ObjectStore(tmp_path)
+    data = _bundle_for(store).to_dict()
+    data["schema_version"] = "1"
+    with pytest.raises(BundleDecodeError, match="schema_version"):
+        FilingBundle.from_dict(data)
+
+
+def test_strict_decode_rejects_bool_as_schema_version(tmp_path: Path) -> None:
+    from edgar.domain.decode import BundleDecodeError
+
+    store = ObjectStore(tmp_path)
+    data = _bundle_for(store).to_dict()
+    data["schema_version"] = True
+    with pytest.raises(BundleDecodeError, match="schema_version"):
+        FilingBundle.from_dict(data)
+
+
+def test_strict_decode_rejects_string_required(tmp_path: Path) -> None:
+    from edgar.domain.decode import BundleDecodeError
+
+    store = ObjectStore(tmp_path)
+    data = _bundle_for(store).to_dict()
+    data["artifacts"][0]["required"] = "false"
+    with pytest.raises(BundleDecodeError, match="required"):
+        FilingBundle.from_dict(data)
+
+
+def test_strict_decode_rejects_empty_accepted_at(tmp_path: Path) -> None:
+    from edgar.domain.decode import BundleDecodeError
+
+    store = ObjectStore(tmp_path)
+    data = _bundle_for(store).to_dict()
+    data["filing"]["accepted_at"] = ""
+    with pytest.raises(BundleDecodeError, match="accepted_at"):
+        FilingBundle.from_dict(data)
+
+
+def test_strict_decode_rejects_missing_ixds_target(tmp_path: Path) -> None:
+    from edgar.domain.bundle import report_input_from_dict
+    from edgar.domain.decode import BundleDecodeError
+
+    with pytest.raises(BundleDecodeError, match="target|missing"):
+        report_input_from_dict({"kind": "ixds", "document_uris": ["https://example.com/a.htm"]})
+
+
+def test_strict_decode_rejects_wrong_ixds_target() -> None:
+    from edgar.domain.bundle import report_input_from_dict
+    from edgar.domain.decode import BundleDecodeError
+
+    with pytest.raises(BundleDecodeError, match="target"):
+        report_input_from_dict(
+            {
+                "kind": "ixds",
+                "document_uris": ["https://example.com/a.htm"],
+                "target": "other",
+            }
+        )
+
+
+def test_strict_decode_rejects_unknown_nested_field(tmp_path: Path) -> None:
+    from edgar.domain.decode import BundleDecodeError
+
+    store = ObjectStore(tmp_path)
+    data = _bundle_for(store).to_dict()
+    data["filing"]["extra"] = "nope"
+    with pytest.raises(BundleDecodeError, match="unknown"):
+        FilingBundle.from_dict(data)
+
+
+def test_strict_decode_rejects_invalid_artifact_kind(tmp_path: Path) -> None:
+    from edgar.domain.decode import BundleDecodeError
+
+    store = ObjectStore(tmp_path)
+    data = _bundle_for(store).to_dict()
+    data["artifacts"][0]["artifact_kind"] = "not-a-kind"
+    with pytest.raises(BundleDecodeError, match="artifact_kind"):
+        FilingBundle.from_dict(data)
