@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal, get_args
 
 from edgar.domain.decode import (
@@ -20,6 +20,7 @@ from edgar.domain.decode import (
 )
 from edgar.domain.identifiers import (
     SUPPORTED_FORMS,
+    assert_cik_accession_consistent,
     validate_accession,
     validate_cik,
     validate_logical_path,
@@ -103,6 +104,7 @@ class FilingIdentity:
     def __post_init__(self) -> None:
         object.__setattr__(self, "cik", validate_cik(self.cik))
         object.__setattr__(self, "accession", validate_accession(self.accession))
+        assert_cik_accession_consistent(self.cik, self.accession)
         if self.form_type not in SUPPORTED_FORMS:
             raise ValueError(f"unsupported form_type: {self.form_type!r}")
         primary = self.primary_document
@@ -376,7 +378,10 @@ class AcquisitionObservation:
 
 
 def bundle_equality_state(bundle: FilingBundle) -> dict[str, Any]:
-    """Normalized domain state for equality/reuse (not raw JSON bytes)."""
+    """Normalized domain state for equality/reuse (not raw JSON bytes).
+
+    Equality compares timezone-aware accepted_at by UTC instant, not lexical offset.
+    """
     artifacts = sorted(
         (
             {
@@ -403,10 +408,13 @@ def bundle_equality_state(bundle: FilingBundle) -> dict[str, Any]:
         key=lambda item: item["document_uri"],
     )
     report_inputs = [r.to_dict() for r in bundle.report_inputs]
+    filing_state = bundle.filing.to_dict()
+    if bundle.filing.accepted_at is not None:
+        filing_state["accepted_at"] = bundle.filing.accepted_at.astimezone(UTC).isoformat()
     return {
         "schema_version": bundle.schema_version,
         "acquisition_policy_version": bundle.acquisition_policy_version,
-        "filing": bundle.filing.to_dict(),
+        "filing": filing_state,
         "payload_hash": bundle.payload_hash,
         "artifacts": artifacts,
         "report_inputs": report_inputs,
