@@ -162,6 +162,8 @@ def test_redirect_budget_independent_of_retries(tmp_path: Path) -> None:
         assert result.redirect_count == 2
         assert obj.byte_size == 2
         assert len(traces) == 1
+        assert traces[0].redirect_count == 2
+        assert traces[0].to_observation_dict()["redirect_count"] == 2
     finally:
         fetcher.close()
 

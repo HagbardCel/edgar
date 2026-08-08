@@ -305,16 +305,6 @@ class AcquisitionService:
                         )
                     )
                     return False
-                if not required and optional_absence:
-                    issues.append(
-                        QualityIssue(
-                            severity="warning",
-                            code="OPTIONAL_ARTIFACT_MISSING",
-                            message=f"optional artifact unavailable: {logical_path}",
-                            context={"url": url, "error": str(exc)},
-                        )
-                    )
-                    return False
                 raise
             except (
                 MaxRedirectsExceeded,
@@ -324,20 +314,6 @@ class AcquisitionService:
                 ResourceLimitExceeded,
             ):
                 # Optionality never downgrades safeguards.
-                raise
-            except Exception as exc:
-                if optional_absence and _is_absence_error(exc):
-                    issues.append(
-                        QualityIssue(
-                            severity="warning",
-                            code="OPTIONAL_ARTIFACT_MISSING",
-                            message=f"optional artifact missing: {logical_path}",
-                            context={"url": url, "error": str(exc)},
-                        )
-                    )
-                    return False
-                if required:
-                    raise
                 raise
             add_object(
                 logical_path,
@@ -352,8 +328,14 @@ class AcquisitionService:
         discovery_bytes = (
             json.dumps(meta.discovery, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
         ).encode("utf-8")
-        if len(discovery_bytes) > min(self.settings.max_file_bytes, budget.remaining):
-            raise MaxBundleBytesExceeded("discovery.json exceeds remaining payload budget")
+        if len(discovery_bytes) > self.settings.max_file_bytes:
+            raise MaxFileBytesExceeded(
+                f"discovery.json exceeds MAX_FILE_BYTES={self.settings.max_file_bytes}"
+            )
+        if len(discovery_bytes) > budget.remaining:
+            raise MaxBundleBytesExceeded(
+                f"discovery.json exceeds remaining payload budget ({budget.remaining})"
+            )
         disc_obj = self.store.put_bytes(discovery_bytes)
         add_object(
             "metadata/discovery.json",
@@ -415,9 +397,30 @@ class AcquisitionService:
                     required=required,
                     optional_absence=optional_absence,
                 )
-            except Exception:
+            except (
+                DestinationForbidden,
+                MaxRedirectsExceeded,
+                MaxBundleBytesExceeded,
+                MaxFileBytesExceeded,
+                ResourceLimitExceeded,
+                SizeLimitExceeded,
+            ):
+                # Typed safeguards stay typed; do not append completeness codes.
+                raise
+            except Exception as exc:
                 if required:
-                    raise
+                    issues.append(
+                        QualityIssue(
+                            severity="fatal",
+                            code="MISSING_FILER_SUBMITTED_ATTACHMENT",
+                            message=f"required filer-submitted attachment missing: {name}",
+                            context={
+                                "filename": name,
+                                "exception_type": type(exc).__name__,
+                                "error": str(exc),
+                            },
+                        )
+                    )
                 raise
             if not ok and required:
                 issues.append(
@@ -611,10 +614,3 @@ class AcquisitionService:
             payload["terminal_error"] = terminal_error
         write_json_atomic(path, payload)
         return path
-
-
-def _is_absence_error(exc: BaseException) -> bool:
-    if isinstance(exc, httpx.HTTPStatusError):
-        return exc.response is not None and exc.response.status_code == 404
-    text = str(exc).lower()
-    return "404" in text or "not found" in text

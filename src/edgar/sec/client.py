@@ -57,6 +57,7 @@ class FetchTrace:
     content_sha256: str | None = None
     byte_size: int | None = None
     error: str | None = None
+    redirect_count: int = 0
 
     def to_observation_dict(self) -> dict[str, Any]:
         return {
@@ -66,7 +67,7 @@ class FetchTrace:
             "byte_size": self.byte_size,
             "error": self.error,
             "hops": [h.to_dict() for h in self.hops],
-            "redirect_count": max(0, len(self.hops) - 1) if self.hops else 0,
+            "redirect_count": self.redirect_count,
             "pinned_ip": next((h.pinned_ip for h in reversed(self.hops) if h.pinned_ip), None),
             "peer_ip": next((h.peer_ip for h in reversed(self.hops) if h.peer_ip), None),
             "status_code": next(
@@ -105,6 +106,7 @@ class _TraceBuilder:
     content_sha256: str | None = None
     byte_size: int | None = None
     error: str | None = None
+    redirect_count: int = 0
     emitted: bool = False
 
     def finish(self) -> FetchTrace:
@@ -115,6 +117,7 @@ class _TraceBuilder:
             content_sha256=self.content_sha256,
             byte_size=self.byte_size,
             error=self.error,
+            redirect_count=self.redirect_count,
         )
 
 
@@ -262,6 +265,7 @@ class ControlledFetcher:
                                     )
                                 )
                                 redirect_count += 1
+                                builder.redirect_count = redirect_count
                                 if redirect_count > self.max_redirects:
                                     raise MaxRedirectsExceeded(
                                         f"exceeded MAX_REDIRECTS={self.max_redirects} "
@@ -312,6 +316,7 @@ class ControlledFetcher:
                             builder.final_uri = current
                             builder.content_sha256 = obj.sha256
                             builder.byte_size = obj.byte_size
+                            builder.redirect_count = redirect_count
                             trace = self._emit(builder)
                             assert pinned_ip is not None
                             result = FetchResult(
