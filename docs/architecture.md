@@ -77,7 +77,7 @@ CIK + accession
  → application persistence → PostgreSQL
 ```
 
-Filesystem-first durable acquisition is the next implementation step (Phase 1A / PR #4). Database/catalog foundation follows; thin Arelle and document projections come after that.
+Filesystem-first durable acquisition (Phase 1A / PR #4) and the PostgreSQL catalog foundation (PR #5) are implemented. Thin Arelle and document projections come next.
 
 ## Slice 0 → production commitments
 
