@@ -9,6 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - edgar_pgdata:/var/lib/postgresql/data
+      - ./compose/postgres/init-edgar-test.sql:/docker-entrypoint-initdb.d/10-edgar-test.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U edgar -d edgar"]
       interval: 5s

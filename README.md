@@ -41,18 +41,33 @@ Use `--json` for machine-readable output and `--data-root PATH` to override stor
 
 ```bash
 docker compose up -d
-# set EDGAR_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar
+# Persistent application database (Settings reads .env):
+# EDGAR_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar
 uv run edgar db upgrade
 uv run edgar db check
 uv run edgar filings catalog --bundle-dir var/bundles/<cik>/<accession>/<opaque_id> --json
+```
+
+Compose initializes `edgar` (durable) and, on a **fresh** volume, also creates disposable `edgar_test`.
+If your volume predates that init script:
+
+```bash
+docker compose exec postgres \
+  psql -U edgar -d edgar -c "CREATE DATABASE edgar_test"
 ```
 
 ## Opt-in tests
 
 ```bash
 uv run pytest -m network tests/contract/test_live_sec_smoke.py
-uv run pytest -m database   # requires EDGAR_DATABASE_URL
+
+# Disposable test database — tests TRUNCATE and migrate this database.
+# Must be named exactly edgar_test. Not a Settings field; expose to the process:
+# EDGAR_TEST_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar_test
+uv run --env-file .env pytest -m database
 ```
+
+Database integration tests refuse to run unless `EDGAR_TEST_DATABASE_URL` targets a database named exactly `edgar_test`. They destructively reset that database. Merely listing the variable in `.env` is not enough for the test helper unless you use `--env-file` (or export it).
 
 ## Historical Slice 0 spike
 

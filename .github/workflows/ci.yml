@@ -13,16 +13,14 @@ jobs:
         env:
           POSTGRES_USER: edgar
           POSTGRES_PASSWORD: edgar
-          POSTGRES_DB: edgar
+          POSTGRES_DB: edgar_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U edgar -d edgar"
+          --health-cmd "pg_isready -U edgar -d edgar_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    env:
-      EDGAR_DATABASE_URL: postgresql+psycopg://edgar:edgar@localhost:5432/edgar
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +43,8 @@ jobs:
       - name: Pytest (non-network, non-database)
         run: uv run pytest -q -m "not network and not database"
       - name: Pytest (database)
+        env:
+          EDGAR_TEST_DATABASE_URL: postgresql+psycopg://edgar:edgar@localhost:5432/edgar_test
         run: uv run pytest -q -m database
       - name: Verify committed spike evidence
         run: uv run python scripts/spikes/verify_evidence.py fixtures/manifests/0001065088-24-000036

@@ -19,11 +19,12 @@ target_metadata = metadata
 
 
 def _database_url() -> str:
-    url = os.environ.get("EDGAR_DATABASE_URL", "").strip()
+    url = config.attributes.get("database_url") or os.environ.get("EDGAR_DATABASE_URL") or ""
+    url = str(url).strip()
     if not url:
         raise RuntimeError(
-            "EDGAR_DATABASE_URL must be set for Alembic "
-            "(e.g. postgresql+psycopg://edgar:edgar@localhost:5432/edgar)"
+            "database URL required: pass database_url through Alembic Config "
+            "or set EDGAR_DATABASE_URL"
         )
     return url
 

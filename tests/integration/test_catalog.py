@@ -11,6 +11,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, select, text, update
+from sqlalchemy.engine import make_url
 
 from edgar.config import Settings
 from edgar.db import schema as tables
@@ -47,20 +48,31 @@ CATALOG_TABLE_NAMES = (
 )
 
 
-def _database_url() -> str:
-    url = os.environ.get("EDGAR_DATABASE_URL", "").strip()
-    if not url:
-        pytest.skip("EDGAR_DATABASE_URL not set")
-    return url
+def _test_database_url() -> str:
+    """Sole source of the integration-test database URL (process env only)."""
+    raw = os.environ.get("EDGAR_TEST_DATABASE_URL", "").strip()
+    if not raw:
+        pytest.skip("EDGAR_TEST_DATABASE_URL not set")
+    url = make_url(raw)
+    if url.database != "edgar_test":
+        pytest.fail(
+            "Refusing destructive database tests: "
+            "EDGAR_TEST_DATABASE_URL must target database 'edgar_test'"
+        )
+    return raw
+
+
+def _alembic_config(database_url: str) -> Config:
+    cfg = Config(str(_ALEMBIC_INI))
+    cfg.attributes["database_url"] = database_url
+    return cfg
 
 
 @pytest.fixture(scope="module")
 def engine() -> Iterator[Engine]:
-    url = _database_url()
+    url = _test_database_url()
     eng = create_engine(url, future=True)
-    cfg = Config(str(_ALEMBIC_INI))
-    cfg.set_main_option("sqlalchemy.url", url)
-    command.upgrade(cfg, "head")
+    command.upgrade(_alembic_config(url), "head")
     yield eng
     eng.dispose()
 
@@ -72,12 +84,6 @@ def truncate_catalog(engine: Engine) -> Iterator[None]:
             text("TRUNCATE " + ", ".join(CATALOG_TABLE_NAMES) + " RESTART IDENTITY CASCADE")
         )
     yield
-
-
-def _alembic_config(url: str) -> Config:
-    cfg = Config(str(_ALEMBIC_INI))
-    cfg.set_main_option("sqlalchemy.url", url)
-    return cfg
 
 
 def _publish_bundle(
@@ -184,7 +190,7 @@ def _counts(engine: Engine) -> dict[str, int]:
 
 
 def test_migration_upgrade_downgrade_upgrade(engine: Engine) -> None:
-    url = _database_url()
+    url = _test_database_url()
     cfg = _alembic_config(url)
     try:
         command.downgrade(cfg, "base")
@@ -217,9 +223,7 @@ def test_catalog_round_trip_ixds(engine: Engine, tmp_path: Path) -> None:
 
 
 def test_catalog_idempotent(engine: Engine, tmp_path: Path) -> None:
-    settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _database_url()}
-    )
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
     _bundle, bundle_dir, _opaque = _publish_bundle(tmp_path)
     service = CatalogService(settings, engine=engine)
     first = service.catalog_published_bundle(bundle_dir)
@@ -410,3 +414,18 @@ def test_verified_reuse_structure_valid_mismatch(engine: Engine, tmp_path: Path)
         )
     with pytest.raises(CatalogConflict, match="not equivalent"), engine.begin() as conn:
         catalog_bundle(conn, bundle, opaque)
+
+
+def test_load_bundle_rejects_corrupted_payload_hash(engine: Engine, tmp_path: Path) -> None:
+    bundle, _d, opaque = _publish_bundle(tmp_path)
+    bad_hash = "0" * 64
+    assert bundle.payload_hash != bad_hash
+    with engine.begin() as conn:
+        result = catalog_bundle(conn, bundle, opaque)
+        conn.execute(
+            update(tables.filing_bundle)
+            .where(tables.filing_bundle.c.id == result.bundle_id)
+            .values(payload_hash=bad_hash)
+        )
+        with pytest.raises(CatalogConflict, match="invalid persisted"):
+            load_bundle(conn, result.bundle_id)

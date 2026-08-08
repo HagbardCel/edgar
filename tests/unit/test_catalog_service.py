@@ -9,7 +9,9 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from typer.testing import CliRunner
 
+from edgar.cli import app
 from edgar.config import Settings
 from edgar.domain.bundle import (
     BundleArtifact,
@@ -21,8 +23,10 @@ from edgar.domain.bundle import (
     bundles_equivalent,
 )
 from edgar.domain.identifiers import validate_uuid4_hex
+from edgar.ingestion.acquisition import AcquisitionResult
 from edgar.ingestion.catalog import CatalogService
 from edgar.ingestion.payload import compute_payload_hash
+from edgar.storage.bundles import PublishResult
 
 
 def _bundle(*, accepted_at: datetime | None) -> FilingBundle:
@@ -93,6 +97,10 @@ def _fake_engine() -> MagicMock:
     return engine
 
 
+def _assert_no_objects(settings: Settings) -> None:
+    assert not (settings.edgar_data_root / "objects").exists()
+
+
 def test_catalog_rejects_path_outside_data_root(tmp_path: Path) -> None:
     settings = Settings().model_copy(update={"edgar_data_root": tmp_path / "data"})
     (settings.edgar_data_root / "bundles").mkdir(parents=True)
@@ -103,6 +111,7 @@ def test_catalog_rejects_path_outside_data_root(tmp_path: Path) -> None:
     service = CatalogService(settings, engine=_fake_engine())
     with pytest.raises(ValueError, match="escapes root"):
         service.catalog_published_bundle(outside)
+    _assert_no_objects(settings)
 
 
 def test_catalog_rejects_non_uuid4_opaque(tmp_path: Path) -> None:
@@ -113,6 +122,7 @@ def test_catalog_rejects_non_uuid4_opaque(tmp_path: Path) -> None:
     service = CatalogService(settings, engine=_fake_engine())
     with pytest.raises(ValueError, match="uuid"):
         service.catalog_published_bundle(bad)
+    _assert_no_objects(settings)
 
 
 def test_catalog_rejects_noncanonical_cik_path(tmp_path: Path) -> None:
@@ -123,6 +133,7 @@ def test_catalog_rejects_noncanonical_cik_path(tmp_path: Path) -> None:
     service = CatalogService(settings, engine=_fake_engine())
     with pytest.raises(ValueError, match="noncanonical CIK"):
         service.catalog_published_bundle(bad)
+    _assert_no_objects(settings)
 
 
 def test_catalog_corrupt_bundle_rejected_before_begin(tmp_path: Path) -> None:
@@ -133,3 +144,53 @@ def test_catalog_corrupt_bundle_rejected_before_begin(tmp_path: Path) -> None:
     service = CatalogService(settings, engine=_fake_engine())
     with pytest.raises(json.JSONDecodeError):
         service.catalog_published_bundle(bundle_dir)
+    _assert_no_objects(settings)
+
+
+def test_filings_retrieve_does_not_require_database_url(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("EDGAR_DATABASE_URL", raising=False)
+
+    def _tripwire(self: Settings) -> str:
+        raise AssertionError("require_database_url must not be called by filings retrieve")
+
+    monkeypatch.setattr(Settings, "require_database_url", _tripwire)
+
+    bundle = _bundle(accepted_at=datetime(2024, 1, 2, tzinfo=UTC))
+    publish = PublishResult(
+        bundle=bundle,
+        bundle_dir=tmp_path / "bundle",
+        opaque_id=uuid.uuid4().hex,
+        reused=False,
+    )
+    fake_result = AcquisitionResult(
+        bundle=bundle,
+        publish=publish,
+        attempt_id="test-attempt",
+        attempt_path=tmp_path / "attempt",
+        replay_faithful=True,
+    )
+
+    class _FakeAcquisitionService:
+        def __init__(self, settings: Settings) -> None:
+            self.settings = settings
+
+        def __enter__(self) -> _FakeAcquisitionService:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def acquire(self, accession: str) -> AcquisitionResult:
+            assert accession == "0001065088-24-000036"
+            return fake_result
+
+    monkeypatch.setattr("edgar.cli.AcquisitionService", _FakeAcquisitionService)
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["filings", "retrieve", "--accession", "0001065088-24-000036", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "0001065088-24-000036" in result.output

@@ -34,7 +34,7 @@ def main() -> None:
 
 def _alembic_config(database_url: str) -> Config:
     cfg = Config(str(_ALEMBIC_INI))
-    cfg.set_main_option("sqlalchemy.url", database_url)
+    cfg.attributes["database_url"] = database_url
     return cfg
 
 

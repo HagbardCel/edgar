@@ -29,7 +29,6 @@ class ObjectStore:
     def __init__(self, data_root: Path) -> None:
         self.data_root = data_root
         self.objects_dir = data_root / "objects" / "sha256"
-        self.objects_dir.mkdir(parents=True, exist_ok=True)
 
     def path_for(self, digest: str) -> Path:
         if (
