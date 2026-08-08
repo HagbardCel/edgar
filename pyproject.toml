@@ -6,12 +6,17 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = [
-    "arelle-release>=2.37.0",
+    "arelle-release==2.43.1",
+    "filelock>=3.13.0",
     "httpx>=0.28.0",
     "lxml>=5.0.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    "typer>=0.15.0",
 ]
+
+[project.scripts]
+edgar = "edgar.cli:app"
 
 [project.optional-dependencies]
 dev = [

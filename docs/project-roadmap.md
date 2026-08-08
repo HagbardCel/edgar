@@ -834,10 +834,10 @@ A dataset manifest should make it possible to reproduce every row and explain wh
 
 ## 9. Immediate next tasks
 
-Post–PR #2 provenance freeze and PR #3 architecture/data-model checkpoint:
+Post–PR #4 filesystem acquisition:
 
 1. ~~Architecture / conceptual data model (PR #3).~~
-2. Filesystem-first durable acquisition + offline Arelle smoke load (PR #4 / Phase 1A).
+2. ~~Filesystem-first durable acquisition + offline Arelle smoke load (PR #4 / Phase 1A).~~
 3. Minimal database / catalog foundation for issuer, filing, and FilingBundle metadata (PR #5).
 4. Thin Arelle semantic projection (PR #6 / Phase 1B).
 5. Document blocks and regulatory sections (PR #7 / Phase 1C).
