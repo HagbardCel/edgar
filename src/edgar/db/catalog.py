@@ -164,6 +164,7 @@ def load_bundle(conn: Connection, bundle_id: int) -> FilingBundle:
                 tables.bundle_uri_binding.c.replay_aliases,
                 tables.bundle_uri_binding.c.bundle_artifact_id,
                 tables.bundle_artifact.c.logical_path,
+                tables.bundle_artifact.c.filing_bundle_id.label("artifact_filing_bundle_id"),
                 tables.content_object.c.sha256,
             )
             .join(
@@ -227,6 +228,8 @@ def load_bundle(conn: Connection, bundle_id: int) -> FilingBundle:
 
         uri_bindings: list[UriBinding] = []
         for b in binding_rows:
+            if int(b["artifact_filing_bundle_id"]) != bundle_id:
+                raise ValueError("URI binding references artifact owned by another filing bundle")
             aliases = b["replay_aliases"] or []
             uri_bindings.append(
                 UriBinding(

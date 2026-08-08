@@ -46,7 +46,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 testpaths = ["tests"]
 markers = [
     "network: live SEC or internet tests (disabled by default)",
-    "database: PostgreSQL integration tests (require EDGAR_DATABASE_URL)",
+    "database: PostgreSQL integration tests (require EDGAR_TEST_DATABASE_URL targeting edgar_test)",
 ]
 
 [tool.pyright]

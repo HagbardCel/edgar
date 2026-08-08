@@ -28,8 +28,8 @@ def upgrade() -> None:
         "issuer",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("cik", sa.Text(), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("cik"),
+        sa.PrimaryKeyConstraint("id", name="issuer_pkey"),
+        sa.UniqueConstraint("cik", name="issuer_cik_key"),
     )
     op.create_table(
         "filing",
@@ -41,9 +41,9 @@ def upgrade() -> None:
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("report_period_end", sa.Date(), nullable=True),
         sa.Column("primary_document", sa.Text(), nullable=False),
-        sa.ForeignKeyConstraint(["issuer_id"], ["issuer.id"]),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("accession_number"),
+        sa.ForeignKeyConstraint(["issuer_id"], ["issuer.id"], name="filing_issuer_id_fkey"),
+        sa.PrimaryKeyConstraint("id", name="filing_pkey"),
+        sa.UniqueConstraint("accession_number", name="filing_accession_number_key"),
     )
     op.create_table(
         "content_object",
@@ -55,8 +55,8 @@ def upgrade() -> None:
             f"sha256 ~ '{SHA256_CHECK}'",
             name="ck_content_object_sha256_hex",
         ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("sha256"),
+        sa.PrimaryKeyConstraint("id", name="content_object_pkey"),
+        sa.UniqueConstraint("sha256", name="content_object_sha256_key"),
     )
     op.create_table(
         "filing_bundle",
@@ -70,8 +70,8 @@ def upgrade() -> None:
             f"payload_hash ~ '{SHA256_CHECK}'",
             name="ck_filing_bundle_payload_hash_hex",
         ),
-        sa.ForeignKeyConstraint(["filing_id"], ["filing.id"]),
-        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["filing_id"], ["filing.id"], name="filing_bundle_filing_id_fkey"),
+        sa.PrimaryKeyConstraint("id", name="filing_bundle_pkey"),
         sa.UniqueConstraint("filing_id", "opaque_id", name="uq_filing_bundle_filing_opaque"),
     )
     op.create_table(
@@ -82,9 +82,17 @@ def upgrade() -> None:
         sa.Column("content_object_id", sa.BigInteger(), nullable=False),
         sa.Column("artifact_kind", sa.Text(), nullable=False),
         sa.Column("required", sa.Boolean(), nullable=False),
-        sa.ForeignKeyConstraint(["content_object_id"], ["content_object.id"]),
-        sa.ForeignKeyConstraint(["filing_bundle_id"], ["filing_bundle.id"]),
-        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(
+            ["content_object_id"],
+            ["content_object.id"],
+            name="bundle_artifact_content_object_id_fkey",
+        ),
+        sa.ForeignKeyConstraint(
+            ["filing_bundle_id"],
+            ["filing_bundle.id"],
+            name="bundle_artifact_filing_bundle_id_fkey",
+        ),
+        sa.PrimaryKeyConstraint("id", name="bundle_artifact_pkey"),
         sa.UniqueConstraint(
             "filing_bundle_id",
             "logical_path",
@@ -103,9 +111,17 @@ def upgrade() -> None:
             server_default=sa.text("'{}'::text[]"),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(["bundle_artifact_id"], ["bundle_artifact.id"]),
-        sa.ForeignKeyConstraint(["filing_bundle_id"], ["filing_bundle.id"]),
-        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(
+            ["bundle_artifact_id"],
+            ["bundle_artifact.id"],
+            name="bundle_uri_binding_bundle_artifact_id_fkey",
+        ),
+        sa.ForeignKeyConstraint(
+            ["filing_bundle_id"],
+            ["filing_bundle.id"],
+            name="bundle_uri_binding_filing_bundle_id_fkey",
+        ),
+        sa.PrimaryKeyConstraint("id", name="bundle_uri_binding_pkey"),
         sa.UniqueConstraint(
             "filing_bundle_id",
             "document_uri",
@@ -124,8 +140,12 @@ def upgrade() -> None:
             "(kind = 'instance' AND target IS NULL) OR (kind = 'ixds' AND target = 'default')",
             name="ck_xbrl_report_input_kind_target",
         ),
-        sa.ForeignKeyConstraint(["filing_bundle_id"], ["filing_bundle.id"]),
-        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(
+            ["filing_bundle_id"],
+            ["filing_bundle.id"],
+            name="xbrl_report_input_filing_bundle_id_fkey",
+        ),
+        sa.PrimaryKeyConstraint("id", name="xbrl_report_input_pkey"),
         sa.UniqueConstraint(
             "filing_bundle_id",
             "ordinal",
@@ -141,8 +161,16 @@ def upgrade() -> None:
             "ordinal >= 0",
             name="ck_xbrl_report_input_member_ordinal_nonneg",
         ),
-        sa.ForeignKeyConstraint(["bundle_uri_binding_id"], ["bundle_uri_binding.id"]),
-        sa.ForeignKeyConstraint(["report_input_id"], ["xbrl_report_input.id"]),
+        sa.ForeignKeyConstraint(
+            ["bundle_uri_binding_id"],
+            ["bundle_uri_binding.id"],
+            name="xbrl_report_input_member_bundle_uri_binding_id_fkey",
+        ),
+        sa.ForeignKeyConstraint(
+            ["report_input_id"],
+            ["xbrl_report_input.id"],
+            name="xbrl_report_input_member_report_input_id_fkey",
+        ),
         sa.PrimaryKeyConstraint(
             "report_input_id",
             "ordinal",

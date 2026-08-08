@@ -344,6 +344,72 @@ def test_same_payload_hash_different_bindings_coexist(engine: Engine, tmp_path: 
     assert _counts(engine)["filing_bundle"] == 2
 
 
+def test_load_bundle_rejects_cross_bundle_artifact_binding(engine: Engine, tmp_path: Path) -> None:
+    """Same path+SHA on A/B artifacts: ownership check must catch cross-link."""
+    store = ObjectStore(tmp_path)
+    obj = store.put_bytes(b"shared-payload")
+    art = BundleArtifact(
+        logical_path="accession/a.htm",
+        content=ContentObject(sha256=obj.sha256, byte_size=obj.byte_size),
+        artifact_kind="primary_document",
+        required=True,
+    )
+    filing = FilingIdentity(
+        cik="0001065088",
+        accession="0001065088-24-000036",
+        form_type="10-K",
+        filing_date=date(2024, 2, 12),
+        accepted_at=datetime(2024, 2, 12, tzinfo=UTC),
+        report_period_end=None,
+        primary_document="a.htm",
+    )
+    payload_hash = compute_payload_hash([art])
+    left = FilingBundle(
+        filing=filing,
+        payload_hash=payload_hash,
+        artifacts=(art,),
+        report_inputs=(InstanceReportInput(document_uris=("https://example.com/left.htm",)),),
+        uri_bindings=(
+            UriBinding(
+                document_uri="https://example.com/left.htm",
+                artifact_path=art.logical_path,
+                content_sha256=obj.sha256,
+            ),
+        ),
+    )
+    right = FilingBundle(
+        filing=filing,
+        payload_hash=payload_hash,
+        artifacts=(art,),
+        report_inputs=(InstanceReportInput(document_uris=("https://example.com/right.htm",)),),
+        uri_bindings=(
+            UriBinding(
+                document_uri="https://example.com/right.htm",
+                artifact_path=art.logical_path,
+                content_sha256=obj.sha256,
+            ),
+        ),
+    )
+    repo = BundleRepository(tmp_path, store)
+    p1 = repo.publish(left)
+    p2 = repo.publish(right)
+    with engine.begin() as conn:
+        r1 = catalog_bundle(conn, p1.bundle, p1.opaque_id)
+        r2 = catalog_bundle(conn, p2.bundle, p2.opaque_id)
+        artifact_a_id = conn.execute(
+            select(tables.bundle_artifact.c.id).where(
+                tables.bundle_artifact.c.filing_bundle_id == r1.bundle_id
+            )
+        ).scalar_one()
+        conn.execute(
+            update(tables.bundle_uri_binding)
+            .where(tables.bundle_uri_binding.c.filing_bundle_id == r2.bundle_id)
+            .values(bundle_artifact_id=artifact_a_id)
+        )
+        with pytest.raises(CatalogConflict, match="invalid persisted"):
+            load_bundle(conn, r2.bundle_id)
+
+
 def test_filing_metadata_conflict(engine: Engine, tmp_path: Path) -> None:
     import uuid
 
