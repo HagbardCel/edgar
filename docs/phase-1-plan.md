@@ -764,7 +764,7 @@ Golden updates must be explicit and reviewed. A parser change must not automatic
 
 1. Repository bootstrap and documentation (including production architecture / data model — PR #3).
 2. Slice 0 acquisition/offline-replay spike (complete; provenance bounded).
-3. Phase 1A — Filesystem-first acquisition foundation (identifiers, CAS storage, SEC client, immutable FilingBundles, offline smoke load).
+3. ~~Phase 1A — Filesystem-first acquisition foundation (identifiers, CAS storage, SEC client, immutable FilingBundles, offline smoke load).~~ (PR #4; see ADR 0009)
 4. Database / catalog foundation for issuer, filing, and bundle metadata.
 5. Phase 1B — Thin Arelle semantic projection and Phase 1C — Document structure in parallel after catalog exists.
 6. Phase 1D — Integration, idempotency acceptance, and hardening; retire Slice-0 executable machinery while retaining frozen evidence + minimal immutability guard.
