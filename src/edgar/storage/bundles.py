@@ -11,7 +11,12 @@ from pathlib import Path
 from filelock import FileLock
 
 from edgar.domain.bundle import FilingBundle, bundles_equivalent
-from edgar.domain.identifiers import validate_uuid4_hex
+from edgar.domain.identifiers import (
+    assert_path_under,
+    validate_accession,
+    validate_cik,
+    validate_uuid4_hex,
+)
 from edgar.domain.validation import BundleStructureError, validate_bundle_structure
 from edgar.storage.objects import ObjectStore, write_json_atomic
 
@@ -26,6 +31,28 @@ class PublishResult:
     bundle_dir: Path
     opaque_id: str
     reused: bool
+
+
+def validate_published_bundle_path(data_root: Path, bundle_dir: Path) -> tuple[str, str, str]:
+    """Validate ``bundles/{cik}/{accession}/{opaque_id}/`` under ``data_root``.
+
+    Returns ``(opaque_id, cik, accession)``.
+    """
+    bundles_root = (data_root / "bundles").resolve()
+    resolved = assert_path_under(bundle_dir, bundles_root)
+    relative = resolved.relative_to(bundles_root)
+    if len(relative.parts) != 3:
+        raise ValueError(
+            "bundle_dir must be bundles/{cik}/{accession}/{opaque_id}/ "
+            f"under {bundles_root}, got {relative}"
+        )
+    cik, accession, opaque_id = relative.parts
+    canonical_cik = validate_cik(cik)
+    if canonical_cik != cik:
+        raise ValueError(f"noncanonical CIK in publication path: {cik!r}")
+    validate_accession(accession)
+    validate_uuid4_hex(opaque_id)
+    return opaque_id, cik, accession
 
 
 def _is_uuid4_hex(name: str) -> bool:
