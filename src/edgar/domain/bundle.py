@@ -84,11 +84,18 @@ class FilingIdentity:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FilingIdentity:
+        from edgar.domain.validation import (
+            assert_canonical_serialized_accession,
+            assert_canonical_serialized_cik,
+        )
+
+        if not isinstance(data, dict):
+            raise ValueError("filing identity must be an object")
         accepted = data.get("accepted_at")
         period = data.get("report_period_end")
         return cls(
-            cik=data["cik"],
-            accession=data["accession"],
+            cik=assert_canonical_serialized_cik(data["cik"]),
+            accession=assert_canonical_serialized_accession(data["accession"]),
             form_type=data["form_type"],
             filing_date=date.fromisoformat(data["filing_date"]),
             accepted_at=datetime.fromisoformat(accepted) if accepted else None,
@@ -144,11 +151,14 @@ class UriBinding:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "artifact_path", validate_logical_path(self.artifact_path))
-        digest = self.content_sha256.lower()
-        if digest != self.content_sha256:
-            object.__setattr__(self, "content_sha256", digest)
-        aliases = tuple(sorted(set(self.replay_aliases)))
-        object.__setattr__(self, "replay_aliases", aliases)
+        digest = self.content_sha256
+        hex_ok = len(digest) == 64 and all(c in "0123456789abcdef" for c in digest)
+        if digest != digest.lower() or not hex_ok:
+            raise ValueError(
+                f"content_sha256 must be 64 lowercase hex chars: {self.content_sha256!r}"
+            )
+        if len(self.replay_aliases) != len(set(self.replay_aliases)):
+            raise ValueError("replay_aliases contains duplicates")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -160,11 +170,18 @@ class UriBinding:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> UriBinding:
+        aliases = data.get("replay_aliases")
+        if aliases is None:
+            alias_tuple: tuple[str, ...] = ()
+        elif not isinstance(aliases, list):
+            raise ValueError("replay_aliases must be a list when present")
+        else:
+            alias_tuple = tuple(aliases)
         return cls(
             document_uri=data["document_uri"],
             artifact_path=data["artifact_path"],
             content_sha256=data["content_sha256"],
-            replay_aliases=tuple(data.get("replay_aliases") or ()),
+            replay_aliases=alias_tuple,
         )
 
 
@@ -256,11 +273,41 @@ class FilingBundle:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FilingBundle:
+        if not isinstance(data, dict):
+            raise ValueError("bundle descriptor must be an object")
+        required = {
+            "schema_version",
+            "acquisition_policy_version",
+            "filing",
+            "payload_hash",
+            "artifacts",
+            "report_inputs",
+            "uri_bindings",
+        }
+        missing = required - set(data)
+        if missing:
+            raise ValueError(f"bundle descriptor missing fields: {sorted(missing)}")
+        unknown = set(data) - required
+        if unknown:
+            raise ValueError(f"bundle descriptor has unknown fields: {sorted(unknown)}")
+        if not isinstance(data["artifacts"], list):
+            raise ValueError("artifacts must be a list")
+        if not isinstance(data["report_inputs"], list):
+            raise ValueError("report_inputs must be a list")
+        if not isinstance(data["uri_bindings"], list):
+            raise ValueError("uri_bindings must be a list")
+        payload_hash = data["payload_hash"]
+        if (
+            not isinstance(payload_hash, str)
+            or len(payload_hash) != 64
+            or any(c not in "0123456789abcdef" for c in payload_hash)
+        ):
+            raise ValueError(f"invalid payload_hash syntax: {payload_hash!r}")
         return cls(
             schema_version=int(data["schema_version"]),
             acquisition_policy_version=data["acquisition_policy_version"],
             filing=FilingIdentity.from_dict(data["filing"]),
-            payload_hash=data["payload_hash"],
+            payload_hash=payload_hash,
             artifacts=tuple(BundleArtifact.from_dict(a) for a in data["artifacts"]),
             report_inputs=tuple(report_input_from_dict(r) for r in data["report_inputs"]),
             uri_bindings=tuple(UriBinding.from_dict(b) for b in data["uri_bindings"]),
@@ -309,7 +356,7 @@ def bundle_equality_state(bundle: FilingBundle) -> dict[str, Any]:
                 "document_uri": b.document_uri,
                 "artifact_path": b.artifact_path,
                 "content_sha256": b.content_sha256,
-                "replay_aliases": list(b.replay_aliases),
+                "replay_aliases": sorted(b.replay_aliases),
             }
             for b in bundle.uri_bindings
         ),

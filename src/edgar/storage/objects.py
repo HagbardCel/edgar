@@ -32,7 +32,12 @@ class ObjectStore:
         self.objects_dir.mkdir(parents=True, exist_ok=True)
 
     def path_for(self, digest: str) -> Path:
-        digest = digest.lower()
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(c not in "0123456789abcdef" for c in digest)
+        ):
+            raise ValueError(f"digest must be 64 lowercase hex chars: {digest!r}")
         return self.objects_dir / digest[:2] / digest
 
     def put_bytes(self, data: bytes) -> StoredObject:
