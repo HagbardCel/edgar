@@ -516,8 +516,6 @@ xbrl_context = Table(
     Column("instant_date", Date, nullable=True),
     Column("start_date", Date, nullable=True),
     Column("end_date", Date, nullable=True),
-    Column("non_dimensional_segment_xml", Text, nullable=True),
-    Column("non_dimensional_scenario_xml", Text, nullable=True),
     Column("source_bundle_uri_binding_id", BigInteger, nullable=False),
     Column("source_locator_scheme", Text, nullable=False),
     Column("source_locator_value", JSONB, nullable=False),
@@ -697,6 +695,11 @@ xbrl_fact = Table(
     CheckConstraint(
         "value_status IN ('valid', 'nil', 'invalid', 'unresolved')",
         name="ck_xbrl_fact_value_status",
+    ),
+    CheckConstraint(
+        "resolved_value_kind IS NULL OR resolved_value_kind IN "
+        "('numeric', 'text', 'boolean', 'date', 'datetime', 'time', 'qname')",
+        name="ck_xbrl_fact_resolved_value_kind",
     ),
     Index("ix_xbrl_fact_concept_declaration", "concept_declaration_id"),
     Index("ix_xbrl_fact_context", "context_id"),

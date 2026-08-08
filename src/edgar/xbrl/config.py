@@ -112,7 +112,7 @@ class SemanticConfig:
     deferred_arcroles: tuple[str, ...]
     custom_definition_link_arcroles_supported: bool
     reported_dimensions_only: bool
-    preserve_non_dimensional_context_content: bool
+    non_dimensional_context_policy: str
     item_facts_only: bool
 
     def __post_init__(self) -> None:
@@ -125,6 +125,10 @@ class SemanticConfig:
         ):
             if not getattr(self, name):
                 raise ValueError(f"{name} is required")
+        if self.non_dimensional_context_policy != "incomplete":
+            raise ValueError(
+                "non_dimensional_context_policy must be 'incomplete' under arelle-semantic-v1"
+            )
         for name in (
             "complete_compatible_diagnostics",
             "presentation_arcroles",
@@ -159,9 +163,7 @@ class SemanticConfig:
                 self.custom_definition_link_arcroles_supported
             ),
             "reported_dimensions_only": self.reported_dimensions_only,
-            "preserve_non_dimensional_context_content": (
-                self.preserve_non_dimensional_context_content
-            ),
+            "non_dimensional_context_policy": self.non_dimensional_context_policy,
             "item_facts_only": self.item_facts_only,
         }
 
@@ -182,7 +184,7 @@ def build_semantic_config(
     deferred_arcroles: Iterable[str] = DEFERRED_ARCROLES,
     custom_definition_link_arcroles_supported: bool = True,
     reported_dimensions_only: bool = True,
-    preserve_non_dimensional_context_content: bool = True,
+    non_dimensional_context_policy: str = "incomplete",
     item_facts_only: bool = True,
 ) -> SemanticConfig:
     """Build the active semantic configuration; defaults are the Phase 1 policy.
@@ -211,7 +213,7 @@ def build_semantic_config(
         deferred_arcroles=_sorted_tuple(deferred_arcroles),
         custom_definition_link_arcroles_supported=custom_definition_link_arcroles_supported,
         reported_dimensions_only=reported_dimensions_only,
-        preserve_non_dimensional_context_content=preserve_non_dimensional_context_content,
+        non_dimensional_context_policy=non_dimensional_context_policy,
         item_facts_only=item_facts_only,
     )
 

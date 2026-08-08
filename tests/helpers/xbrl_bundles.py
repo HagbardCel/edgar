@@ -13,12 +13,17 @@ from edgar.domain.bundle import (
     FilingBundle,
     FilingIdentity,
     InstanceReportInput,
+    IxdsReportInput,
     UriBinding,
 )
 from edgar.domain.identifiers import sanitize_basename, validate_cik
 from edgar.domain.payload import compute_payload_hash
 from edgar.storage.objects import ObjectStore
+from edgar.xbrl.closure import run_online_closure
 from edgar.xbrl.uri import normalize_uri, sha256_of_uri
+from tests.helpers import ixds_xbrl_fixture as _ixds
+from tests.helpers import rich_xbrl_fixture as _rich
+from tests.helpers.arelle_cache_fetcher import ArelleCacheFetcher
 
 _ARELLE_CACHE = (
     Path(arelle.__file__).resolve().parent
@@ -266,7 +271,11 @@ def _standard_artifacts(
     return artifacts, bindings
 
 
-def _filing(*, accession: str = "0000000001-00-000001") -> FilingIdentity:
+def _filing(
+    *,
+    accession: str = "0000000001-00-000001",
+    primary: str = "a.xml",
+) -> FilingIdentity:
     return FilingIdentity(
         cik=validate_cik("1"),
         accession=accession,
@@ -274,7 +283,7 @@ def _filing(*, accession: str = "0000000001-00-000001") -> FilingIdentity:
         filing_date=date(2024, 1, 1),
         accepted_at=None,
         report_period_end=None,
-        primary_document="a.xml",
+        primary_document=primary,
     )
 
 
@@ -290,13 +299,15 @@ def _bundle_from_parts(
     extra_bindings: list[UriBinding] | None = None,
     include_xbrldt: bool = False,
     accession: str = "0000000001-00-000001",
+    report_inputs: tuple | None = None,
+    primary_logical_path: str = "accession/a.xml",
 ) -> FilingBundle:
     schema_obj = store.put_bytes(schema_bytes)
     instance_obj = store.put_bytes(instance_bytes)
     schema_path = _external_path(schema_uri, Path(schema_uri).name or "test.xsd")
     artifacts: list[BundleArtifact] = [
         BundleArtifact(
-            logical_path="accession/a.xml",
+            logical_path=primary_logical_path,
             content=ContentObject(sha256=instance_obj.sha256, byte_size=instance_obj.byte_size),
             artifact_kind="primary_document",
             required=True,
@@ -309,7 +320,7 @@ def _bundle_from_parts(
         ),
     ]
     bindings: list[UriBinding] = [
-        UriBinding(instance_uri, "accession/a.xml", instance_obj.sha256),
+        UriBinding(instance_uri, primary_logical_path, instance_obj.sha256),
         UriBinding(
             schema_uri,
             schema_path,
@@ -326,11 +337,12 @@ def _bundle_from_parts(
         bindings.extend(extra_bindings)
     artifact_tuple = tuple(artifacts)
     binding_tuple = tuple(bindings)
+    inputs = report_inputs or (InstanceReportInput(document_uris=(instance_uri,)),)
     return FilingBundle(
         filing=_filing(accession=accession),
         payload_hash=compute_payload_hash(artifact_tuple),
         artifacts=artifact_tuple,
-        report_inputs=(InstanceReportInput(document_uris=(instance_uri,)),),
+        report_inputs=inputs,
         uri_bindings=binding_tuple,
     )
 
@@ -378,4 +390,197 @@ def make_dimensional_default_bundle(store: ObjectStore) -> FilingBundle:
             )
         ],
         extra_bindings=[UriBinding(DIM_DEFINITION_URI, defn_path, defn_obj.sha256)],
+    )
+
+
+INSTANCE_OMITTED_DECIMALS = b"""<?xml version="1.0"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+            xmlns:t="http://example.com/test">
+  <link:schemaRef xlink:type="simple" xlink:href="https://example.com/test.xsd"/>
+  <xbrli:context id="c1">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000001</xbrli:identifier>
+    </xbrli:entity>
+    <xbrli:period><xbrli:instant>2024-12-31</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  <xbrli:unit id="u1"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
+  <t:Assets contextRef="c1" unitRef="u1" id="f1">100</t:Assets>
+</xbrli:xbrl>
+"""
+
+INSTANCE_NON_DIM = b"""<?xml version="1.0"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+            xmlns:t="http://example.com/test">
+  <link:schemaRef xlink:type="simple" xlink:href="https://example.com/test.xsd"/>
+  <xbrli:context id="c1">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000001</xbrli:identifier>
+    </xbrli:entity>
+    <xbrli:period><xbrli:instant>2024-12-31</xbrli:instant></xbrli:period>
+    <xbrli:segment>
+      <custom:Something xmlns:custom="http://example.com/custom">x</custom:Something>
+    </xbrli:segment>
+  </xbrli:context>
+  <xbrli:unit id="u1"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
+  <t:Assets contextRef="c1" unitRef="u1" decimals="INF" id="f1">100</t:Assets>
+</xbrli:xbrl>
+"""
+
+INLINE_A_URI = _ixds.INLINE_A_URI
+INLINE_B_URI = _ixds.INLINE_B_URI
+
+
+def _bundle_from_discovery(
+    *,
+    store: ObjectStore,
+    report: InstanceReportInput | IxdsReportInput,
+    discovery: object,
+    accession_artifacts: list[BundleArtifact],
+    accession: str,
+    primary: str,
+) -> FilingBundle:
+    artifacts = list(accession_artifacts)
+    for binding in discovery.uri_bindings:  # type: ignore[attr-defined]
+        if binding.artifact_path.startswith("external/"):
+            artifacts.append(
+                BundleArtifact(
+                    logical_path=binding.artifact_path,
+                    content=ContentObject(
+                        sha256=binding.content_sha256,
+                        byte_size=len(store.open_bytes(binding.content_sha256)),
+                    ),
+                    artifact_kind="external",
+                    required=True,
+                )
+            )
+    return FilingBundle(
+        filing=_filing(accession=accession, primary=primary),
+        payload_hash=compute_payload_hash(artifacts),
+        artifacts=tuple(artifacts),
+        report_inputs=(report,),
+        uri_bindings=tuple(discovery.uri_bindings),  # type: ignore[attr-defined]
+    )
+
+
+def make_decimals_omitted_bundle(store: ObjectStore) -> FilingBundle:
+    """Monetary fact with no filed decimals attribute (Arelle may still populate .decimals)."""
+    return _bundle_from_parts(
+        store=store,
+        instance_bytes=INSTANCE_OMITTED_DECIMALS,
+        schema_bytes=SCHEMA,
+        accession="0000000001-00-000010",
+    )
+
+
+def make_non_dimensional_context_bundle(store: ObjectStore) -> FilingBundle:
+    """Context carries non-dimensional segment content → incomplete projection."""
+    return _bundle_from_parts(
+        store=store,
+        instance_bytes=INSTANCE_NON_DIM,
+        schema_bytes=SCHEMA,
+        accession="0000000001-00-000011",
+    )
+
+
+def make_ixds_semantic_bundle(store: ObjectStore) -> FilingBundle:
+    """Multi-document IXDS with facts in both member documents (discovery-faithful)."""
+    a_obj = store.put_bytes(_ixds.INLINE_A)
+    b_obj = store.put_bytes(_ixds.INLINE_B)
+    report = IxdsReportInput(document_uris=(INLINE_A_URI, INLINE_B_URI), target="default")
+    discovery = run_online_closure(
+        report,
+        accession_uri_map={
+            INLINE_A_URI: (a_obj.sha256, "accession/a.htm"),
+            INLINE_B_URI: (b_obj.sha256, "accession/b.htm"),
+        },
+        store=store,
+        fetcher=ArelleCacheFetcher({_ixds.SCHEMA_URI: _ixds.IXDS_SCHEMA}),  # type: ignore[arg-type]
+        max_file_bytes=5_000_000,
+        max_new_payload_bytes=50_000_000,
+    )
+    if (
+        not discovery.load_completed
+        or discovery.errors
+        or discovery.unresolved_documents
+        or discovery.network_attempts
+    ):
+        raise RuntimeError(
+            "IXDS fixture discovery failed: "
+            f"errors={discovery.errors!r} unresolved={discovery.unresolved_documents!r}"
+        )
+    return _bundle_from_discovery(
+        store=store,
+        report=report,
+        discovery=discovery,
+        accession_artifacts=[
+            BundleArtifact(
+                "accession/a.htm",
+                ContentObject(a_obj.sha256, a_obj.byte_size),
+                "primary_document",
+                True,
+            ),
+            BundleArtifact(
+                "accession/b.htm",
+                ContentObject(b_obj.sha256, b_obj.byte_size),
+                "primary_document",
+                True,
+            ),
+        ],
+        accession="0000000001-00-000003",
+        primary="a.htm",
+    )
+
+
+def make_rich_semantic_bundle(store: ObjectStore) -> FilingBundle:
+    """Ordinary XBRL package covering networks, resources, dims, and value kinds."""
+    instance_obj = store.put_bytes(_rich.INSTANCE)
+    report = InstanceReportInput(document_uris=(_rich.INSTANCE_URI,))
+    mapping = {
+        _rich.SCHEMA_URI: _rich.SCHEMA,
+        _rich.PRES_URI: _rich.PRESENTATION,
+        _rich.CALC_URI: _rich.CALCULATION,
+        _rich.DEFN_URI: _rich.DEFINITION,
+        _rich.LAB_URI: _rich.LABEL,
+        _rich.REF_URI: _rich.REFERENCE,
+    }
+    discovery = run_online_closure(
+        report,
+        accession_uri_map={
+            _rich.INSTANCE_URI: (instance_obj.sha256, "accession/a.xml"),
+        },
+        store=store,
+        fetcher=ArelleCacheFetcher(mapping),  # type: ignore[arg-type]
+        max_file_bytes=5_000_000,
+        max_new_payload_bytes=50_000_000,
+    )
+    if (
+        not discovery.load_completed
+        or discovery.errors
+        or discovery.unresolved_documents
+        or discovery.network_attempts
+    ):
+        raise RuntimeError(
+            "rich fixture discovery failed: "
+            f"errors={discovery.errors!r} unresolved={discovery.unresolved_documents!r}"
+        )
+    return _bundle_from_discovery(
+        store=store,
+        report=report,
+        discovery=discovery,
+        accession_artifacts=[
+            BundleArtifact(
+                "accession/a.xml",
+                ContentObject(instance_obj.sha256, instance_obj.byte_size),
+                "primary_document",
+                True,
+            ),
+        ],
+        accession="0000000001-00-000009",
+        primary="a.xml",
     )

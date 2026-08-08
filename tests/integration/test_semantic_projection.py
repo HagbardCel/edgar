@@ -339,3 +339,128 @@ def test_cross_projection_declaration_fk_rejected(engine: Engine, tmp_path: Path
         )
         with pytest.raises(SemanticProjectionConflict):
             load_semantic_projection(conn, proj_a.projection.projection_id)
+
+
+def test_config_fingerprint_coexistence(engine: Engine, tmp_path: Path) -> None:
+    """Same report/version/arelle, different semantic_config → two projection ids."""
+    from dataclasses import replace
+
+    from edgar.storage.bundles import BundleRepository
+    from edgar.xbrl.semantic import run_offline_semantic_projection
+
+    store = ObjectStore(tmp_path)
+    bundle = make_minimal_semantic_bundle(store)
+    published = BundleRepository(tmp_path, store).publish(bundle)
+    worker = run_offline_semantic_projection(bundle, store)
+    config_a = build_semantic_config()
+    config_b = build_semantic_config(item_facts_only=False)
+    assert semantic_config_fingerprint(config_a) != semantic_config_fingerprint(config_b)
+
+    with engine.begin() as conn:
+        cataloged = catalog_bundle(conn, bundle, published.opaque_id)
+        report_id = int(
+            conn.execute(
+                select(tables.xbrl_report_input.c.id).where(
+                    tables.xbrl_report_input.c.filing_bundle_id == cataloged.bundle_id
+                )
+            ).scalar_one()
+        )
+        started = datetime.now(UTC)
+        first = catalog_semantic_projection(
+            conn,
+            report_input_id=report_id,
+            bundle_id=cataloged.bundle_id,
+            projection_data=replace(
+                worker.data,
+                config_fingerprint=semantic_config_fingerprint(config_a),
+            ),
+            status=worker.status,
+            semantic_config=config_a.to_dict(),
+            started_at=started,
+            completed_at=datetime.now(UTC),
+        )
+        second = catalog_semantic_projection(
+            conn,
+            report_input_id=report_id,
+            bundle_id=cataloged.bundle_id,
+            projection_data=replace(
+                worker.data,
+                config_fingerprint=semantic_config_fingerprint(config_b),
+            ),
+            status=worker.status,
+            semantic_config=config_b.to_dict(),
+            started_at=started,
+            completed_at=datetime.now(UTC),
+        )
+        assert first.projection_id != second.projection_id
+        assert first.arelle_version == second.arelle_version == worker.data.engine_version
+        count = conn.execute(text("SELECT count(*) FROM semantic_projection")).scalar_one()
+        assert int(count) == 2
+
+
+def test_supported_network_worker_error_records_failed_attempt(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.projection.semantic import SemanticProjectionError
+    from edgar.xbrl.extract import ENDPOINT_FAMILY_MISMATCH
+    from edgar.xbrl.replay_normalize import NormalizedReplayView
+    from edgar.xbrl.semantic import SemanticWorkerError
+
+    settings = Settings().model_copy(
+        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+    )
+    bundle, bundle_dir, opaque = _publish(tmp_path)
+    with engine.begin() as conn:
+        catalog_bundle(conn, bundle, opaque)
+
+    def boom(*_args, **_kwargs):  # noqa: ANN001
+        replay = NormalizedReplayView(
+            load_completed=True,
+            network_attempts=(),
+            unresolved_documents=(),
+            loaded_source_documents=(),
+            resolved_documents=(),
+            expected_binding_documents=(),
+            diagnostics=(),
+            errors=(),
+            closure_equal=True,
+        )
+        raise SemanticWorkerError(
+            "supported network incoherent",
+            replay=replay,
+            issues=(
+                SemanticIssueRecord(
+                    severity="fatal",
+                    code=ENDPOINT_FAMILY_MISMATCH,
+                    message="stub network failure",
+                ),
+            ),
+            arelle_version="test-arelle",
+        )
+
+    monkeypatch.setattr(
+        "edgar.projection.semantic.run_offline_semantic_projection",
+        boom,
+    )
+    service = SemanticProjectionService(settings, engine=engine)
+    with pytest.raises(SemanticProjectionError):
+        service.project_published_bundle(bundle_dir)
+    with engine.begin() as conn:
+        failed = conn.execute(
+            text(
+                "SELECT count(*) FROM semantic_projection_attempt "
+                "WHERE status = 'failed' AND semantic_projection_id IS NULL"
+            )
+        ).scalar_one()
+        assert int(failed) == 1
+        assert int(conn.execute(text("SELECT count(*) FROM semantic_projection")).scalar_one()) == 0
+        codes = [
+            row[0]
+            for row in conn.execute(
+                text(
+                    "SELECT code FROM semantic_issue "
+                    "WHERE semantic_projection_attempt_id IS NOT NULL"
+                )
+            )
+        ]
+        assert ENDPOINT_FAMILY_MISMATCH in codes

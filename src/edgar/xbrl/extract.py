@@ -87,6 +87,7 @@ from edgar.xbrl.records import (
     PeriodType,
     ReferencePartRecord,
     RelationshipRecord,
+    ResolvedValueKind,
     RoleDeclarationRecord,
     SemanticIssueRecord,
     SemanticProjectionData,
@@ -147,11 +148,16 @@ INCOHERENT_CONTEXT_PERIOD = "INCOHERENT_CONTEXT_PERIOD"
 INCOHERENT_CONTEXT_ENTITY = "INCOHERENT_CONTEXT_ENTITY"
 UNREPRESENTABLE_CONTEXT_DIMENSION = "UNREPRESENTABLE_CONTEXT_DIMENSION"
 INCOHERENT_UNIT_IDENTITY = "INCOHERENT_UNIT_IDENTITY"
+UNRESOLVED_UNIT_MEASURE = "UNRESOLVED_UNIT_MEASURE"
 UNRESOLVED_FACT_CONCEPT = "UNRESOLVED_FACT_CONCEPT"
 UNRESOLVED_FACT_CONTEXT = "UNRESOLVED_FACT_CONTEXT"
 UNRESOLVED_FACT_UNIT_ROW = "UNRESOLVED_FACT_UNIT_ROW"
 UNDEFINED_FACT_ELEMENT = "UNDEFINED_FACT_ELEMENT"
 RECORD_SET_INVALID = "RECORD_SET_INVALID"
+RELATIONSHIP_SET_LOAD_FAILED = "RELATIONSHIP_SET_LOAD_FAILED"
+ENDPOINT_FAMILY_MISMATCH = "ENDPOINT_FAMILY_MISMATCH"
+MISSING_NETWORK_ROLE = "MISSING_NETWORK_ROLE"
+UNAVAILABLE_ARC_OCCURRENCE = "UNAVAILABLE_ARC_OCCURRENCE"
 
 # --- Incompleteness codes: evidence is kept, completeness is refused. --------
 UNSUPPORTED_TUPLE_FACT = "UNSUPPORTED_TUPLE_FACT"
@@ -164,16 +170,11 @@ UNAVAILABLE_FACT_LEXICAL_VALUE = "UNAVAILABLE_FACT_LEXICAL_VALUE"
 UNSUPPORTED_INLINE_SIGN = "UNSUPPORTED_INLINE_SIGN"
 INVALID_INLINE_SCALE = "INVALID_INLINE_SCALE"
 UNRESOLVED_INLINE_FORMAT = "UNRESOLVED_INLINE_FORMAT"
-UNRESOLVED_UNIT_MEASURE = "UNRESOLVED_UNIT_MEASURE"
-UNPRESERVED_NON_DIMENSIONAL_CONTEXT_CONTENT = "UNPRESERVED_NON_DIMENSIONAL_CONTEXT_CONTENT"
+UNSUPPORTED_NON_DIMENSIONAL_CONTEXT_CONTENT = "UNSUPPORTED_NON_DIMENSIONAL_CONTEXT_CONTENT"
 DUPLICATE_CONCEPT_DECLARATION = "DUPLICATE_CONCEPT_DECLARATION"
 UNSUPPORTED_ARCROLE = "UNSUPPORTED_ARCROLE"
 EXCLUDED_ARCROLE = "EXCLUDED_ARCROLE"
 DEFERRED_ARCROLE = "DEFERRED_ARCROLE"
-RELATIONSHIP_SET_LOAD_FAILED = "RELATIONSHIP_SET_LOAD_FAILED"
-ENDPOINT_FAMILY_MISMATCH = "ENDPOINT_FAMILY_MISMATCH"
-MISSING_NETWORK_ROLE = "MISSING_NETWORK_ROLE"
-UNAVAILABLE_ARC_OCCURRENCE = "UNAVAILABLE_ARC_OCCURRENCE"
 INVALID_ARC_ORDER = "INVALID_ARC_ORDER"
 INVALID_ARC_WEIGHT = "INVALID_ARC_WEIGHT"
 INVALID_ARC_ATTRIBUTE = "INVALID_ARC_ATTRIBUTE"
@@ -181,6 +182,8 @@ UNSUPPORTED_CYCLES_ALLOWED = "UNSUPPORTED_CYCLES_ALLOWED"
 UNSUPPORTED_RESOURCE_CLASS = "UNSUPPORTED_RESOURCE_CLASS"
 UNPRESERVED_REFERENCE_PART = "UNPRESERVED_REFERENCE_PART"
 BLOCKING_ENGINE_DIAGNOSTIC = "BLOCKING_ENGINE_DIAGNOSTIC"
+
+_SUPPORTED_CONCEPT_NETWORKS = frozenset({"presentation", "calculation", "definition"})
 
 
 class UnattributableSourceDocument(ValueError):
@@ -445,22 +448,37 @@ def _exact_numeric(value: Any) -> Decimal | int | None:
     return _finite_decimal(value)
 
 
-def _resolved_text(value: Any) -> tuple[str | None, bool]:
-    """``(text, supported)`` for an Arelle-resolved non-numeric typed value."""
+def _resolved_non_numeric(
+    value: Any, *, type_local_name: str | None = None
+) -> tuple[str | None, str | None, bool]:
+    """``(text, kind, supported)`` for an Arelle-resolved non-numeric typed value.
+
+    Kind is assigned from the runtime type; string content is never inspected to
+    invent a ``qname`` kind (ordinary ``{ns}local`` text stays ``text``).
+
+    Arelle resolves ``dateItemType`` values as midnight ``datetime`` objects;
+    when the concept type is ``dateItemType``, kind is ``date`` (not ``datetime``).
+    """
     if value is None:
-        return None, True
-    if isinstance(value, str):
-        return value, True
+        return None, None, True
     if isinstance(value, bool):
-        return ("true" if value else "false"), True
-    if isinstance(value, datetime | date | time):
-        return value.isoformat(), True
+        return ("true" if value else "false"), "boolean", True
+    if isinstance(value, datetime):
+        if type_local_name == "dateItemType":
+            return value.date().isoformat(), "date", True
+        return value.isoformat(), "datetime", True
+    if isinstance(value, date):
+        return value.isoformat(), "date", True
+    if isinstance(value, time):
+        return value.isoformat(), "time", True
+    if isinstance(value, str):
+        return value, "text", True
     if isinstance(value, Decimal | int):
-        return str(value), True
+        return str(value), "text", True
     clark = _clark(value)
     if clark is not None:
-        return clark, True
-    return None, False
+        return clark, "qname", True
+    return None, None, False
 
 
 # --------------------------------------------------------------------------- #
@@ -693,24 +711,21 @@ def _entity_fields(
     return scheme, value
 
 
-def _non_dimensional_xml(
-    nodes: Sequence[Any], extraction: _Extraction, *, element: str, locator: SourceLocator
-) -> str | None:
-    """Preserved non-dimensional segment/scenario content, or an explicit issue."""
-    fragments: list[str] = []
-    for node in nodes:
-        if not isinstance(getattr(node, "tag", None), str):
-            continue
-        fragment = _serialize_fragment(node)
-        if fragment is None:
-            extraction.incomplete(
-                UNPRESERVED_NON_DIMENSIONAL_CONTEXT_CONTENT,
-                f"non-dimensional {element} content could not be serialized",
-                locator=locator,
-            )
-            return None
-        fragments.append(fragment)
-    return "".join(fragments) or None
+def _mark_non_dimensional_content(
+    nodes: Sequence[Any],
+    extraction: _Extraction,
+    *,
+    element: str,
+    locator: SourceLocator,
+) -> None:
+    """Phase 1B: detect non-dimensional segment/scenario → incomplete (no XML)."""
+    if any(isinstance(getattr(node, "tag", None), str) for node in nodes):
+        extraction.incomplete(
+            UNSUPPORTED_NON_DIMENSIONAL_CONTEXT_CONTENT,
+            f"non-dimensional {element} content is not projected under "
+            "non_dimensional_context_policy=incomplete",
+            locator=locator,
+        )
 
 
 def _context_element_of(
@@ -813,19 +828,19 @@ def _context_projection(model_xbrl: Any, extraction: _Extraction) -> _ContextPro
                 period_instant=instant,
                 period_start=start,
                 period_end=end,
-                non_dimensional_segment_xml=_non_dimensional_xml(
-                    list(getattr(context, "segNonDimValues", None) or ()),
-                    extraction,
-                    element="segment",
-                    locator=locator,
-                ),
-                non_dimensional_scenario_xml=_non_dimensional_xml(
-                    list(getattr(context, "scenNonDimValues", None) or ()),
-                    extraction,
-                    element="scenario",
-                    locator=locator,
-                ),
             )
+        )
+        _mark_non_dimensional_content(
+            list(getattr(context, "segNonDimValues", None) or ()),
+            extraction,
+            element="segment",
+            locator=locator,
+        )
+        _mark_non_dimensional_content(
+            list(getattr(context, "scenNonDimValues", None) or ()),
+            extraction,
+            element="scenario",
+            locator=locator,
         )
         locators[source_context_id] = locator
         # Filed occurrences only: segment/scenario dimension values plus the
@@ -899,7 +914,7 @@ def _measure_rows(
         expanded = [_expanded_qname(measure) for measure in measures]
         resolved = [item for item in expanded if item is not None]
         if len(resolved) != filed_count:
-            extraction.incomplete(
+            extraction.incoherent(
                 UNRESOLVED_UNIT_MEASURE,
                 f"unit {role} has {filed_count} filed measures but {len(resolved)} resolved",
                 locator=unit_locator,
@@ -1076,12 +1091,12 @@ def _fact_value(
     numeric: bool,
     locator: SourceLocator,
     extraction: _Extraction,
-) -> tuple[ValueStatus, Decimal | None, str | None]:
-    """``(value_status, resolved_numeric, resolved_text)`` for a non-nil fact."""
+) -> tuple[ValueStatus, Decimal | None, str | None, str | None]:
+    """``(value_status, resolved_numeric, resolved_text, kind)`` for a non-nil fact."""
     validity = getattr(fact, "xValid", 0)
     resolved = getattr(fact, "xValue", None)
     if validity < _ARELLE_VALID:
-        return ("invalid" if validity == _ARELLE_INVALID else "unresolved"), None, None
+        return ("invalid" if validity == _ARELLE_INVALID else "unresolved"), None, None, None
     if numeric:
         exact = _exact_numeric(resolved)
         if exact is None and resolved is not None:
@@ -1091,17 +1106,22 @@ def _fact_value(
                 "binary floating point is never persisted",
                 locator=locator,
             )
-            return "valid", None, None
-        return "valid", (None if exact is None else Decimal(exact)), None
-    text, supported = _resolved_text(resolved)
+            return "valid", None, None, None
+        if exact is None:
+            return "valid", None, None, None
+        return "valid", Decimal(exact), None, "numeric"
+    type_qname = getattr(getattr(fact, "concept", None), "typeQname", None)
+    type_local = getattr(type_qname, "localName", None) if type_qname is not None else None
+    text, kind, supported = _resolved_non_numeric(resolved, type_local_name=type_local)
+
     if not supported:
         extraction.incomplete(
             UNSUPPORTED_RESOLVED_VALUE,
             f"resolved value type {type(resolved).__name__} is not representable",
             locator=locator,
         )
-        return "valid", None, None
-    return "valid", None, text
+        return "valid", None, None, None
+    return "valid", None, text, kind
 
 
 def _fact_record(
@@ -1177,12 +1197,13 @@ def _fact_record(
         )
 
     is_nil = bool(getattr(fact, "isNil", False))
+    resolved_kind: str | None = None
     if is_nil:
         status: ValueStatus = "nil"
         resolved_numeric: Decimal | None = None
         resolved_text: str | None = None
     else:
-        status, resolved_numeric, resolved_text = _fact_value(
+        status, resolved_numeric, resolved_text, resolved_kind = _fact_value(
             fact, numeric=numeric or is_fraction, locator=locator, extraction=extraction
         )
         if unit_unresolved:
@@ -1199,6 +1220,7 @@ def _fact_record(
         raw_lexical_value=_raw_lexical_value(fact, locator=locator, extraction=extraction),
         resolved_text_value=resolved_text,
         resolved_numeric_value=resolved_numeric,
+        resolved_value_kind=cast(ResolvedValueKind | None, resolved_kind),
         resolved_value_type=(
             _expanded_qname(getattr(concept, "typeQname", None))
             if resolved_numeric is not None or resolved_text is not None
@@ -1398,13 +1420,23 @@ def _concept_relationship_record(
     declared: frozenset[ExpandedQName],
     extraction: _Extraction,
 ) -> RelationshipRecord | None:
-    locator = _arc_locator(relationship, extraction)
+    # Escalate at the concept-network call site: do not share incomplete
+    # UNAVAILABLE_ARC_OCCURRENCE recording with resource relationships.
+    arc_element = getattr(relationship, "arcElement", None)
+    if arc_element is None or not isinstance(getattr(arc_element, "tag", None), str):
+        extraction.incoherent(
+            UNAVAILABLE_ARC_OCCURRENCE,
+            f"{network_type} relationship for arcrole {arcrole_uri!r} has no source arc element",
+            context={"arcrole_uri": arcrole_uri, "link_role_uri": link_role_uri},
+        )
+        return None
+    locator = extraction.locator(arc_element, what="arc")
     if locator is None:
         return None
     source = _concept_endpoint(getattr(relationship, "fromModelObject", None), declared)
     target = _concept_endpoint(getattr(relationship, "toModelObject", None), declared)
     if source is None or target is None:
-        extraction.incomplete(
+        extraction.incoherent(
             ENDPOINT_FAMILY_MISMATCH,
             f"{network_type} relationship endpoints do not both resolve to declared concepts",
             locator=locator,
@@ -1545,15 +1577,18 @@ def _relationship_projection(
         try:
             relationship_set = model_xbrl.relationshipSet(arcrole, linkrole, link_qname, arc_qname)
         except Exception as exc:  # noqa: BLE001 - engine failure is projected evidence
-            extraction.incomplete(
-                RELATIONSHIP_SET_LOAD_FAILED,
+            message = (
                 f"relationship set for arcrole {arcrole_uri} could not be resolved: "
-                f"{type(exc).__name__}: {exc}",
-                context={
-                    "arcrole_uri": arcrole_uri,
-                    "link_role_uri": str(linkrole) if linkrole else None,
-                },
+                f"{type(exc).__name__}: {exc}"
             )
+            context = {
+                "arcrole_uri": arcrole_uri,
+                "link_role_uri": str(linkrole) if linkrole else None,
+            }
+            if family in _SUPPORTED_CONCEPT_NETWORKS:
+                extraction.incoherent(RELATIONSHIP_SET_LOAD_FAILED, message, context=context)
+            else:
+                extraction.incomplete(RELATIONSHIP_SET_LOAD_FAILED, message, context=context)
             continue
         model_relationships = list(getattr(relationship_set, "modelRelationships", None) or ())
         if family == "excluded":
@@ -1587,11 +1622,12 @@ def _relationship_projection(
             )
             effective_arcrole = _optional_str(getattr(relationship, "arcrole", None)) or arcrole_uri
             if link_role_uri is None:
-                extraction.incomplete(
-                    MISSING_NETWORK_ROLE,
-                    f"relationship with arcrole {effective_arcrole} has no extended link role",
-                    context={"arcrole_uri": effective_arcrole},
-                )
+                message = f"relationship with arcrole {effective_arcrole} has no extended link role"
+                context = {"arcrole_uri": effective_arcrole}
+                if family in _SUPPORTED_CONCEPT_NETWORKS:
+                    extraction.incoherent(MISSING_NETWORK_ROLE, message, context=context)
+                else:
+                    extraction.incomplete(MISSING_NETWORK_ROLE, message, context=context)
                 continue
             if family == "resource":
                 _resource_records(

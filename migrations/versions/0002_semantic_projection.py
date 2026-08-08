@@ -335,8 +335,6 @@ def upgrade() -> None:
         sa.Column("instant_date", sa.Date(), nullable=True),
         sa.Column("start_date", sa.Date(), nullable=True),
         sa.Column("end_date", sa.Date(), nullable=True),
-        sa.Column("non_dimensional_segment_xml", sa.Text(), nullable=True),
-        sa.Column("non_dimensional_scenario_xml", sa.Text(), nullable=True),
         sa.Column("source_bundle_uri_binding_id", sa.BigInteger(), nullable=False),
         sa.Column("source_locator_scheme", sa.Text(), nullable=False),
         sa.Column("source_locator_value", postgresql.JSONB(), nullable=False),
@@ -497,6 +495,11 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "value_status IN ('valid', 'nil', 'invalid', 'unresolved')",
             name="ck_xbrl_fact_value_status",
+        ),
+        sa.CheckConstraint(
+            "resolved_value_kind IS NULL OR resolved_value_kind IN "
+            "('numeric', 'text', 'boolean', 'date', 'datetime', 'time', 'qname')",
+            name="ck_xbrl_fact_resolved_value_kind",
         ),
         sa.ForeignKeyConstraint(
             ["concept_declaration_id"],

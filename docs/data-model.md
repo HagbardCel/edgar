@@ -344,7 +344,7 @@ Dimension and explicit-member references are projection-scoped **declarations**.
 
 ### Segment / scenario policy
 
-Non-dimensional `<segment>` / `<scenario>` content is either preserved as canonical / raw semantic content **or** declared unsupported with incomplete projection status—never silently dropped.
+Phase 1B (`arelle-semantic-v1`) selects **incomplete** over preservation: non-dimensional `<segment>` / `<scenario>` content yields `UNSUPPORTED_NON_DIMENSIONAL_CONTEXT_CONTENT` and `status=incomplete`. It is never silently dropped and is not persisted as XML in this PR. A later policy version may introduce `preserve-v1`.
 
 ### `xbrl_unit`
 
@@ -377,10 +377,14 @@ Fact-value fidelity (Arelle is the semantic authority; the adapter projects Arel
 source artifact + locator      mandatory (authoritative filed representation)
 retained lexical value         where adapter exposes/derives it (raw_lexical_value)
 resolved typed value           where Arelle produces it
+resolved_value_kind            adapter-assigned runtime kind:
+                               numeric | text | boolean | date | datetime | time | qname
+                               (nullable when nil / unresolved / unrepresentable;
+                               never rediscovered from string syntax)
 value/validation status        enough to distinguish valid / nil / invalid / unresolved
 ```
 
-`raw_lexical_value` is the adapter's retained lexical / source-level fact value, preserving the distinction from Arelle's resolved typed value. Its exact extraction semantics must be documented and versioned by the projection implementation. Immutable source bytes + locator remain authoritative and are **not** substituted by the lexical column. Numeric resolved values retain exact decimal semantics (Python `Decimal` / PostgreSQL `NUMERIC`).
+`raw_lexical_value` is the adapter's retained lexical / source-level fact value, preserving the distinction from Arelle's resolved typed value. Its exact extraction semantics must be documented and versioned by the projection implementation. Immutable source bytes + locator remain authoritative and are **not** substituted by the lexical column. Numeric resolved values retain exact decimal semantics (Python `Decimal` / PostgreSQL `NUMERIC`). `resolved_value_type` remains the concept/item type QName and is distinct from `resolved_value_kind`.
 
 Also preserve interpretation-relevant filed attributes where applicable: transformation `format` QName, `xml:lang`, scale / sign, decimals / precision, nil, Inline XBRL continuation / escape semantics.
 

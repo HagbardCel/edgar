@@ -522,4 +522,3 @@ def resolve_cataloged_bundle(
     if report is None:
         raise LookupError(f"ordinal-0 xbrl_report_input missing for filing_bundle id={bundle_id}")
     return bundle_id, int(report["id"])
-

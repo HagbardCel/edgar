@@ -179,7 +179,7 @@ def xbrl_project(
         "attempt_id": projection.attempt_id,
         "status": projection.status,
         "reused": projection.reused,
-        "arelle_version": None,
+        "arelle_version": result.projection.arelle_version,
         "concept_count": projection.counts.get("concept_declarations", 0),
         "fact_count": projection.counts.get("facts", 0),
         "context_count": projection.counts.get("contexts", 0),

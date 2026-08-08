@@ -46,6 +46,7 @@ class SemanticProjectionResult:
     status: str
     reused: bool
     counts: dict[str, int]
+    arelle_version: str
 
 
 @dataclass(frozen=True)
@@ -105,21 +106,46 @@ def _issue_kind(issue: SemanticIssueRecord) -> str:
     return "extraction"
 
 
-def _issue_equality_key(issue: SemanticIssueRecord) -> tuple[Any, ...]:
-    locator_key = None if issue.locator is None else issue.locator.sort_key()
-    # Stable structured context only — exclude free-form noise keys if present.
-    stable_context = {
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _stable_issue_context(issue: SemanticIssueRecord) -> dict[str, Any]:
+    return {
         key: value
         for key, value in sorted(issue.context.items())
-        if key
-        not in {
-            "message",
-            "path",
-            "workspace",
-            "tmp",
-        }
+        if key not in {"message", "path", "workspace", "tmp"}
     }
-    return (issue.severity, issue.code, locator_key, tuple(stable_context.items()))
+
+
+def _issue_equality_representation(issue: SemanticIssueRecord) -> dict[str, Any]:
+    return {
+        "severity": issue.severity,
+        "code": issue.code,
+        "locator": None if issue.locator is None else issue.locator.to_dict(),
+        "context": _stable_issue_context(issue),
+    }
+
+
+def _issue_sort_key(issue: SemanticIssueRecord) -> tuple[Any, ...]:
+    locator_key = None if issue.locator is None else issue.locator.sort_key()
+    representation = _issue_equality_representation(issue)
+    return (
+        issue.severity,
+        issue.code,
+        locator_key,
+        _canonical_json(representation["context"]),
+        _canonical_json(representation),
+    )
+
+
+def _sorted_dicts(records: Sequence[Any], primary_key) -> list[dict[str, Any]]:
+    decorated = [
+        (primary_key(record), _canonical_json(record.to_dict()), record.to_dict())
+        for record in records
+    ]
+    decorated.sort(key=lambda item: (item[0], item[1]))
+    return [item[2] for item in decorated]
 
 
 def semantic_projection_equality_state(
@@ -128,23 +154,7 @@ def semantic_projection_equality_state(
     status: str,
     semantic_config: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Normalized comparable projection state (multiplicity-preserving)."""
-
-    def sort_issues(issues: Sequence[SemanticIssueRecord]) -> list[dict[str, Any]]:
-        ordered = sorted(issues, key=_issue_equality_key)
-        return [
-            {
-                "severity": issue.severity,
-                "code": issue.code,
-                "locator": None if issue.locator is None else issue.locator.to_dict(),
-                "context": {
-                    key: value
-                    for key, value in sorted(issue.context.items())
-                    if key not in {"message", "path", "workspace", "tmp"}
-                },
-            }
-            for issue in ordered
-        ]
+    """Normalized comparable projection state (multiplicity-preserving, total order)."""
 
     return {
         "status": status,
@@ -152,18 +162,68 @@ def semantic_projection_equality_state(
         "config_fingerprint": data.config_fingerprint,
         "projection_version": data.projection_version,
         "engine_version": data.engine_version,
-        "concept_declarations": [r.to_dict() for r in data.concept_declarations],
-        "concept_labels": [r.to_dict() for r in data.concept_labels],
-        "concept_references": [r.to_dict() for r in data.concept_references],
-        "role_declarations": [r.to_dict() for r in data.role_declarations],
-        "arcrole_declarations": [r.to_dict() for r in data.arcrole_declarations],
-        "contexts": [r.to_dict() for r in data.contexts],
-        "context_dimensions": [r.to_dict() for r in data.context_dimensions],
-        "units": [r.to_dict() for r in data.units],
-        "unit_measures": [r.to_dict() for r in data.unit_measures],
-        "facts": [r.to_dict() for r in data.facts],
-        "relationships": [r.to_dict() for r in data.relationships],
-        "issues": sort_issues(data.issues),
+        "concept_declarations": _sorted_dicts(
+            data.concept_declarations, lambda r: r.concept.sort_key()
+        ),
+        "concept_labels": _sorted_dicts(
+            data.concept_labels,
+            lambda r: (
+                r.concept.sort_key(),
+                r.link_role_uri,
+                r.arcrole_uri,
+                r.resource_role_uri or "",
+                r.xml_lang or "",
+                r.source_locator.sort_key(),
+                r.arc_locator.sort_key(),
+            ),
+        ),
+        "concept_references": _sorted_dicts(
+            data.concept_references,
+            lambda r: (
+                r.concept.sort_key(),
+                r.link_role_uri,
+                r.arcrole_uri,
+                r.resource_role_uri or "",
+                r.source_locator.sort_key(),
+                r.arc_locator.sort_key(),
+            ),
+        ),
+        "role_declarations": _sorted_dicts(
+            data.role_declarations, lambda r: (r.role_uri, r.source_locator.sort_key())
+        ),
+        "arcrole_declarations": _sorted_dicts(
+            data.arcrole_declarations, lambda r: (r.arcrole_uri, r.source_locator.sort_key())
+        ),
+        "contexts": _sorted_dicts(data.contexts, lambda r: r.source_locator.sort_key()),
+        "context_dimensions": _sorted_dicts(
+            data.context_dimensions,
+            lambda r: (
+                r.context_locator.sort_key(),
+                r.source_locator.sort_key(),
+                r.dimension.sort_key(),
+            ),
+        ),
+        "units": _sorted_dicts(data.units, lambda r: r.source_locator.sort_key()),
+        "unit_measures": _sorted_dicts(
+            data.unit_measures,
+            lambda r: (r.unit_locator.sort_key(), r.measure_role, r.ordinal),
+        ),
+        "facts": _sorted_dicts(data.facts, lambda r: r.source_locator.sort_key()),
+        "relationships": _sorted_dicts(
+            data.relationships,
+            lambda r: (
+                r.network_type,
+                r.link_role_uri,
+                r.arcrole_uri,
+                r.source_concept.sort_key(),
+                r.target_concept.sort_key(),
+                r.source_locator.sort_key(),
+            ),
+        ),
+        "issues": [
+            _issue_equality_representation(issue)
+            for issue in sorted(data.issues, key=_issue_sort_key)
+        ],
     }
 
 
@@ -178,28 +238,18 @@ def _parse_filed_date(value: str | None, *, field: str) -> date | None:
 
 
 def _resolved_value_fields(fact: FactRecord) -> tuple[str | None, str | None, Decimal | None]:
-    """Map FactRecord resolved fields onto DB ``(kind, text, numeric)``.
-
-    ``resolved_value_type`` is the concept item type QName (also on the
-    declaration); it is *not* the typed value and must not be stored as
-    ``resolved_value_kind='qname'``. QName-valued results are already Clark
-    text in ``resolved_text_value`` and use kind ``qname`` when that text is a
-    well-formed Clark name produced as the value (see load path).
-    """
-    if fact.resolved_numeric_value is not None:
-        return "numeric", str(fact.resolved_numeric_value), fact.resolved_numeric_value
-    if fact.resolved_text_value is not None:
-        text = fact.resolved_text_value
-        # Prefix-independent QName typed values use Clark notation.
-        if text.startswith("{") and "}" in text:
-            try:
-                ExpandedQName.from_clark(text)
-            except ValueError:
-                return "text", text, None
-            else:
-                return "qname", text, None
-        return "text", text, None
-    return None, None, None
+    """Persist FactRecord resolved fields as ``(kind, text, numeric)`` verbatim."""
+    kind = fact.resolved_value_kind
+    if kind == "numeric":
+        if fact.resolved_numeric_value is None:
+            raise SemanticProjectionConflict("numeric resolved_value_kind without numeric value")
+        return kind, str(fact.resolved_numeric_value), fact.resolved_numeric_value
+    if kind is None:
+        return None, None, None
+    if fact.resolved_text_value is None and kind != "numeric":
+        # Allow kind without text only when both absent (already handled).
+        return kind, fact.resolved_text_value, None
+    return kind, fact.resolved_text_value, None
 
 
 def record_semantic_projection_failure(
@@ -387,6 +437,7 @@ def catalog_semantic_projection(
             status=loaded_status,
             reused=True,
             counts=projection_data.record_counts(),
+            arelle_version=projection_data.engine_version,
         )
 
     projection_id = _insert_projection_tree(
@@ -420,6 +471,7 @@ def catalog_semantic_projection(
         status=status,
         reused=False,
         counts=projection_data.record_counts(),
+        arelle_version=projection_data.engine_version,
     )
 
 
@@ -609,8 +661,6 @@ def _insert_projection_tree(
                     instant_date=_parse_filed_date(context.period_instant, field="instant"),
                     start_date=_parse_filed_date(context.period_start, field="start"),
                     end_date=_parse_filed_date(context.period_end, field="end"),
-                    non_dimensional_segment_xml=context.non_dimensional_segment_xml,
-                    non_dimensional_scenario_xml=context.non_dimensional_scenario_xml,
                     source_bundle_uri_binding_id=binding_id,
                     source_locator_scheme=context.source_locator.scheme,
                     source_locator_value=_locator_value_json(context.source_locator),
@@ -907,8 +957,6 @@ def load_semantic_projection(
                 else row["instant_date"].isoformat(),
                 period_start=None if row["start_date"] is None else row["start_date"].isoformat(),
                 period_end=None if row["end_date"] is None else row["end_date"].isoformat(),
-                non_dimensional_segment_xml=row["non_dimensional_segment_xml"],
-                non_dimensional_scenario_xml=row["non_dimensional_scenario_xml"],
             )
         )
 
@@ -1006,16 +1054,17 @@ def load_semantic_projection(
             if unit_locator is None:
                 raise SemanticProjectionConflict("fact unit_id not in projection")
         kind = row["resolved_value_kind"]
-        text = row["resolved_value_text"]
+        text_value = row["resolved_value_text"]
         numeric = row["resolved_numeric"]
         resolved_text: str | None = None
         resolved_numeric: Decimal | None = None
-        if kind in {"numeric", "decimal"} or (kind is None and numeric is not None):
+        resolved_kind = kind
+        if kind == "numeric" or (kind is None and numeric is not None):
             resolved_numeric = numeric
-        elif kind in {"text", "qname"} or text is not None:
-            resolved_text = text
+            resolved_kind = "numeric" if numeric is not None else kind
+        elif kind is not None or text_value is not None:
+            resolved_text = text_value
         decl_record = decl_by_id[int(row["concept_declaration_id"])]
-        # Mirror extract: item type QName accompanies any resolved value.
         resolved_type = None
         if resolved_text is not None or resolved_numeric is not None:
             resolved_type = decl_record.data_type
@@ -1035,6 +1084,7 @@ def load_semantic_projection(
                 raw_lexical_value=row["raw_lexical_value"],
                 resolved_text_value=resolved_text,
                 resolved_numeric_value=resolved_numeric,
+                resolved_value_kind=resolved_kind,
                 resolved_value_type=resolved_type,
                 reported_decimals=row["reported_decimals"],
                 reported_precision=row["reported_precision"],
@@ -1203,7 +1253,9 @@ def load_semantic_projection(
         config_fingerprint=str(proj["semantic_config_fingerprint"]),
         engine_name="arelle",
         engine_version=str(proj["arelle_version"]),
-        concept_declarations=tuple(decl_by_id[i] for i in sorted(decl_by_id)),
+        concept_declarations=tuple(
+            sorted(decl_by_id.values(), key=lambda item: item.concept.sort_key())
+        ),
         concept_labels=tuple(labels),
         concept_references=tuple(references),
         role_declarations=tuple(roles),

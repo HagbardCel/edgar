@@ -53,6 +53,7 @@ ContextElement = Literal["segment", "scenario"]
 MemberKind = Literal["explicit", "typed"]
 MeasureRole = Literal["numerator", "denominator"]
 ValueStatus = Literal["valid", "nil", "invalid", "unresolved"]
+ResolvedValueKind = Literal["numeric", "text", "boolean", "date", "datetime", "time", "qname"]
 NetworkType = Literal["presentation", "calculation", "definition"]
 CyclesAllowed = Literal["any", "undirected", "none"]
 DiagnosticSeverity = Literal["info", "warning", "error", "critical"]
@@ -67,6 +68,7 @@ CONTEXT_ELEMENTS: frozenset[str] = frozenset(get_args(ContextElement))
 MEMBER_KINDS: frozenset[str] = frozenset(get_args(MemberKind))
 MEASURE_ROLES: frozenset[str] = frozenset(get_args(MeasureRole))
 VALUE_STATUSES: frozenset[str] = frozenset(get_args(ValueStatus))
+RESOLVED_VALUE_KINDS: frozenset[str] = frozenset(get_args(ResolvedValueKind))
 NETWORK_TYPES: frozenset[str] = frozenset(get_args(NetworkType))
 CYCLES_ALLOWED: frozenset[str] = frozenset(get_args(CyclesAllowed))
 DIAGNOSTIC_SEVERITIES: frozenset[str] = frozenset(get_args(DiagnosticSeverity))
@@ -718,8 +720,6 @@ _CONTEXT_KEYS = frozenset(
         "period_instant",
         "period_start",
         "period_end",
-        "non_dimensional_segment_xml",
-        "non_dimensional_scenario_xml",
         "source_locator",
     }
 )
@@ -731,9 +731,8 @@ class ContextRecord:
 
     Period fields keep the filed lexical representation: XBRL periods may carry
     date or dateTime forms and engine normalization is not substituted for the
-    filed value. Non-dimensional segment/scenario content is preserved as
-    namespace-complete XML rather than dropped; when the projection cannot
-    preserve it, the adapter must raise a semantic issue instead.
+    filed value. Non-dimensional segment/scenario content is detected and marks
+    the projection incomplete under Phase 1B policy; it is not persisted as XML.
     """
 
     source_context_id: str
@@ -744,8 +743,6 @@ class ContextRecord:
     period_instant: str | None = None
     period_start: str | None = None
     period_end: str | None = None
-    non_dimensional_segment_xml: str | None = None
-    non_dimensional_scenario_xml: str | None = None
 
     def __post_init__(self) -> None:
         if not self.source_context_id:
@@ -762,8 +759,6 @@ class ContextRecord:
             "period_instant": self.period_instant,
             "period_start": self.period_start,
             "period_end": self.period_end,
-            "non_dimensional_segment_xml": self.non_dimensional_segment_xml,
-            "non_dimensional_scenario_xml": self.non_dimensional_scenario_xml,
             "source_locator": self.source_locator.to_dict(),
         }
 
@@ -790,12 +785,6 @@ class ContextRecord:
             ),
             period_start=_require_nullable_str(obj["period_start"], label=f"{label}.period_start"),
             period_end=_require_nullable_str(obj["period_end"], label=f"{label}.period_end"),
-            non_dimensional_segment_xml=_require_nullable_str(
-                obj["non_dimensional_segment_xml"], label=f"{label}.non_dimensional_segment_xml"
-            ),
-            non_dimensional_scenario_xml=_require_nullable_str(
-                obj["non_dimensional_scenario_xml"], label=f"{label}.non_dimensional_scenario_xml"
-            ),
         )
 
 
@@ -974,6 +963,7 @@ _FACT_KEYS = frozenset(
         "raw_lexical_value",
         "resolved_text_value",
         "resolved_numeric_value",
+        "resolved_value_kind",
         "resolved_value_type",
         "is_nil",
         "reported_decimals",
@@ -1013,6 +1003,7 @@ class FactRecord:
     raw_lexical_value: str | None = None
     resolved_text_value: str | None = None
     resolved_numeric_value: Decimal | None = None
+    resolved_value_kind: ResolvedValueKind | None = None
     resolved_value_type: ExpandedQName | None = None
     reported_decimals: str | None = None
     reported_precision: str | None = None
@@ -1033,6 +1024,11 @@ class FactRecord:
         ):
             raise ValueError("a nil fact must not carry a resolved value")
         _assert_finite_decimal(self.resolved_numeric_value, label="resolved_numeric_value")
+        if (
+            self.resolved_value_kind is not None
+            and self.resolved_value_kind not in RESOLVED_VALUE_KINDS
+        ):
+            raise ValueError(f"unknown resolved_value_kind: {self.resolved_value_kind!r}")
         if self.sign is not None and self.sign not in INLINE_SIGN_VALUES:
             raise ValueError(f"unsupported sign attribute: {self.sign!r}")
 
@@ -1046,6 +1042,7 @@ class FactRecord:
             "raw_lexical_value": self.raw_lexical_value,
             "resolved_text_value": self.resolved_text_value,
             "resolved_numeric_value": _decimal_to_str(self.resolved_numeric_value),
+            "resolved_value_kind": self.resolved_value_kind,
             "resolved_value_type": _qname_to_dict(self.resolved_value_type),
             "is_nil": self.is_nil,
             "reported_decimals": self.reported_decimals,
@@ -1085,6 +1082,18 @@ class FactRecord:
             ),
             resolved_numeric_value=_require_nullable_decimal(
                 obj["resolved_numeric_value"], label=f"{label}.resolved_numeric_value"
+            ),
+            resolved_value_kind=(
+                None
+                if obj["resolved_value_kind"] is None
+                else cast(
+                    ResolvedValueKind,
+                    _require_literal(
+                        obj["resolved_value_kind"],
+                        RESOLVED_VALUE_KINDS,
+                        label=f"{label}.resolved_value_kind",
+                    ),
+                )
             ),
             resolved_value_type=_require_nullable_qname(
                 obj["resolved_value_type"], label=f"{label}.resolved_value_type"
