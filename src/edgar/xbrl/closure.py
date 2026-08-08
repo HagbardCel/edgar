@@ -25,7 +25,14 @@ from urllib.parse import urlsplit
 from edgar.domain.bundle import UriBinding, XbrlReportInput
 from edgar.domain.identifiers import sanitize_basename
 from edgar.sec.client import ControlledFetcher
-from edgar.storage.objects import ObjectStore
+from edgar.sec.limits import (
+    MaxBundleBytesExceeded,
+    MaxExternalDependencyBytesExceeded,
+    MaxRedirectsExceeded,
+    ResourceLimitExceeded,
+)
+from edgar.sec.ssrf import DestinationForbidden
+from edgar.storage.objects import ObjectStore, SizeLimitExceeded
 from edgar.xbrl.arelle_env import PROXY_ENV_VARS, XML_CATALOG_ENV_VAR
 from edgar.xbrl.uri import normalize_uri, sha256_of_uri
 from edgar.xbrl.worker import WORKER_MODULE, WORKER_PROTOCOL_VERSION
@@ -98,6 +105,7 @@ class ClosureDiscovery:
     network_attempts: tuple[dict[str, Any], ...]
     diagnostics: tuple[str, ...]
     errors: tuple[str, ...]
+    fatal_safeguard: BaseException | None = None
 
 
 @dataclass(frozen=True)
@@ -225,6 +233,7 @@ def run_online_closure(
     fetcher: ControlledFetcher,
     *,
     max_file_bytes: int,
+    max_new_payload_bytes: int,
     user_agent: str | None = None,
     python_executable: str = sys.executable,
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
@@ -234,6 +243,9 @@ def run_online_closure(
     ``accession_uri_map`` maps a canonical document URI to
     ``(content_sha256, logical_path)`` for bytes already captured from the
     accession. Those URIs are answered from the store and never re-fetched.
+
+    ``max_new_payload_bytes`` is the remaining aggregate bundle allowance for
+    newly captured external logical members (closure-local counter only).
     """
     accession = {
         normalize_uri(uri): (digest.lower(), logical_path)
@@ -257,8 +269,18 @@ def run_online_closure(
 
     external: dict[str, ExternalDocument] = {}
     fetch_diagnostics: list[str] = []
+    external_remaining = max_new_payload_bytes
+    fatal_safeguard: BaseException | None = None
+    fetch_blocked = False
 
     def handle_fetch(uri: str) -> dict[str, Any]:
+        nonlocal external_remaining, fatal_safeguard, fetch_blocked
+        if fetch_blocked:
+            return {
+                "type": "fetch_error",
+                "uri": uri,
+                "error": "fetch blocked after prior fatal safeguard",
+            }
         try:
             canonical = normalize_uri(uri)
         except ValueError as exc:
@@ -281,11 +303,53 @@ def run_online_closure(
                 "path": str(store.path_for(already.content_sha256)),
                 "sha256": already.content_sha256,
             }
+        stream_limit = min(max_file_bytes, external_remaining)
+        if stream_limit <= 0:
+            fatal_safeguard = MaxBundleBytesExceeded(
+                f"no remaining payload budget for external {canonical}"
+            )
+            fetch_blocked = True
+            fetch_diagnostics.append(str(fatal_safeguard))
+            return {"type": "fetch_error", "uri": uri, "error": str(fatal_safeguard)}
         try:
-            _fetched, obj = fetcher.fetch_to_store(canonical, store, max_bytes=max_file_bytes)
+            _fetched, obj = fetcher.fetch_to_store(canonical, store, max_bytes=stream_limit)
+        except SizeLimitExceeded as exc:
+            if stream_limit < max_file_bytes:
+                fatal_safeguard = MaxBundleBytesExceeded(str(exc))
+            else:
+                fatal_safeguard = MaxExternalDependencyBytesExceeded(str(exc))
+            fetch_blocked = True
+            fetch_diagnostics.append(f"{type(fatal_safeguard).__name__}: {fatal_safeguard}")
+            return {
+                "type": "fetch_error",
+                "uri": uri,
+                "error": f"{type(fatal_safeguard).__name__}: {fatal_safeguard}",
+            }
+        except MaxRedirectsExceeded as exc:
+            fatal_safeguard = exc
+            fetch_blocked = True
+            fetch_diagnostics.append(f"{type(exc).__name__}: {exc}")
+            return {"type": "fetch_error", "uri": uri, "error": f"{type(exc).__name__}: {exc}"}
+        except DestinationForbidden as exc:
+            fatal_safeguard = exc
+            fetch_blocked = True
+            fetch_diagnostics.append(f"{type(exc).__name__}: {exc}")
+            return {"type": "fetch_error", "uri": uri, "error": f"{type(exc).__name__}: {exc}"}
+        except ResourceLimitExceeded as exc:
+            fatal_safeguard = exc
+            fetch_blocked = True
+            fetch_diagnostics.append(f"{type(exc).__name__}: {exc}")
+            return {"type": "fetch_error", "uri": uri, "error": f"{type(exc).__name__}: {exc}"}
         except Exception as exc:  # noqa: BLE001 - surfaced to the worker and diagnostics
             fetch_diagnostics.append(f"fetch failed for {canonical}: {type(exc).__name__}: {exc}")
             return {"type": "fetch_error", "uri": uri, "error": f"{type(exc).__name__}: {exc}"}
+        if obj.byte_size > external_remaining:
+            fatal_safeguard = MaxBundleBytesExceeded(
+                f"external {canonical} size {obj.byte_size} exceeds remaining {external_remaining}"
+            )
+            fetch_blocked = True
+            return {"type": "fetch_error", "uri": uri, "error": str(fatal_safeguard)}
+        external_remaining -= obj.byte_size
         external[canonical] = ExternalDocument(
             document_uri=canonical,
             artifact_path=external_artifact_path(canonical),
@@ -311,8 +375,6 @@ def run_online_closure(
     resolved = tuple(ResolvedDocument.from_dict(d) for d in result.get("resolved_documents", []))
     diagnostics = [*fetch_diagnostics, *result.get("diagnostics", [])]
 
-    # Bind every document the load consumed, not only the DTS closure: schema
-    # validation resources must also replay from the bundle.
     binding_inputs: dict[str, str] = {d.document_uri: d.content_sha256 for d in resolved}
     for document in loaded:
         binding_inputs.setdefault(document.document_uri, document.content_sha256)
@@ -357,4 +419,5 @@ def run_online_closure(
         network_attempts=tuple(result.get("network_attempts", [])),
         diagnostics=tuple(diagnostics),
         errors=tuple(result.get("errors", [])),
+        fatal_safeguard=fatal_safeguard,
     )

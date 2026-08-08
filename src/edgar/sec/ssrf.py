@@ -72,7 +72,6 @@ def validate_url_syntax(url: str) -> tuple[str, str, int, str]:
             raise DestinationForbidden(f"forbidden destination address: {hostname}")
     default_port = 443 if scheme == "https" else 80
     port = parsed.port or default_port
-    # Rebuild path+query+fragment for request target (fragment unused for fetch).
     path = parsed.path or "/"
     if parsed.query:
         path = f"{path}?{parsed.query}"
@@ -82,12 +81,14 @@ def validate_url_syntax(url: str) -> tuple[str, str, int, str]:
 
 
 def resolve_public_ips(hostname: str, port: int) -> tuple[str, ...]:
+    """Resolve hostname; fail closed if any candidate address is forbidden."""
     try:
         infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
         raise DestinationForbidden(f"DNS resolution failed for {hostname}: {exc}") from exc
     ips: list[str] = []
     seen: set[str] = set()
+    forbidden: list[str] = []
     for info in infos:
         raw_ip = info[4][0]
         ip = str(raw_ip)
@@ -95,8 +96,13 @@ def resolve_public_ips(hostname: str, port: int) -> tuple[str, ...]:
             continue
         seen.add(ip)
         if is_forbidden_ip(ip):
+            forbidden.append(ip)
             continue
         ips.append(ip)
+    if forbidden:
+        raise DestinationForbidden(
+            f"mixed or private DNS for host {hostname}: forbidden={forbidden!r} public={ips!r}"
+        )
     if not ips:
         raise DestinationForbidden(f"no public addresses for host {hostname}")
     return tuple(ips)
@@ -104,7 +110,6 @@ def resolve_public_ips(hostname: str, port: int) -> tuple[str, ...]:
 
 def resolve_destination(url: str) -> ResolvedDestination:
     scheme, hostname, port, _path = validate_url_syntax(url)
-    # If hostname is already an IP literal, it was validated above.
     try:
         ipaddress.ip_address(hostname)
         candidates = (hostname,)
@@ -123,3 +128,27 @@ def resolve_destination(url: str) -> ResolvedDestination:
 
 def join_redirect(current_url: str, location: str) -> str:
     return urljoin(current_url, location)
+
+
+def peer_from_response(response: object) -> str | None:
+    """Best-effort actual peer IP from httpx/httpcore network_stream."""
+    extensions = getattr(response, "extensions", None)
+    if not isinstance(extensions, dict):
+        return None
+    stream = extensions.get("network_stream")
+    if stream is None:
+        return None
+    get_extra = getattr(stream, "get_extra_info", None)
+    if not callable(get_extra):
+        return None
+    server_addr = get_extra("server_addr")
+    if server_addr is None:
+        return None
+    if isinstance(server_addr, tuple) and server_addr:
+        return str(server_addr[0])
+    return str(server_addr)
+
+
+def peers_match(pinned_ip: str, peer_ip: str) -> bool:
+    """Compare pin and observed peer as parsed IP addresses."""
+    return ipaddress.ip_address(pinned_ip) == ipaddress.ip_address(peer_ip)
