@@ -9,8 +9,8 @@ import lxml.etree as etree
 from edgar.domain.bundle import InstanceReportInput, IxdsReportInput, XbrlReportInput
 from edgar.domain.identifiers import accession_archive_base
 from edgar.domain.issues import QualityIssue
+from edgar.domain.uri import normalize_uri
 from edgar.sec.accession import SgmlDocument, SubmittedDocumentRow, classify_source_and_role
-from edgar.xbrl.uri import normalize_uri
 
 XBRLI_NS = "http://www.xbrl.org/2003/instance"
 INLINE_NS_URIS = frozenset(
@@ -109,18 +109,32 @@ def reconcile_primary_row(
     return issues
 
 
-def _doc_type_for(
+def reconcile_ixds_attachment_types(
     filename: str,
     html_rows: list[SubmittedDocumentRow],
     sgml_docs: list[SgmlDocument],
-) -> str | None:
-    for row in html_rows:
-        if row.name == filename and row.document_type:
-            return row.document_type
-    for doc in sgml_docs:
-        if doc.filename == filename and doc.document_type:
-            return doc.document_type
-    return None
+) -> str:
+    """Require exactly one HTML row and one SGML block with agreeing non-empty types."""
+    html_matches = [r for r in html_rows if r.name == filename]
+    sgml_matches = [d for d in sgml_docs if d.filename == filename]
+    if len(html_matches) != 1 or len(sgml_matches) != 1:
+        raise UnsupportedReportInput(
+            f"IXDS attachment {filename!r} requires exactly one HTML row and one SGML block "
+            f"(html={len(html_matches)}, sgml={len(sgml_matches)})"
+        )
+    html_type = (html_matches[0].document_type or "").strip()
+    sgml_type = (sgml_matches[0].document_type or "").strip()
+    if not html_type or not sgml_type:
+        raise UnsupportedReportInput(
+            f"IXDS attachment {filename!r} missing document type "
+            f"(html={html_type!r}, sgml={sgml_type!r})"
+        )
+    if html_type.upper() != sgml_type.upper():
+        raise UnsupportedReportInput(
+            f"IXDS attachment {filename!r} HTML/SGML document types disagree: "
+            f"{html_type!r} vs {sgml_type!r}"
+        )
+    return html_type
 
 
 def build_submitted_attachments(
@@ -145,14 +159,23 @@ def build_submitted_attachments(
         logical = f"accession/{name}"
         if logical not in artifact_bytes:
             continue
-        doc_type = _doc_type_for(name, html_rows, sgml_docs)
         description = None
         for row in html_rows:
             if row.name == name:
                 description = row.description
                 break
+        soft_type: str | None = None
+        for row in html_rows:
+            if row.name == name and row.document_type:
+                soft_type = row.document_type
+                break
+        if soft_type is None:
+            for doc in sgml_docs:
+                if doc.filename == name and doc.document_type:
+                    soft_type = doc.document_type
+                    break
         source_class, role = classify_source_and_role(
-            name, accession=accession, description=description, document_type=doc_type
+            name, accession=accession, description=description, document_type=soft_type
         )
         if role in {"complete_submission", "index_json", "index_html", "index_headers"}:
             continue
@@ -163,7 +186,7 @@ def build_submitted_attachments(
         attachments.append(
             SubmittedAttachment(
                 filename=name,
-                document_type=doc_type,
+                document_type=soft_type,
                 description=description,
                 logical_path=logical,
                 content_sha256=artifact_digests[logical],
@@ -200,6 +223,43 @@ def identify_report_input(
 
     archive = accession_archive_base(cik, accession)
     primary_bytes = artifact_bytes[primary_path]
+
+    if is_inline_xbrl(primary_bytes):
+        attachments = build_submitted_attachments(
+            accession=accession,
+            html_rows=html_rows,
+            sgml_docs=sgml_docs,
+            artifact_bytes=artifact_bytes,
+            artifact_digests=artifact_digests,
+        )
+        inline_docs: list[SubmittedAttachment] = []
+        for attachment in attachments:
+            if not is_inline_xbrl(artifact_bytes[attachment.logical_path]):
+                continue
+            # Strict provenance only for documents that can enter the IXDS set.
+            doc_type = reconcile_ixds_attachment_types(attachment.filename, html_rows, sgml_docs)
+            if doc_type.upper() in EX_FILING_FEES_TYPES:
+                continue
+            inline_docs.append(
+                SubmittedAttachment(
+                    filename=attachment.filename,
+                    document_type=doc_type,
+                    description=attachment.description,
+                    logical_path=attachment.logical_path,
+                    content_sha256=attachment.content_sha256,
+                    source_class=attachment.source_class,
+                    artifact_role=attachment.artifact_role,
+                )
+            )
+        primary_att = next((a for a in inline_docs if a.filename == primary_document), None)
+        if primary_att is None:
+            raise UnsupportedReportInput("primary document not in inline candidate set")
+        remaining = [a for a in inline_docs if a.filename != primary_document]
+        remaining.sort(key=lambda a: a.filename.encode("utf-8"))
+        ordered = [primary_att, *remaining]
+        uris = tuple(normalize_uri(f"{archive}{a.filename}") for a in ordered)
+        return IxdsReportInput(document_uris=uris, target="default"), issues
+
     attachments = build_submitted_attachments(
         accession=accession,
         html_rows=html_rows,
@@ -207,26 +267,6 @@ def identify_report_input(
         artifact_bytes=artifact_bytes,
         artifact_digests=artifact_digests,
     )
-
-    if is_inline_xbrl(primary_bytes):
-        inline_docs = [
-            a
-            for a in attachments
-            if is_inline_xbrl(artifact_bytes[a.logical_path])
-            and (a.document_type or "").upper() not in EX_FILING_FEES_TYPES
-        ]
-        primary_att = next((a for a in inline_docs if a.filename == primary_document), None)
-        if primary_att is None:
-            raise UnsupportedReportInput("primary document not in inline candidate set")
-        # Evidence of independent non-primary instance types is out of Phase-1
-        # form universe; if we later detect conflicting instance families, fail.
-        remaining = [a for a in inline_docs if a.filename != primary_document]
-        remaining.sort(key=lambda a: a.filename.encode("utf-8"))
-        ordered = [primary_att, *remaining]
-        uris = tuple(normalize_uri(f"{archive}{a.filename}") for a in ordered)
-        return IxdsReportInput(document_uris=uris, target="default"), issues
-
-    # Traditional instance path.
     candidates = [
         a
         for a in attachments

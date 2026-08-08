@@ -135,7 +135,91 @@ def test_legacy_ex101_ins_path() -> None:
     assert report.document_uris[0].endswith("/fve.xml")
 
 
-def test_primary_conflict() -> None:
+def test_ex_filing_fees_excluded_from_ixds() -> None:
+    accession = "0001065088-24-000036"
+    html_rows = [
+        SubmittedDocumentRow("1", "10-K", "primary.htm", "10-K", "u"),
+        SubmittedDocumentRow("2", "fees", "fees.htm", "EX-FILING FEES", "u"),
+    ]
+    sgml = [
+        SgmlDocument("1", "primary.htm", "10-K", None, 0),
+        SgmlDocument("2", "fees.htm", "EX-FILING FEES", None, 1),
+    ]
+    artifact_bytes = {
+        "accession/primary.htm": INLINE_HTML,
+        "accession/fees.htm": INLINE_HTML,
+    }
+    digests = {k: "aa" * 32 for k in artifact_bytes}
+    report, _ = identify_report_input(
+        cik="0001065088",
+        accession=accession,
+        form_type="10-K",
+        primary_document="primary.htm",
+        html_rows=html_rows,
+        sgml_docs=sgml,
+        artifact_bytes=artifact_bytes,
+        artifact_digests=digests,
+    )
+    assert report.kind == "ixds"
+    assert len(report.document_uris) == 1
+    assert report.document_uris[0].endswith("/primary.htm")
+
+
+def test_ixds_type_conflict_fails() -> None:
+    accession = "0001065088-24-000036"
+    html_rows = [
+        SubmittedDocumentRow("1", "10-K", "primary.htm", "10-K", "u"),
+        SubmittedDocumentRow("2", "EX", "ex.htm", "EX-99", "u"),
+    ]
+    sgml = [
+        SgmlDocument("1", "primary.htm", "10-K", None, 0),
+        SgmlDocument("2", "ex.htm", "EX-100", None, 1),
+    ]
+    artifact_bytes = {
+        "accession/primary.htm": INLINE_HTML,
+        "accession/ex.htm": INLINE_HTML,
+    }
+    digests = {k: "bb" * 32 for k in artifact_bytes}
+    with pytest.raises(UnsupportedReportInput, match="disagree"):
+        identify_report_input(
+            cik="0001065088",
+            accession=accession,
+            form_type="10-K",
+            primary_document="primary.htm",
+            html_rows=html_rows,
+            sgml_docs=sgml,
+            artifact_bytes=artifact_bytes,
+            artifact_digests=digests,
+        )
+
+
+def test_ixds_missing_type_fails() -> None:
+    accession = "0001065088-24-000036"
+    html_rows = [
+        SubmittedDocumentRow("1", "10-K", "primary.htm", "10-K", "u"),
+        SubmittedDocumentRow("2", "EX", "ex.htm", None, "u"),
+    ]
+    sgml = [
+        SgmlDocument("1", "primary.htm", "10-K", None, 0),
+        SgmlDocument("2", "ex.htm", "EX-99", None, 1),
+    ]
+    artifact_bytes = {
+        "accession/primary.htm": INLINE_HTML,
+        "accession/ex.htm": INLINE_HTML,
+    }
+    digests = {k: "cc" * 32 for k in artifact_bytes}
+    with pytest.raises(UnsupportedReportInput, match="missing document type"):
+        identify_report_input(
+            cik="0001065088",
+            accession=accession,
+            form_type="10-K",
+            primary_document="primary.htm",
+            html_rows=html_rows,
+            sgml_docs=sgml,
+            artifact_bytes=artifact_bytes,
+            artifact_digests=digests,
+        )
+
     accession = "0001065088-24-000036"
     html_rows = [
         SubmittedDocumentRow("1", "10-K", "other.htm", "10-K", "u"),

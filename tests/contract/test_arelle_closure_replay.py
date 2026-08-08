@@ -55,12 +55,34 @@ class FakeFetcher:
     def fetch_to_store(self, url, store, *, max_bytes: int):  # type: ignore[no-untyped-def]
         from datetime import UTC, datetime
 
-        from edgar.sec.client import FetchResult
+        from edgar.sec.client import FetchHop, FetchResult, FetchTrace
 
         canonical = normalize_uri(url)
         self.calls.append(canonical)
         data = self.mapping[canonical]
+        if len(data) > max_bytes:
+            from edgar.storage.objects import SizeLimitExceeded
+
+            raise SizeLimitExceeded(f"exceeded max_bytes={max_bytes}")
         obj = store.put_bytes(data)
+        observed_at = datetime.now(UTC)
+        trace = FetchTrace(
+            requested_uri=url,
+            hops=(
+                FetchHop(
+                    uri=canonical,
+                    resolved_candidates=("1.2.3.4",),
+                    pinned_ip="1.2.3.4",
+                    peer_ip="1.2.3.4",
+                    http_status=200,
+                    error=None,
+                    observed_at=observed_at,
+                ),
+            ),
+            final_uri=canonical,
+            content_sha256=obj.sha256,
+            byte_size=obj.byte_size,
+        )
         result = FetchResult(
             requested_uri=url,
             final_uri=canonical,
@@ -70,8 +92,9 @@ class FakeFetcher:
             sha256=obj.sha256,
             byte_size=obj.byte_size,
             pinned_ip="1.2.3.4",
-            observed_at=datetime.now(UTC),
+            observed_at=observed_at,
             peer_ip="1.2.3.4",
+            trace=trace,
         )
         return result, obj
 
@@ -100,6 +123,7 @@ def test_online_closure_and_offline_replay(tmp_path: Path) -> None:
         store=store,
         fetcher=fetcher,  # type: ignore[arg-type]
         max_file_bytes=1_000_000,
+        max_new_payload_bytes=1_000_000,
     )
     assert discovery.load_completed
     assert discovery.uri_bindings

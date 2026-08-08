@@ -78,6 +78,7 @@ Absolute URI after reference resolution. Relative references resolve against the
 referring document’s canonical base first.
 
 - ASCII hosts only (non-ASCII → unsupported).
+- IPv6-literal hosts are unsupported in Phase 1 (reject under `uri-identity-v1`).
 - Empty query preserved as distinct (`/a` ≠ `/a?`).
 - Order: parse → reject credentials/non-http(s) → lowercase scheme/host →
   default-port elision → uppercase percent hex → decode percent-encoded unreserved
