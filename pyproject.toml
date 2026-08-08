@@ -6,12 +6,15 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = [
+    "alembic>=1.19.0",
     "arelle-release==2.43.1",
     "filelock>=3.13.0",
     "httpx>=0.28.0",
     "lxml>=5.0.0",
+    "psycopg[binary]>=3",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    "sqlalchemy>=2",
     "typer>=0.15.0",
 ]
 
@@ -43,6 +46,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 testpaths = ["tests"]
 markers = [
     "network: live SEC or internet tests (disabled by default)",
+    "database: PostgreSQL integration tests (require EDGAR_DATABASE_URL)",
 ]
 
 [tool.pyright]
