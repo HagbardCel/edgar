@@ -153,6 +153,18 @@ def reconcile_sgml_inventory(
         and e.name.lower() != complete_name.lower()
         and not e.name.lower().endswith(("-index.html", "-index.htm", "index.json"))
     }
+    html_filer_submitted: set[str] = set()
+    for row in html_rows:
+        if not row.name:
+            continue
+        source_class, role = classify_source_and_role(
+            row.name,
+            accession=accession,
+            description=row.description,
+            document_type=row.document_type,
+        )
+        if source_class == "filer_submitted" and role != "complete_submission":
+            html_filer_submitted.add(row.name)
     for name in sorted(sgml_names):
         if name not in directory_names:
             issues.append(
@@ -163,6 +175,15 @@ def reconcile_sgml_inventory(
                     context={"filename": name},
                 )
             )
+    for name in sorted(html_filer_submitted - directory_names):
+        issues.append(
+            QualityIssue(
+                severity="fatal",
+                code="INDEX_FILER_SUBMITTED_MISSING_FROM_DIRECTORY",
+                message=(f"filer-submitted index document {name} missing from accession directory"),
+                context={"filename": name},
+            )
+        )
     for name in sorted(html_submitted - sgml_names):
         issues.append(
             QualityIssue(

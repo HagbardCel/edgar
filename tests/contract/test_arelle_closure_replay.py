@@ -98,6 +98,40 @@ INSTANCE_URI = normalize_uri("https://www.sec.gov/Archives/edgar/data/1/00000000
 INLINE_A_URI = normalize_uri("https://www.sec.gov/Archives/edgar/data/1/0000000001000001/a.htm")
 INLINE_B_URI = normalize_uri("https://www.sec.gov/Archives/edgar/data/1/0000000001000001/b.htm")
 
+# Relative external import must resolve against the parent's canonical HTTP(S) base.
+PARENT_URI = normalize_uri("https://example.com/taxonomy/parent.xsd")
+CHILD_URI = normalize_uri("https://example.com/taxonomy/child.xsd")
+
+CHILD_SCHEMA = b"""<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:test:child"
+           elementFormDefault="qualified">
+  <xs:element name="Assets" type="xs:string"/>
+</xs:schema>
+"""
+
+PARENT_SCHEMA = b"""<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:test:parent"
+           elementFormDefault="qualified">
+  <xs:import namespace="urn:test:child" schemaLocation="child.xsd"/>
+</xs:schema>
+"""
+
+RELATIVE_IMPORT_INSTANCE = b"""<?xml version="1.0"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            xmlns:c="urn:test:child">
+  <link:schemaRef xlink:type="simple" xlink:href="https://example.com/taxonomy/parent.xsd"/>
+  <xbrli:context id="c1">
+    <xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0000000001</xbrli:identifier></xbrli:entity>
+    <xbrli:period><xbrli:instant>2024-12-31</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  <c:Assets contextRef="c1">1</c:Assets>
+</xbrli:xbrl>
+"""
+
 
 class FakeFetcher:
     def __init__(self, mapping: dict[str, bytes]) -> None:
@@ -250,6 +284,61 @@ def test_online_closure_and_offline_replay(tmp_path: Path) -> None:
     )
     replay = validate_offline_replay(bundle, store)
     assert replay.replay_faithful, (replay.errors, replay.unresolved_documents, replay.diagnostics)
+
+
+def test_relative_external_import_preserves_canonical_http_base(tmp_path: Path) -> None:
+    """Relative schemaLocation must resolve against the parent's canonical HTTP(S) URI."""
+    store = ObjectStore(tmp_path)
+    instance_obj = store.put_bytes(RELATIVE_IMPORT_INSTANCE)
+    fetcher = FakeFetcher({PARENT_URI: PARENT_SCHEMA, CHILD_URI: CHILD_SCHEMA})
+    report = InstanceReportInput(document_uris=(INSTANCE_URI,))
+    discovery = run_online_closure(
+        report,
+        accession_uri_map={INSTANCE_URI: (instance_obj.sha256, "accession/a.xml")},
+        store=store,
+        fetcher=fetcher,  # type: ignore[arg-type]
+        max_file_bytes=1_000_000,
+        max_new_payload_bytes=1_000_000,
+    )
+    assert discovery.load_completed
+    assert not discovery.errors
+    assert not discovery.unresolved_documents
+    assert not discovery.network_attempts
+    assert PARENT_URI in fetcher.calls
+    assert CHILD_URI in fetcher.calls
+
+    bound_uris = {b.document_uri for b in discovery.uri_bindings}
+    resolved_uris = {d.document_uri for d in discovery.resolved_documents}
+    assert PARENT_URI in bound_uris
+    assert CHILD_URI in bound_uris
+    assert PARENT_URI in resolved_uris
+    assert CHILD_URI in resolved_uris
+    assert not any(uri.startswith("file:") for uri in bound_uris | resolved_uris)
+
+    bundle = _bundle_from_discovery(
+        store=store,
+        report=report,
+        discovery=discovery,
+        accession_artifacts=[
+            BundleArtifact(
+                logical_path="accession/a.xml",
+                content=ContentObject(sha256=instance_obj.sha256, byte_size=instance_obj.byte_size),
+                artifact_kind="attachment",
+                required=True,
+            ),
+        ],
+        primary="a.xml",
+    )
+    replay = validate_offline_replay(bundle, store)
+    assert replay.closure_equal is True
+    assert replay.replay_faithful is True, (
+        replay.errors,
+        replay.unresolved_documents,
+        replay.diagnostics,
+    )
+    replay_uris = {d.document_uri for d in replay.resolved_documents}
+    assert CHILD_URI in replay_uris
+    assert not any(uri.startswith("file:") for uri in replay_uris)
 
 
 def test_single_doc_ixbrl_default_target(tmp_path: Path) -> None:
