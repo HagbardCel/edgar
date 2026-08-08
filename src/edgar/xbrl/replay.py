@@ -21,7 +21,7 @@ from edgar.xbrl.closure import (
     ResolvedDocument,
     run_worker_process,
 )
-from edgar.xbrl.uri import normalize_uri
+from edgar.xbrl.replay_normalize import normalize_replay_for_bundle
 
 
 @dataclass(frozen=True)
@@ -66,6 +66,7 @@ def validate_offline_replay(
     report_input = bundle.report_inputs[0]
     job = {
         "mode": "offline",
+        "operation": "load",
         "report_input": report_input.to_dict(),
         "object_store_root": str(store.data_root),
         "uri_bindings": [binding.to_dict() for binding in bundle.uri_bindings],
@@ -76,34 +77,15 @@ def validate_offline_replay(
         python_executable=python_executable,
         timeout_seconds=timeout_seconds,
     )
-    result = run.result
-
-    loaded = tuple(LoadedDocument.from_dict(d) for d in result.get("loaded_source_documents", []))
-    resolved = tuple(ResolvedDocument.from_dict(d) for d in result.get("resolved_documents", []))
-    diagnostics = list(result.get("diagnostics", []))
-
-    alias_to_primary: dict[str, str] = {}
-    for binding in bundle.uri_bindings:
-        for alias in binding.replay_aliases:
-            alias_to_primary[normalize_uri(alias)] = binding.document_uri
-    expected = {(binding.document_uri, binding.content_sha256) for binding in bundle.uri_bindings}
-    observed: dict[str, str] = {d.document_uri: d.content_sha256 for d in resolved}
-    for document in loaded:
-        observed.setdefault(document.document_uri, document.content_sha256)
-    actual = {(alias_to_primary.get(uri, uri), digest) for uri, digest in observed.items()}
-    for document_uri, digest in sorted(actual - expected):
-        diagnostics.append(f"loaded document is not a bundle binding: {document_uri} {digest}")
-    for document_uri, digest in sorted(expected - actual):
-        diagnostics.append(f"bound document was not loaded on replay: {document_uri} {digest}")
-
+    view = normalize_replay_for_bundle(run.result, bundle)
     return ReplayValidationResult(
-        load_completed=bool(result.get("load_completed")),
-        network_attempts=tuple(result.get("network_attempts", [])),
-        unresolved_documents=tuple(result.get("unresolved_documents", [])),
-        loaded_source_documents=loaded,
-        resolved_documents=resolved,
-        expected_binding_documents=tuple(sorted(expected)),
-        diagnostics=tuple(diagnostics),
-        errors=tuple(result.get("errors", [])),
-        closure_equal=expected == actual,
+        load_completed=view.load_completed,
+        network_attempts=view.network_attempts,
+        unresolved_documents=view.unresolved_documents,
+        loaded_source_documents=view.loaded_source_documents,
+        resolved_documents=view.resolved_documents,
+        expected_binding_documents=view.expected_binding_documents,
+        diagnostics=view.diagnostics,
+        errors=view.errors,
+        closure_equal=view.closure_equal,
     )
