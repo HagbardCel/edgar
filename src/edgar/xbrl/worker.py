@@ -54,6 +54,7 @@ IXDS_PLUGIN = "inlineXbrlDocumentSet"
 IXDS_ARELLE_DEFAULT_TARGET = "(default)"
 
 WorkerMode = Literal["online", "offline"]
+WorkerOperation = Literal["load", "semantic_projection"]
 
 _DIAGNOSTIC_LEVELS = frozenset({"WARNING", "ERROR", "CRITICAL"})
 
@@ -85,6 +86,7 @@ class WorkerJob:
     bindings: tuple[WorkerBinding, ...] = ()
     workspace_parent: Path | None = None
     user_agent: str | None = None
+    operation: WorkerOperation = "load"
 
     @property
     def offline(self) -> bool:
@@ -98,6 +100,11 @@ class WorkerJob:
         mode = data["mode"]
         if mode not in ("online", "offline"):
             raise ValueError(f"unknown worker mode: {mode!r}")
+        operation = data.get("operation", "load")
+        if operation not in ("load", "semantic_projection"):
+            raise ValueError(f"unknown worker operation: {operation!r}")
+        if operation == "semantic_projection" and mode != "offline":
+            raise ValueError("semantic_projection requires mode=offline")
         bindings = [WorkerBinding.from_dict(b) for b in data.get("uri_bindings") or ()]
         for uri, entry in (data.get("uri_objects") or {}).items():
             bindings.append(
@@ -116,6 +123,7 @@ class WorkerJob:
             bindings=tuple(bindings),
             workspace_parent=Path(parent) if parent else None,
             user_agent=data.get("user_agent"),
+            operation=operation,  # type: ignore[arg-type]
         )
 
 
@@ -127,6 +135,9 @@ class LoadOutcome:
     unresolved_documents: list[str] = field(default_factory=list)
     fetched_documents: dict[str, str] = field(default_factory=dict)
     diagnostics: list[str] = field(default_factory=list)
+    diagnostic_records: list[dict[str, Any]] = field(default_factory=list)
+    semantic_payload: dict[str, Any] | None = None
+    semantic_extraction_errors: list[str] = field(default_factory=list)
     engine_version: str = "unknown"
 
 
@@ -524,6 +535,34 @@ def _run_load(
         ]
         outcome.fetched_documents = dict(resolver.fetched)
         outcome.diagnostics.extend(_log_diagnostics(cntlr))
+        if (
+            job.operation == "semantic_projection"
+            and outcome.load_completed
+            and model_xbrl is not None
+            and getattr(model_xbrl, "modelDocument", None) is not None
+        ):
+            try:
+                from edgar.xbrl.extract import SemanticExtractionError, extract_semantic_projection
+
+                data = extract_semantic_projection(
+                    model_xbrl,
+                    bound_inputs=bound,
+                    primary_uris=frozenset(bound.documents),
+                    engine_version=outcome.engine_version,
+                )
+                outcome.semantic_payload = data.to_dict()
+                outcome.diagnostic_records = [d.to_dict() for d in data.diagnostics]
+            except Exception as exc:  # noqa: BLE001 - structured failure for parent
+                from edgar.xbrl.extract import SemanticExtractionError
+
+                if isinstance(exc, SemanticExtractionError):
+                    outcome.semantic_extraction_errors.append(str(exc))
+                    outcome.semantic_payload = {
+                        "extraction_failed": True,
+                        "issues": [issue.to_dict() for issue in exc.issues],
+                    }
+                else:
+                    outcome.semantic_extraction_errors.append(f"{type(exc).__name__}: {exc}")
     finally:
         if model_xbrl is not None:
             try:
@@ -560,10 +599,11 @@ def run_job(job: WorkerJob, channel: WorkerChannel | None = None) -> dict[str, A
     finally:
         env.cleanup()
 
-    return {
+    result: dict[str, Any] = {
         "type": "result",
         "protocol_version": WORKER_PROTOCOL_VERSION,
         "mode": job.mode,
+        "operation": job.operation,
         "engine_name": "arelle",
         "engine_version": outcome.engine_version,
         "load_completed": outcome.load_completed and not errors,
@@ -573,8 +613,13 @@ def run_job(job: WorkerJob, channel: WorkerChannel | None = None) -> dict[str, A
         "unresolved_documents": outcome.unresolved_documents,
         "fetched_documents": outcome.fetched_documents,
         "diagnostics": [*diagnostics, *outcome.diagnostics],
+        "diagnostic_records": outcome.diagnostic_records,
         "errors": errors,
     }
+    if job.operation == "semantic_projection":
+        result["semantic_payload"] = outcome.semantic_payload
+        result["semantic_extraction_errors"] = outcome.semantic_extraction_errors
+    return result
 
 
 def _reserve_ipc_stdout() -> TextIO:
