@@ -11,6 +11,7 @@ from pathlib import Path
 from filelock import FileLock
 
 from edgar.domain.bundle import FilingBundle, bundles_equivalent
+from edgar.domain.identifiers import validate_uuid4_hex
 from edgar.domain.validation import BundleStructureError, validate_bundle_structure
 from edgar.storage.objects import ObjectStore, write_json_atomic
 
@@ -28,13 +29,11 @@ class PublishResult:
 
 
 def _is_uuid4_hex(name: str) -> bool:
-    if len(name) != 32 or any(c not in "0123456789abcdef" for c in name):
-        return False
     try:
-        value = uuid.UUID(hex=name)
+        validate_uuid4_hex(name)
     except ValueError:
         return False
-    return value.version == 4
+    return True
 
 
 def validate_bundle_integrity(bundle: FilingBundle, store: ObjectStore) -> None:

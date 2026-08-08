@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     max_external_dependency_bytes: int = Field(
         default=524_288_000, alias="MAX_EXTERNAL_DEPENDENCY_BYTES"
     )
+    edgar_database_url: str | None = Field(default=None, alias="EDGAR_DATABASE_URL")
 
     @property
     def sec_min_interval_seconds(self) -> float:
@@ -40,3 +41,12 @@ class Settings(BaseSettings):
                 "SEC_USER_AGENT must identify the requester, e.g. 'Name email@example.com'"
             )
         return self.sec_user_agent
+
+    def require_database_url(self) -> str:
+        url = (self.edgar_database_url or "").strip()
+        if not url:
+            raise ValueError(
+                "EDGAR_DATABASE_URL is required for database operations "
+                "(e.g. postgresql+psycopg://edgar:edgar@localhost:5432/edgar)"
+            )
+        return url

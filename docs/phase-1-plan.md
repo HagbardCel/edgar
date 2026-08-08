@@ -469,23 +469,20 @@ SEC_MAX_CONCURRENCY=2
 
 ## Milestone 3 — Database skeleton and catalog foundation
 
-### Deliverables
+### Deliverables (PR #5)
 
-- SQLAlchemy models aligned with [`docs/data-model.md`](data-model.md)
-- initial Alembic migrations
-- repositories for:
-  - issuers and filings
-  - FilingBundles, content objects, artifacts, URI bindings
-  - projection attempts / quality issues (as needed for catalog)
-  - later: text and XBRL projection tables as those milestones land
-- transactional filing / bundle operations
+- SQLAlchemy Core schema + Alembic for issuer, filing, content_object, filing_bundle,
+  bundle_artifact, bundle_uri_binding, xbrl_report_input (+ members)
+- transactional `catalog_bundle` / `load_bundle` adapter and `CatalogService`
+- no projection-attempt, quality-issue, semantic, or document tables yet
 
 ### Exit criteria
 
-- migrations create the Phase 1 catalog schema needed for acquisition persistence.
-- repeated inserts do not duplicate natural entities.
-- failed operations roll back correctly.
-- raw artifacts are not deleted with parser outputs.
+- migrations create the Phase 1 catalog schema needed to record published FilingBundles
+- repeated cataloging does not duplicate natural entities
+- failed catalog transactions roll back correctly
+- raw artifacts are not deleted with parser outputs
+- `filings retrieve` remains usable without PostgreSQL
 
 ---
 

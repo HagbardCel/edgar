@@ -23,6 +23,7 @@ from edgar.domain.identifiers import (
     validate_accession,
     validate_cik,
     validate_logical_path,
+    validate_uuid4_hex,
 )
 from edgar.domain.issues import QualityIssue, Severity
 
@@ -49,4 +50,5 @@ __all__ = [
     "validate_accession",
     "validate_cik",
     "validate_logical_path",
+    "validate_uuid4_hex",
 ]

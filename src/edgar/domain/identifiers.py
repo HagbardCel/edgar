@@ -3,12 +3,28 @@
 from __future__ import annotations
 
 import re
+import uuid
 from pathlib import Path
 
 ACCESSION_RE = re.compile(r"^\d{10}-\d{2}-\d{6}$")
 CIK_DIGITS_RE = re.compile(r"^\d{1,10}$")
 
 SUPPORTED_FORMS = frozenset({"10-K", "10-K/A", "10-Q", "10-Q/A"})
+
+
+def validate_uuid4_hex(name: str) -> str:
+    """Validate a lowercase UUID4 hex string (no hyphens); return it unchanged."""
+    if not isinstance(name, str):
+        raise ValueError(f"uuid4 hex must be a string, got {type(name).__name__}")
+    if len(name) != 32 or any(c not in "0123456789abcdef" for c in name):
+        raise ValueError(f"uuid4 hex must be 32 lowercase hex chars: {name!r}")
+    try:
+        value = uuid.UUID(hex=name)
+    except ValueError as exc:
+        raise ValueError(f"invalid uuid4 hex: {name!r}") from exc
+    if value.version != 4:
+        raise ValueError(f"uuid must be version 4: {name!r}")
+    return name
 
 
 def validate_cik(cik: str) -> str:

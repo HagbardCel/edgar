@@ -2,14 +2,15 @@
 
 Reproducible, point-in-time-aware platform for SEC company filings.
 
-**Status:** Phase 1A filesystem-first acquisition is implemented (`src/edgar/`).
-PostgreSQL catalog (PR #5) and thin Arelle semantic projection (PR #6) are next.
+**Status:** Phase 1A filesystem acquisition and Phase 1 catalog foundation are
+implemented (`src/edgar/`). Thin Arelle semantic projection (PR #6) is next.
 
 Apache-2.0 covers this project's software and documentation. It does **not** automatically license third-party SEC filing content or taxonomies retrieved from EDGAR.
 
 ## Principles
 
 - Raw SEC artifacts are immutable and content-addressed.
+- PostgreSQL catalogs published FilingBundles; it does not create or validate the durable evidence boundary.
 - Parsed outputs are regenerable from source bundles.
 - XBRL semantic networks are preserved before metric mapping.
 - Offline replay must succeed with network disabled.
@@ -34,11 +35,39 @@ locks/{cik}/{accession}.lock
 
 Use `--json` for machine-readable output and `--data-root PATH` to override storage.
 
-Opt-in live SEC smoke test:
+`filings retrieve` does **not** require PostgreSQL.
+
+## PostgreSQL catalog
+
+```bash
+docker compose up -d
+# Persistent application database (Settings reads .env):
+# EDGAR_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar
+uv run edgar db upgrade
+uv run edgar db check
+uv run edgar filings catalog --bundle-dir var/bundles/<cik>/<accession>/<opaque_id> --json
+```
+
+Compose initializes `edgar` (durable) and, on a **fresh** volume, also creates disposable `edgar_test`.
+If your volume predates that init script:
+
+```bash
+docker compose exec postgres \
+  psql -U edgar -d edgar -c "CREATE DATABASE edgar_test"
+```
+
+## Opt-in tests
 
 ```bash
 uv run pytest -m network tests/contract/test_live_sec_smoke.py
+
+# Disposable test database — tests TRUNCATE and migrate this database.
+# Must be named exactly edgar_test. Not a Settings field; expose to the process:
+# EDGAR_TEST_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar_test
+uv run --env-file .env pytest -m database
 ```
+
+Database integration tests refuse to run unless `EDGAR_TEST_DATABASE_URL` targets a database named exactly `edgar_test`. They destructively reset that database. Merely listing the variable in `.env` is not enough for the test helper unless you use `--env-file` (or export it).
 
 ## Historical Slice 0 spike
 

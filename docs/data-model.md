@@ -2,7 +2,9 @@
 
 **Status:** Authoritative conceptual persistence model for Phase 1 (post–Slice 0).
 
-SQL table names and physical uniqueness constraints may change during implementation. **The distinctions in this document must survive.** Physical schema and migrations begin with later PRs; this document freezes meaning, not Alembic DDL.
+SQL table names and physical uniqueness constraints may change during implementation. **The distinctions in this document must survive.** Physical schema for the FilingBundle catalog begins with PR #5 (`migrations/versions/0001_catalog.py`).
+
+**PR #5 physical notes:** `base_form_type` / amendment flags are not stored columns (derive from `form_type`). Issuer profile attributes (legal name, SIC, FYE) are not on `issuer`. Amendment relationships use a later `filing_relationship` table, not `amends_filing_id`.
 
 Related:
 
