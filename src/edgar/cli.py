@@ -13,19 +13,27 @@ from sqlalchemy import text
 
 from edgar import __version__
 from edgar.config import Settings
+from edgar.db.document import list_document_sections
 from edgar.db.engine import create_db_engine
 from edgar.db.semantic import list_network_relationships
 from edgar.ingestion.acquisition import AcquisitionService
 from edgar.ingestion.catalog import CatalogService
+from edgar.projection.document import (
+    DocumentPreflightError,
+    DocumentProjectionError,
+    DocumentProjectionService,
+)
 from edgar.projection.semantic import SemanticProjectionError, SemanticProjectionService
 
 app = typer.Typer(name="edgar", help="SEC EDGAR filing acquisition and XBRL evidence platform.")
 filings_app = typer.Typer(help="Filing acquisition and catalog workflows.")
 db_app = typer.Typer(help="PostgreSQL catalog database workflows.")
 xbrl_app = typer.Typer(help="XBRL semantic projection workflows.")
+documents_app = typer.Typer(help="Document block and regulatory section workflows.")
 app.add_typer(filings_app, name="filings")
 app.add_typer(db_app, name="db")
 app.add_typer(xbrl_app, name="xbrl")
+app.add_typer(documents_app, name="documents")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
@@ -233,6 +241,84 @@ def xbrl_network(
                 f"  {row['source_concept']['local_name']} -> "
                 f"{row['target_concept']['local_name']} "
                 f"order={row.get('order')} weight={row.get('weight')}"
+            )
+
+
+@documents_app.command("project")
+def documents_project(
+    bundle_dir: Annotated[
+        Path,
+        typer.Option("--bundle-dir", help="Published FilingBundle directory"),
+    ],
+    artifact_path: Annotated[
+        str | None,
+        typer.Option("--artifact-path", help="Bundle-relative HTML artifact (default: primary)"),
+    ] = None,
+    data_root: Annotated[
+        Path | None,
+        typer.Option("--data-root", help="Override EDGAR_DATA_ROOT"),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit machine-readable JSON")] = False,
+) -> None:
+    """Project an HTML filing document into blocks and (for primary) sections."""
+    settings = Settings()
+    if data_root is not None:
+        settings = settings.model_copy(update={"edgar_data_root": data_root})
+    service = DocumentProjectionService(settings)
+    try:
+        result = service.project_published_bundle(bundle_dir, artifact_path=artifact_path)
+    except DocumentPreflightError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
+    except DocumentProjectionError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    projection = result.projection
+    payload = {
+        "accession": result.accession,
+        "bundle_id": result.bundle_id,
+        "filing_document_id": result.filing_document_id,
+        "artifact_path": result.artifact_path,
+        "projection_id": projection.projection_id,
+        "attempt_id": projection.attempt_id,
+        "parser_version": "document-html-v1",
+        "status": projection.status,
+        "reused": projection.reused,
+        "block_count": projection.counts.get("blocks", 0),
+        "section_count": projection.counts.get("sections", 0),
+        "issue_count": projection.counts.get("issues", 0),
+    }
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(
+            f"Document projection {projection.projection_id} "
+            f"({'reused' if projection.reused else 'new'}) "
+            f"status={projection.status} blocks={payload['block_count']} "
+            f"sections={payload['section_count']}"
+        )
+
+
+@documents_app.command("sections")
+def documents_sections(
+    projection_id: Annotated[int, typer.Option("--projection-id", help="document_projection.id")],
+    as_json: Annotated[bool, typer.Option("--json", help="Emit machine-readable JSON")] = False,
+) -> None:
+    """List compact section metadata for a document projection."""
+    settings = Settings()
+    engine = create_db_engine(settings.require_database_url())
+    with engine.connect() as conn:
+        rows = list_document_sections(conn, projection_id)
+    payload = {"projection_id": projection_id, "sections": rows, "count": len(rows)}
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"projection {projection_id} sections={len(rows)}")
+        for row in rows:
+            typer.echo(
+                f"  {row['section_key']} "
+                f"[{row['start_block_ordinal']}, {row['end_block_ordinal_exclusive']}) "
+                f"confidence={row['confidence_score']}"
             )
 
 

@@ -103,7 +103,7 @@ Post–architecture implementation dependency (GitHub PR sequencing):
 1A Filesystem acquisition (PR #4)
  → DB / catalog foundation (PR #5)
  → 1B Thin Arelle semantic projection (PR #6) — implemented
- → 1C Document blocks / sections (PR #7)
+ → 1C Document blocks / sections (PR #7) — implemented
  → 1D Acceptance; retire Slice-0 executable machinery (PR #8)
 ```
 

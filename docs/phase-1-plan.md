@@ -159,7 +159,7 @@ Store separately:
 - projection-attempt start/finish timestamps
 - projection materialization timestamps if retained as metadata, **never** as interpretation identity
 
-Logical `semantic_projection` / `document_projection` identity remains bundle + report input or parse target + versions/config—not wall-clock time. Multiple attempts may revalidate the same projection.
+Logical `semantic_projection` identity remains bundle + report input + versions/config; `document_projection` identity is `filing_document_id` + parser version + config fingerprint (bundle transitive via `filing_document → bundle_artifact`)—not wall-clock time. Multiple attempts may revalidate the same projection.
 
 ### 4.8 Small vertical slices and Phase 1 gates
 
@@ -325,7 +325,7 @@ The provisional sketches formerly in this section (global monolithic `xbrl_conce
 
 - issuer / filing catalog with point-in-time timestamp separation
 - FilingBundle, content objects, bundle artifacts, URI bindings, and multi-document `xbrl_report_input` (IXDS)
-- component-level projection attempts vs `semantic_projection` / `document_projection` (with `document_parse_target`)
+- component-level projection attempts vs `semantic_projection` / `document_projection` (with `filing_document` parse target)
 - concept identity vs concept declaration; declaration-endpoint relationships with required `link_role_uri` and `arcrole_uri`
 - normalized reported context dimensions (no fabricated defaults); fact occurrences with source + locator and value fidelity
 - quality issues scoped to operational vs semantic vs document
@@ -488,13 +488,15 @@ SEC_MAX_CONCURRENCY=2
 
 ## Milestone 4 — Filing-document and semantic-block parsing
 
+**Status:** Implemented (PR #7 / Phase 1C).
+
 ### Deliverables
 
-- bundle-scoped `filing_document` / `document_parse_target` identity
-- `document_projection` keyed by bundle + parse target + parser/config
+- bundle-scoped `filing_document` parse-target identity (`bundle_artifact_id` unique)
+- `document_projection` keyed by `filing_document_id` + parser version + config fingerprint
 - ordered block tree
 - headings, paragraphs, lists, tables, footnotes, signatures
-- source locators (`locator_scheme` + `locator_value`)
+- source locators (`html-xpath-v1` scheme + string xpath value)
 - parser-version / projection records
 - golden tests
 
@@ -509,6 +511,8 @@ SEC_MAX_CONCURRENCY=2
 ---
 
 ## Milestone 5 — Regulatory section extraction
+
+**Status:** Implemented (PR #7 / Phase 1C).
 
 ### Initial vocabulary
 

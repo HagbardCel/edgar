@@ -840,6 +840,6 @@ Post–PR #4 filesystem acquisition:
 2. ~~Filesystem-first durable acquisition + offline Arelle smoke load (PR #4 / Phase 1A).~~
 3. ~~Minimal database / catalog foundation for issuer, filing, and FilingBundle metadata (PR #5).~~
 4. ~~Thin Arelle semantic projection (PR #6 / Phase 1B).~~
-5. Document blocks and regulatory sections (PR #7 / Phase 1C).
+5. ~~Document blocks and regulatory sections (PR #7 / Phase 1C).~~
 6. Diverse acceptance corpus; retire Slice-0 executable machinery while retaining frozen evidence + minimal immutability guard (PR #8 / Phase 1D).
 7. Draft the first 15–20 metric measurement contracts in parallel after Phase 1B evidence exists, but do not wire them into ingestion until Phase 1 acceptance passes.
