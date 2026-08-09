@@ -132,11 +132,6 @@ def _xpath_for(el: etree._Element) -> str:
     return "/" + "/".join(parts) if parts else "/"
 
 
-def _append_text_chunk(chunks: list[str], raw: str | None) -> None:
-    if raw:
-        chunks.append(raw)
-
-
 def _append_break_boundary(chunks: list[str]) -> None:
     chunks.append(" ")
 

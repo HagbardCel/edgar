@@ -127,9 +127,21 @@ MULTI_ITEM_SCORE_CAP = 25
 
 BODY_SELECTION_BASELINE = 30
 SCORE_GAP = 15
+_TOC_ITEM_NEIGHBORHOOD = 30  # existing Item-neighborhood for TOC clusters
+_TOC_HEADING_NEIGHBORHOOD = 15  # Item↔heading proximity; span association is preceding-only
 
 _PART_I_10Q_ORDER: tuple[str, ...] = ("1", "2", "3", "4")
 _NEG_INF = -math.inf
+
+
+@dataclass(frozen=True)
+class _PartResolution:
+    part1_ord: int | None
+    part2_ord: int | None
+    part1_ambiguous: bool
+    part2_ambiguous: bool
+    part1_alt_ordinals: tuple[int, ...]
+    part2_alt_ordinals: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -244,6 +256,25 @@ def _contribution(score: int) -> int | None:
     return score - BODY_SELECTION_BASELINE
 
 
+def _is_near_toc_heading(ordinal: int, toc_heading_ords: set[int] | Sequence[int]) -> bool:
+    """Symmetric Item↔TOC-heading proximity used for TOC Item classification."""
+    return any(abs(ordinal - h) <= _TOC_HEADING_NEIGHBORHOOD for h in toc_heading_ords)
+
+
+def _associated_preceding_toc_heading(
+    cluster_min: int, toc_heading_ords: Sequence[int]
+) -> int | None:
+    """Nearest preceding TOC heading associated with a cluster (within ≤15)."""
+    for h in reversed(toc_heading_ords):
+        if h > cluster_min:
+            continue
+        if cluster_min - h <= _TOC_HEADING_NEIGHBORHOOD:
+            return h
+        # Headings are sorted ascending; once too far before cluster_min, stop.
+        break
+    return None
+
+
 def _is_toc_cluster(
     occurrences: Sequence[_RawOccurrence],
     blocks: Sequence[DocumentBlockRecord],
@@ -269,9 +300,6 @@ def _is_toc_cluster(
             and signal.link_text_chars * 2 >= signal.total_text_chars
         )
 
-    def _near_toc_heading(ordinal: int) -> bool:
-        return any(abs(ordinal - h) <= 15 for h in toc_heading_ords)
-
     def _structurally_strong_body(ordinal: int) -> bool:
         signal = signals.get(ordinal)
         if signal is None or _link_heavy(ordinal):
@@ -282,10 +310,12 @@ def _is_toc_cluster(
     # Allow short filings: fewer than 4 candidates when TOC cue or link-heavy.
     min_window = 2 if toc_heading_ords else 4
     for ord_ in item_ords:
-        window = [o for o in item_ords if abs(o - ord_) <= 30]
-        if len(window) < min_window and not (_near_toc_heading(ord_) or _link_heavy(ord_)):
+        window = [o for o in item_ords if abs(o - ord_) <= _TOC_ITEM_NEIGHBORHOOD]
+        if len(window) < min_window and not (
+            _is_near_toc_heading(ord_, toc_heading_ords) or _link_heavy(ord_)
+        ):
             continue
-        if not (_near_toc_heading(ord_) or _link_heavy(ord_)):
+        if not (_is_near_toc_heading(ord_, toc_heading_ords) or _link_heavy(ord_)):
             continue
         for item_ord in window:
             block = blocks[item_ord] if item_ord < len(blocks) else None
@@ -297,7 +327,7 @@ def _is_toc_cluster(
                 if page_suffix or link_heavy:
                     toc_ordinals.add(item_ord)
                 continue
-            if link_heavy or page_suffix or _near_toc_heading(item_ord):
+            if link_heavy or page_suffix or _is_near_toc_heading(item_ord, toc_heading_ords):
                 toc_ordinals.add(item_ord)
     return toc_ordinals
 
@@ -375,6 +405,49 @@ def _collect_raw_occurrences(
     return parts, items, terminals
 
 
+def _toc_item_clusters(toc_item_ords: set[int]) -> list[list[int]]:
+    """Connected components under the existing ≤30-ordinal Item neighborhood."""
+    if not toc_item_ords:
+        return []
+    ordered = sorted(toc_item_ords)
+    clusters: list[list[int]] = []
+    current = [ordered[0]]
+    for ord_ in ordered[1:]:
+        # Connected if within neighborhood of any member; for sorted ordinals,
+        # adjacency to the prior member of the growing component is sufficient
+        # when the neighborhood is a fixed distance on the line.
+        if ord_ - current[-1] <= _TOC_ITEM_NEIGHBORHOOD:
+            current.append(ord_)
+        else:
+            clusters.append(current)
+            current = [ord_]
+    clusters.append(current)
+    return clusters
+
+
+def _toc_cluster_spans(
+    toc_item_ords: set[int],
+    blocks: Sequence[DocumentBlockRecord],
+) -> list[tuple[int, int]]:
+    """Per-cluster [span_start, span_end] for Part/terminal TOC inheritance.
+
+    A preceding TOC heading extends the span only when associated (≤15 ordinals
+    before the cluster minimum). Distant independently toc_like clusters do not
+    inherit an unrelated early heading.
+    """
+    toc_heading_ords = sorted(
+        b.ordinal for b in blocks if b.text is not None and _TOC_RE.search(b.text)
+    )
+    spans: list[tuple[int, int]] = []
+    for cluster in _toc_item_clusters(toc_item_ords):
+        cluster_min = cluster[0]
+        cluster_max = cluster[-1]
+        heading = _associated_preceding_toc_heading(cluster_min, toc_heading_ords)
+        span_start = heading if heading is not None else cluster_min
+        spans.append((span_start, cluster_max))
+    return spans
+
+
 def _apply_toc_marks(
     parts: Sequence[_RawOccurrence],
     items: Sequence[_RawOccurrence],
@@ -383,27 +456,17 @@ def _apply_toc_marks(
     signals: Mapping[int, SectionSignal],
 ) -> tuple[set[int], list[_RawOccurrence], list[_RawOccurrence], list[_RawOccurrence]]:
     toc_ords = _is_toc_cluster(items, blocks, signals)
-    # Also mark part/terminal ordinals that sit in TOC windows with TOC cues.
+    toc_item_ords = {o.block_ordinal for o in items if o.block_ordinal in toc_ords}
+    spans = _toc_cluster_spans(toc_item_ords, blocks)
+
+    def _in_toc_span(ordinal: int) -> bool:
+        return any(start <= ordinal <= end for start, end in spans)
+
+    # Part/terminal inherit TOC only inside a recognized cluster span.
     for occ in (*parts, *terminals):
         if occ.block_ordinal in toc_ords:
             continue
-        # Part/terminal near TOC with page suffix or link-heavy → toc.
-        signal = signals.get(occ.block_ordinal)
-        block = blocks[occ.block_ordinal] if occ.block_ordinal < len(blocks) else None
-        text = (block.text or "") if block else ""
-        near = any(
-            b.text and _TOC_RE.search(b.text)
-            for b in blocks[
-                max(0, occ.block_ordinal - 15) : min(len(blocks), occ.block_ordinal + 3)
-            ]
-        )
-        link_heavy = False
-        if signal is not None and signal.total_text_chars > 0:
-            link_heavy = (
-                signal.internal_link_count >= 1
-                and signal.link_text_chars * 2 >= signal.total_text_chars
-            )
-        if near and (link_heavy or _PAGE_SUFFIX_RE.search(text)):
+        if _in_toc_span(occ.block_ordinal):
             toc_ords.add(occ.block_ordinal)
 
     def _adjust(seq: Sequence[_RawOccurrence]) -> list[_RawOccurrence]:
@@ -551,7 +614,7 @@ def _global_monotonic_dp(
         opt_state = selected[key]
         opt_ord = opt_state.block_ordinal if opt_state is not None else None
         s_alt: float = _NEG_INF
-        alt_ords: list[int] = []
+        plausible_ords: list[int] = []
         alt_options: list[_Candidate | None] = []
         for opt in options[ki]:
             if opt_state is None and opt is None:
@@ -568,16 +631,18 @@ def _global_monotonic_dp(
             score = _score_path_with_forced(boundary_order, options, ki, forced)
             if score > s_alt:
                 s_alt = score
-            if forced is not None:
-                alt_ords.append(forced.block_ordinal)
+            if forced is not None and s_star - score <= SCORE_GAP:
+                plausible_ords.append(forced.block_ordinal)
 
         if s_alt == _NEG_INF:
             ambiguous[key] = False
         elif s_star - s_alt <= SCORE_GAP:
             ambiguous[key] = True
-            alt_ordinals[key] = sorted(set(alt_ords))
+            # Include the deterministically selected optimum before clearing.
+            ords = set(plausible_ords)
             if opt_ord is not None:
-                alt_ordinals[key] = sorted(set([*alt_ordinals[key], opt_ord]))
+                ords.add(opt_ord)
+            alt_ordinals[key] = sorted(ords)
         else:
             ambiguous[key] = False
 
@@ -641,20 +706,24 @@ def _score_path_with_forced(
 def _resolve_10q_parts(
     parts: Sequence[_RawOccurrence],
     toc_ords: set[int],
-) -> tuple[int | None, int | None, bool]:
-    """Return (part1_ord, part2_ord, part_transition_ambiguous)."""
+) -> _PartResolution:
+    """Resolve body Part I/II with per-key ambiguity and score-plausible alts."""
     part1 = _selectable_part_candidates(parts, toc_ords, 1)
     part2 = _selectable_part_candidates(parts, toc_ords, 2)
     order = ("part_1", "part_2")
     by_key: dict[str, list[_Candidate]] = {"part_1": part1, "part_2": part2}
-    selected, ambiguous, _alts = _global_monotonic_dp(order, by_key)
+    selected, ambiguous, alts = _global_monotonic_dp(order, by_key)
     p1 = selected.get("part_1")
     p2 = selected.get("part_2")
-    transition_ambiguous = ambiguous.get("part_1", False) or ambiguous.get("part_2", False)
-    return (
-        p1.block_ordinal if p1 is not None else None,
-        p2.block_ordinal if p2 is not None else None,
-        transition_ambiguous,
+    p1_amb = ambiguous.get("part_1", False)
+    p2_amb = ambiguous.get("part_2", False)
+    return _PartResolution(
+        part1_ord=p1.block_ordinal if p1 is not None else None,
+        part2_ord=p2.block_ordinal if p2 is not None else None,
+        part1_ambiguous=p1_amb,
+        part2_ambiguous=p2_amb,
+        part1_alt_ordinals=tuple(alts.get("part_1", [])),
+        part2_alt_ordinals=tuple(alts.get("part_2", [])),
     )
 
 
@@ -671,18 +740,23 @@ def _assign_item_parts(
     toc_ords: set[int],
     part1_ord: int | None,
     part2_ord: int | None,
-    part_transition_ambiguous: bool,
-) -> tuple[list[_Candidate], set[int], dict[str, list[int]]]:
-    """Assign Part to Item occurrences. Returns (candidates, unresolved_ords, unresolved_alt)."""
+    *,
+    part1_ambiguous: bool = False,
+    part2_ambiguous: bool = False,
+    part1_alt_ordinals: Sequence[int] = (),
+    part2_alt_ordinals: Sequence[int] = (),
+) -> tuple[list[_Candidate], dict[str, list[int]]]:
+    """Assign Part to Item occurrences. Returns (candidates, unresolved_alts)."""
     boundary_set = set(_boundary_keys(form_type))
     form = _base_form(form_type)
     candidates: list[_Candidate] = []
-    unresolved_ords: set[int] = set()
     unresolved_alts: dict[str, list[int]] = {}
 
-    # Track Part-I monotonic progress for Part-I-only case.
     part_i_last_rank = -1
     part_i_interval_ended = False
+    earliest_plausible_part2: int | None = (
+        min(part2_alt_ordinals) if part2_ambiguous and part2_alt_ordinals else None
+    )
 
     for occ in sorted(items, key=lambda o: o.block_ordinal):
         toc_like = occ.block_ordinal in toc_ords
@@ -693,11 +767,6 @@ def _assign_item_parts(
 
             if form == "10-K":
                 part = _default_part_for_item_10k(item_token)
-                # Refine with body Part headings when present.
-                if part2_ord is not None and occ.block_ordinal >= part2_ord:
-                    # 10-K Part II+ headings can refine; keep defaults unless
-                    # ordinal is clearly after an explicit later Part marker.
-                    pass
                 if part1_ord is not None and part2_ord is not None:
                     if part1_ord <= occ.block_ordinal < part2_ord and item_token in {
                         "1",
@@ -723,52 +792,61 @@ def _assign_item_parts(
                         part = 2
             else:
                 # 10-Q
-                if part_transition_ambiguous:
-                    # Items whose Part depends on the transition are unresolved
-                    # when they could be either side.
-                    if part1_ord is not None and part2_ord is not None:
-                        if part1_ord <= occ.block_ordinal < part2_ord:
-                            part = 1
-                        elif occ.block_ordinal >= part2_ord:
-                            part = 2
-                        else:
-                            part_unresolved = True
-                    else:
-                        part_unresolved = True
-                elif part1_ord is not None and part2_ord is not None:
+                # Unambiguous Part II is authoritative after its ordinal.
+                if part2_ord is not None and not part2_ambiguous:
                     if occ.block_ordinal >= part2_ord:
                         part = 2
-                    elif occ.block_ordinal >= part1_ord:
+                    elif (
+                        part1_ord is not None
+                        and not part1_ambiguous
+                        and occ.block_ordinal >= part1_ord
+                    ):
                         part = 1
                     else:
+                        # Before Part II with missing/ambiguous Part I.
                         part_unresolved = True
-                elif part2_ord is not None and part1_ord is None:
-                    if occ.block_ordinal >= part2_ord:
-                        part = 2
+                elif part1_ord is not None and not part1_ambiguous and part2_ambiguous:
+                    # Resolved Part I + ambiguous Part II: both cutoffs required.
+                    if part_i_interval_ended:
+                        part_unresolved = True
+                    elif (
+                        earliest_plausible_part2 is not None
+                        and occ.block_ordinal >= earliest_plausible_part2
+                    ):
+                        part_i_interval_ended = True
+                        part_unresolved = True
+                    elif occ.block_ordinal < part1_ord:
+                        part_unresolved = True
                     else:
-                        part_unresolved = True
-                elif part1_ord is not None and part2_ord is None:
+                        rank = _part_i_token_rank(item_token)
+                        if rank is None or rank < part_i_last_rank:
+                            part_i_interval_ended = True
+                            part_unresolved = True
+                        else:
+                            part = 1
+                            part_i_last_rank = rank
+                elif (
+                    part1_ord is not None
+                    and not part1_ambiguous
+                    and not part2_ambiguous
+                    and part2_ord is None
+                ):
+                    # Resolved Part I + no Part-II evidence: monotonic cutoff only.
                     if occ.block_ordinal < part1_ord or part_i_interval_ended:
                         part_unresolved = True
                     else:
                         rank = _part_i_token_rank(item_token)
-                        if rank is None:
-                            # Requires Part-II interpretation (e.g. 1a after part I).
-                            part_i_interval_ended = True
-                            part_unresolved = True
-                        elif rank < part_i_last_rank:
-                            # Reset/decrease ends trusted Part-I interval.
+                        if rank is None or rank < part_i_last_rank:
                             part_i_interval_ended = True
                             part_unresolved = True
                         else:
                             part = 1
                             part_i_last_rank = rank
                 else:
-                    # No reliable Part evidence — do not silently default to Part I.
+                    # No reliable Part evidence, or only ambiguous Parts.
                     part_unresolved = True
 
             if part_unresolved:
-                unresolved_ords.add(occ.block_ordinal)
                 for alt_part in (1, 2):
                     key = f"part_{alt_part}.item_{item_token}"
                     if key in boundary_set:
@@ -789,7 +867,7 @@ def _assign_item_parts(
                 )
             )
 
-    return candidates, unresolved_ords, unresolved_alts
+    return candidates, unresolved_alts
 
 
 def _resolve_terminal(
@@ -891,9 +969,18 @@ def extract_filing_sections(
 
     part1_ord: int | None = None
     part2_ord: int | None = None
-    part_transition_ambiguous = False
+    part1_ambiguous = False
+    part2_ambiguous = False
+    part1_alt_ordinals: tuple[int, ...] = ()
+    part2_alt_ordinals: tuple[int, ...] = ()
     if _base_form(form) == "10-Q":
-        part1_ord, part2_ord, part_transition_ambiguous = _resolve_10q_parts(parts, toc_ords)
+        part_res = _resolve_10q_parts(parts, toc_ords)
+        part1_ord = part_res.part1_ord
+        part2_ord = part_res.part2_ord
+        part1_ambiguous = part_res.part1_ambiguous
+        part2_ambiguous = part_res.part2_ambiguous
+        part1_alt_ordinals = part_res.part1_alt_ordinals
+        part2_alt_ordinals = part_res.part2_alt_ordinals
     else:
         # 10-K: optional Part markers refine defaults; collect non-TOC part ords.
         body_parts = [p for p in parts if p.block_ordinal not in toc_ords]
@@ -903,13 +990,16 @@ def extract_filing_sections(
             if p.part_num == 2 and part2_ord is None and _contribution(p.score) is not None:
                 part2_ord = p.block_ordinal
 
-    item_candidates, part_unresolved_ords, part_unresolved_alts = _assign_item_parts(
+    item_candidates, part_unresolved_alts = _assign_item_parts(
         form,
         items,
         toc_ords,
         part1_ord,
         part2_ord,
-        part_transition_ambiguous,
+        part1_ambiguous=part1_ambiguous,
+        part2_ambiguous=part2_ambiguous,
+        part1_alt_ordinals=part1_alt_ordinals,
+        part2_alt_ordinals=part2_alt_ordinals,
     )
 
     # Keep TOC candidates for issue routing, but hard-exclude from DP.
@@ -918,19 +1008,19 @@ def extract_filing_sections(
     for occ in items:
         if occ.block_ordinal not in toc_ords:
             continue
-            for token in occ.item_tokens:
-                # Best-effort key for TOC-only messaging (form defaults for 10-K).
-                part = _default_part_for_item_10k(token) if _base_form(form) == "10-K" else 1
-                key = f"part_{part}.item_{token}"
-                toc_only_by_key.setdefault(key, []).append(
-                    _Candidate(
-                        boundary_key=key,
-                        block_ordinal=occ.block_ordinal,
-                        score=occ.score,
-                        toc_like=True,
-                        item_token=token,
-                    )
+        for token in occ.item_tokens:
+            # Best-effort key for TOC-only messaging (form defaults for 10-K).
+            part = _default_part_for_item_10k(token) if _base_form(form) == "10-K" else 1
+            key = f"part_{part}.item_{token}"
+            toc_only_by_key.setdefault(key, []).append(
+                _Candidate(
+                    boundary_key=key,
+                    block_ordinal=occ.block_ordinal,
+                    score=occ.score,
+                    toc_like=True,
+                    item_token=token,
                 )
+            )
 
     collapsed_keys, collapsed_boundary_ordinals = _detect_same_ordinal_collapse(body_candidates)
 

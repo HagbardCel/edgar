@@ -343,3 +343,96 @@ ADVERSARIAL_GLOBAL_HTML = b"""<!DOCTYPE html>
 <h2>SIGNATURES</h2>
 </body></html>
 """
+
+TOC_ONLY_HTML = b"""<!DOCTYPE html>
+<html><body>
+<div>Table of Contents</div>
+<div><a href="#i1">Item 1. Business</a> 3</div>
+<div><a href="#i1a">Item 1A. Risk Factors</a> 8</div>
+<div><a href="#i7">Item 7. MD&amp;A</a> 40</div>
+<p>No body Item headings in this amendment excerpt.</p>
+</body></html>
+"""
+
+TOC_PART_II_NOT_BODY_HTML = b"""<!DOCTYPE html>
+<html><body>
+<div>Table of Contents</div>
+<div>PART II</div>
+<div><a href="#p2i1">Item 1. Legal Proceedings</a> 30</div>
+<div><a href="#p1i1">Item 1. Financial Statements</a> 5</div>
+
+<h1>PART I</h1>
+<h2 id="p1i1">Item 1. Financial Statements</h2>
+<p>Condensed financial statements.</p>
+<h2>Item 2. Management's Discussion and Analysis</h2>
+<p>Quarterly MD&amp;A.</p>
+<h2>Item 3. Market Risk</h2>
+<p>Risk.</p>
+<h2>Item 4. Controls and Procedures</h2>
+<p>Controls.</p>
+
+<h1>PART II</h1>
+<h2 id="p2i1">Item 1. Legal Proceedings</h2>
+<p>Legal matters.</p>
+<h2>Item 1A. Risk Factors</h2>
+<p>Updated risks.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+# Early TOC + body Parts, then a distant independently link-heavy Item that must
+# not inherit the ancient TOC heading as a span (would swallow body Parts).
+# Padding paragraphs keep the distant Item >30 from early TOC Items and >15 from
+# the TOC heading; no second TOC heading near the distant Item; body Part/Item
+# headings have no link/page-suffix TOC cues.
+DISTANT_LINK_HEAVY_TOC_CLUSTER_HTML = b"""<!DOCTYPE html>
+<html><body>
+<div>Table of Contents</div>
+<div><a href="#early1">Item 1. Financial Statements</a> 3</div>
+<div><a href="#early2">Item 2. MD&amp;A</a> 8</div>
+
+<h1>PART I</h1>
+<h2>Item 1. Financial Statements</h2>
+<p>Condensed financial statements.</p>
+<h2>Item 2. Management's Discussion and Analysis</h2>
+<p>Quarterly MD&amp;A.</p>
+<h2>Item 3. Market Risk</h2>
+<p>Risk.</p>
+<h2>Item 4. Controls and Procedures</h2>
+<p>Controls.</p>
+
+<h1>PART II</h1>
+<h2>Item 1. Legal Proceedings</h2>
+<p>Legal matters.</p>
+<h2>Item 1A. Risk Factors</h2>
+<p>Updated risks.</p>
+
+<p>Pad 01.</p><p>Pad 02.</p><p>Pad 03.</p><p>Pad 04.</p><p>Pad 05.</p>
+<p>Pad 06.</p><p>Pad 07.</p><p>Pad 08.</p><p>Pad 09.</p><p>Pad 10.</p>
+<p>Pad 11.</p><p>Pad 12.</p><p>Pad 13.</p><p>Pad 14.</p><p>Pad 15.</p>
+<p>Pad 16.</p><p>Pad 17.</p><p>Pad 18.</p><p>Pad 19.</p><p>Pad 20.</p>
+<p>Pad 21.</p><p>Pad 22.</p><p>Pad 23.</p><p>Pad 24.</p><p>Pad 25.</p>
+<p>Pad 26.</p><p>Pad 27.</p><p>Pad 28.</p><p>Pad 29.</p><p>Pad 30.</p>
+<p>Pad 31.</p><p>Pad 32.</p><p>Pad 33.</p><p>Pad 34.</p><p>Pad 35.</p>
+<p>Pad 36.</p><p>Pad 37.</p><p>Pad 38.</p><p>Pad 39.</p><p>Pad 40.</p>
+
+<div><a href="#x">Item 7. Management Discussion</a></div>
+
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+RESOLVED_PART_II_DESPITE_AMB_PART_I_HTML = b"""<!DOCTYPE html>
+<html><body>
+<div>PART I</div>
+<div><b>PART I Financial Information</b></div>
+<h2>Item 1. Financial Statements</h2>
+<p>Before the clear Part II marker.</p>
+<h1>PART II</h1>
+<h2>Item 1. Legal Proceedings</h2>
+<p>Legal after unambiguous Part II.</p>
+<h2>Item 1A. Risk Factors</h2>
+<p>Risks.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
