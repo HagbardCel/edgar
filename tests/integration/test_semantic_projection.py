@@ -24,42 +24,10 @@ from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.config import build_semantic_config, semantic_config_fingerprint
 from edgar.xbrl.records import SemanticIssueRecord
-from tests.helpers.database import alembic_config, test_database_url
+from tests.helpers.database import alembic_config, test_database_url, truncate_all_tables
 from tests.helpers.xbrl_bundles import make_minimal_semantic_bundle
 
 pytestmark = pytest.mark.database
-
-TABLE_NAMES = (
-    "filing_section",
-    "document_block",
-    "document_issue",
-    "document_projection_attempt",
-    "document_projection",
-    "filing_document",
-    "xbrl_relationship",
-    "xbrl_fact",
-    "xbrl_unit_measure",
-    "xbrl_unit",
-    "xbrl_context_dimension",
-    "xbrl_context",
-    "concept_reference",
-    "concept_label",
-    "concept_declaration",
-    "concept_identity",
-    "role_declaration",
-    "arcrole_declaration",
-    "semantic_issue",
-    "semantic_projection_attempt",
-    "semantic_projection",
-    "xbrl_report_input_member",
-    "xbrl_report_input",
-    "bundle_uri_binding",
-    "bundle_artifact",
-    "filing_bundle",
-    "content_object",
-    "filing",
-    "issuer",
-)
 
 
 @pytest.fixture(scope="module")
@@ -74,7 +42,7 @@ def engine() -> Iterator[Engine]:
 @pytest.fixture(autouse=True)
 def truncate_all(engine: Engine) -> Iterator[None]:
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE " + ", ".join(TABLE_NAMES) + " RESTART IDENTITY CASCADE"))
+        truncate_all_tables(conn)
     yield
 
 

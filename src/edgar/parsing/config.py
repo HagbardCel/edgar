@@ -11,10 +11,10 @@ import lxml.etree as etree
 
 DOCUMENT_CONFIG_SCHEMA = "document-config-v1"
 
-DOCUMENT_PROJECTION_VERSION = "document-html-v1"
-BLOCK_EXTRACTOR_VERSION = "block-extractor-v1"
+DOCUMENT_PROJECTION_VERSION = "document-html-v2"
+BLOCK_EXTRACTOR_VERSION = "block-extractor-v2"
 NORMALIZATION_VERSION = "whitespace-v1"
-SECTION_EXTRACTOR_VERSION = "sec-item-sequence-v1"
+SECTION_EXTRACTOR_VERSION = "sec-item-sequence-v2"
 SOURCE_LOCATOR_VERSION = "html-xpath-v1"
 TABLE_TEXT_VERSION = "row-cell-v1"
 TABLE_LAYOUT_VERSION = "table-layout-v1"

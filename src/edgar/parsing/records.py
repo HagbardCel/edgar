@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -161,16 +160,6 @@ class DocumentParseError(RuntimeError):
         self.issues = tuple(issues)
 
 
-def _canonical_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    )
-
-
 def stable_issue_context(issue: DocumentIssueRecord) -> dict[str, Any]:
     return {
         key: value
@@ -203,5 +192,4 @@ def document_projection_equality_state(
         "blocks": [block.to_dict() for block in data.blocks],
         "sections": [section.to_dict() for section in data.sections],
         "issues": issues,
-        "issue_canonical": [_canonical_json(item) for item in issues],
     }

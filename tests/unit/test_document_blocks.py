@@ -5,8 +5,12 @@ from __future__ import annotations
 from edgar.parsing.html import normalize_whitespace, parse_html_document, resolve_xpath
 from edgar.parsing.records import DocumentParseError
 from tests.helpers.document_fixtures import (
+    BR_WBR_HTML,
+    HEADER_IX_SAME_DOC_HTML,
     LAYOUT_TABLE_ITEMS_HTML,
     MIXED_CONTENT_HTML,
+    NESTED_BLOCK_IN_INLINE_HTML,
+    NESTED_LIST_HTML,
     RICH_10K_HTML,
 )
 
@@ -29,6 +33,33 @@ def test_script_style_and_hidden_excluded() -> None:
     assert not any(t and "Hidden" in t for t in texts)
 
 
+def test_html_header_visible_ix_header_hidden_same_doc() -> None:
+    parsed = parse_html_document(HEADER_IX_SAME_DOC_HTML)
+    joined = " ".join(b.text for b in parsed.blocks if b.text)
+    assert "VISIBLE" in joined
+    assert "HIDDEN" not in joined
+    assert "Body text." in joined
+
+
+def test_br_inserts_whitespace_wbr_does_not() -> None:
+    parsed = parse_html_document(BR_WBR_HTML)
+    texts = [b.text for b in parsed.blocks if b.text]
+    assert "Revenue increased" in texts
+    assert "longidentifier" in texts
+    assert "long identifier" not in texts
+
+
+def test_nested_block_inside_inline_preserves_text() -> None:
+    parsed = parse_html_document(NESTED_BLOCK_IN_INLINE_HTML)
+    texts = [b.text for b in parsed.blocks if b.text]
+    joined = " ".join(texts)
+    assert "A" in joined
+    assert "X" in joined
+    assert "B" in joined
+    assert "Y" in joined
+    assert "C" in joined
+
+
 def test_mixed_content_before_and_after_child() -> None:
     parsed = parse_html_document(MIXED_CONTENT_HTML)
     texts = [b.text for b in parsed.blocks if b.text]
@@ -47,6 +78,18 @@ def test_list_parent_has_null_text_no_duplication() -> None:
     assert [i.text for i in items] == ["Apple", "Banana", "Cherry"]
     joined = " ".join(b.text for b in parsed.blocks if b.text)
     assert joined.count("Apple") == 1
+
+
+def test_nested_list_parent_excludes_nested_item_text() -> None:
+    parsed = parse_html_document(NESTED_LIST_HTML)
+    items = [b for b in parsed.blocks if b.kind == "list_item"]
+    parent = items[0]
+    assert any(b.text == "Nested item" for b in items)
+    assert parent.text is not None
+    assert "Nested item" not in parent.text
+    assert "Parent item" in parent.text
+    joined = " ".join(b.text for b in parsed.blocks if b.text)
+    assert joined.count("Nested item") == 1
 
 
 def test_layout_table_preserves_item_boundaries() -> None:

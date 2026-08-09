@@ -18,6 +18,7 @@ from edgar.db.engine import create_db_engine
 from edgar.db.semantic import list_network_relationships
 from edgar.ingestion.acquisition import AcquisitionService
 from edgar.ingestion.catalog import CatalogService
+from edgar.parsing.config import DOCUMENT_PROJECTION_VERSION
 from edgar.projection.document import (
     DocumentPreflightError,
     DocumentProjectionError,
@@ -281,7 +282,7 @@ def documents_project(
         "artifact_path": result.artifact_path,
         "projection_id": projection.projection_id,
         "attempt_id": projection.attempt_id,
-        "parser_version": "document-html-v1",
+        "parser_version": DOCUMENT_PROJECTION_VERSION,
         "status": projection.status,
         "reused": projection.reused,
         "block_count": projection.counts.get("blocks", 0),

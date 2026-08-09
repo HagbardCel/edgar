@@ -20,28 +20,9 @@ from edgar.parsing.records import (
 
 _SKIP_TAGS = frozenset({"script", "style", "noscript"})
 _IX_HIDDEN_LOCAL = frozenset({"hidden", "header"})
+_IX_NAMESPACE_MARKERS = ("inlinexbrl",)
 _BLOCK_TAGS = frozenset({"p", "pre", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "table"})
 _HEADING_TAGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
-_INLINE_TAGS = frozenset(
-    {
-        "span",
-        "b",
-        "strong",
-        "i",
-        "em",
-        "u",
-        "a",
-        "font",
-        "sup",
-        "sub",
-        "br",
-        "wbr",
-        "nonfraction",
-        "nonnumeric",
-        "continuation",
-        "exclude",
-    }
-)
 _NBSP_RE = re.compile(r"[\u00a0\u2007\u202f]")
 _WS_RE = re.compile(r"[\t\r\n\f ]+")
 _SIGNATURE_MARKUP_RE = re.compile(r"(?i)^\s*/\s*s\s*/")
@@ -64,12 +45,43 @@ def _local_name(tag: Any) -> str:
     return tag.lower()
 
 
-def _is_ix_hidden(el: etree._Element) -> bool:
-    return _local_name(el.tag) in _IX_HIDDEN_LOCAL and (
-        "inlinexbrl" in (el.tag if isinstance(el.tag, str) else "").lower()
-        or str(el.nsmap.get("ix") or "").lower().find("inlinexbrl") >= 0
-        or any("inlinexbrl" in (uri or "").lower() for uri in (el.nsmap or {}).values())
-    )
+def _expanded_namespace_uri(tag: Any) -> str | None:
+    """Return the element's own Clark-notation namespace URI, if present."""
+    if not isinstance(tag, str):
+        return None
+    if tag.startswith("{") and "}" in tag:
+        return tag[1:].split("}", 1)[0]
+    return None
+
+
+def _is_inline_xbrl_namespace(uri: str | None) -> bool:
+    if not uri:
+        return False
+    lowered = uri.lower()
+    return any(marker in lowered for marker in _IX_NAMESPACE_MARKERS)
+
+
+def _is_ix_qualified_hidden(el: etree._Element) -> bool:
+    """True only when *this* element is IX-qualified hidden/header.
+
+    Qualification uses the element's own lexical tag or expanded QName namespace.
+    In-scope nsmap declarations alone do not qualify ordinary HTML elements.
+    """
+    local = _local_name(el.tag)
+    if local not in _IX_HIDDEN_LOCAL:
+        return False
+    tag = el.tag if isinstance(el.tag, str) else ""
+    # Lexical ix:header / ix:hidden (HTML parser may keep the prefix).
+    if tag.lower().startswith("ix:") and local in _IX_HIDDEN_LOCAL:
+        return True
+    if el.prefix == "ix" and local in _IX_HIDDEN_LOCAL:
+        return True
+    # Own expanded QName namespace is Inline XBRL.
+    if _is_inline_xbrl_namespace(_expanded_namespace_uri(tag)):
+        return True
+    # Bare <hidden> is not HTML5; treat as ix:hidden equivalent.
+    # Bare <header> is ordinary HTML5 and must remain visible.
+    return local == "hidden" and "{" not in tag and ":" not in tag
 
 
 def _style_hides(style: str | None) -> bool:
@@ -95,22 +107,7 @@ def _is_hidden(el: etree._Element) -> bool:
         return True
     if _style_hides(el.get("style")):
         return True
-    local = _local_name(el.tag)
-    # Inline XBRL hidden/header containers (HTML parser may drop namespace URIs).
-    if local in _IX_HIDDEN_LOCAL:
-        tag = el.tag if isinstance(el.tag, str) else ""
-        if local in {"hidden", "header"} and (
-            "ix:" in tag.lower()
-            or "inlinexbrl" in tag.lower()
-            or any("inlinexbrl" in (uri or "").lower() for uri in (el.nsmap or {}).values())
-            or el.prefix == "ix"
-            # Bare <hidden>/<header> is not HTML; treat as ix-hidden equivalent.
-            or "{" not in tag
-            and ":" not in tag
-            and local in _IX_HIDDEN_LOCAL
-        ):
-            return True
-    return False
+    return _is_ix_qualified_hidden(el)
 
 
 def _xpath_for(el: etree._Element) -> str:
@@ -135,6 +132,15 @@ def _xpath_for(el: etree._Element) -> str:
     return "/" + "/".join(parts) if parts else "/"
 
 
+def _append_text_chunk(chunks: list[str], raw: str | None) -> None:
+    if raw:
+        chunks.append(raw)
+
+
+def _append_break_boundary(chunks: list[str]) -> None:
+    chunks.append(" ")
+
+
 def _element_text_content(el: etree._Element) -> str:
     chunks: list[str] = []
 
@@ -145,89 +151,23 @@ def _element_text_content(el: etree._Element) -> str:
             chunks.append(node.text)
         for child in node:
             if isinstance(child.tag, str):
-                walk(child)
+                local = _local_name(child.tag)
+                if local == "br":
+                    _append_break_boundary(chunks)
+                    # lxml may attach following text as child text of void-ish tags.
+                    if child.text:
+                        chunks.append(child.text)
+                elif local == "wbr":
+                    # Word-break opportunity: no whitespace; keep any attached text.
+                    if child.text:
+                        chunks.append(child.text)
+                else:
+                    walk(child)
             if child.tail:
                 chunks.append(child.tail)
 
     walk(el)
     return normalize_whitespace("".join(chunks))
-
-
-def _direct_text_segments(el: etree._Element) -> list[tuple[str, str]]:
-    """Uncovered text occurrences in document order relative to element children.
-
-    Returns list of (normalized_text, owner_xpath) for segments not owned by
-    descendant block-level children.
-    """
-    segments: list[tuple[str, str]] = []
-    xpath = _xpath_for(el)
-
-    def consider(raw: str | None) -> None:
-        if not raw:
-            return
-        normalized = normalize_whitespace(raw)
-        if normalized:
-            segments.append((normalized, xpath))
-
-    # Leading text + inline runs before first block child are collected by walking
-    # only non-block descendants into a buffer, flushing around block children.
-    buffer: list[str] = []
-
-    def flush() -> None:
-        if not buffer:
-            return
-        normalized = normalize_whitespace("".join(buffer))
-        buffer.clear()
-        if normalized:
-            segments.append((normalized, xpath))
-
-    def collect_inline(node: etree._Element) -> None:
-        if _is_hidden(node):
-            return
-        if node.text:
-            buffer.append(node.text)
-        for child in node:
-            if not isinstance(child.tag, str):
-                if child.tail:
-                    buffer.append(child.tail)
-                continue
-            if _is_block_element(child) or _local_name(child.tag) == "table":
-                # Should not appear under inline walk.
-                continue
-            collect_inline(child)
-            if child.tail:
-                buffer.append(child.tail)
-
-    if el.text:
-        buffer.append(el.text)
-    for child in el:
-        if not isinstance(child.tag, str):
-            if child.tail:
-                buffer.append(child.tail)
-            continue
-        if _is_hidden(child):
-            if child.tail:
-                buffer.append(child.tail)
-            continue
-        if _is_block_element(child) or (
-            _local_name(child.tag) == "table" and _table_is_layout(child)
-        ):
-            flush()
-            # Descendant walker emits the child; only keep tail after.
-            if child.tail:
-                buffer.append(child.tail)
-            continue
-        if _local_name(child.tag) == "table" and not _table_is_layout(child):
-            flush()
-            if child.tail:
-                buffer.append(child.tail)
-            continue
-        # Inline / non-block: fold into buffer.
-        collect_inline(child)
-        if child.tail:
-            buffer.append(child.tail)
-    flush()
-    return segments
 
 
 def _is_block_element(el: etree._Element) -> bool:
@@ -431,7 +371,7 @@ class _BlockBuilder:
                 for child in el
                 if isinstance(child.tag, str) and _local_name(child.tag) in {"ul", "ol"}
             ]
-            # Build item text excluding nested lists.
+            # Build item text excluding nested lists; treat <br> as whitespace.
             clone_parts: list[str] = []
             if el.text:
                 clone_parts.append(el.text)
@@ -441,7 +381,13 @@ class _BlockBuilder:
                         clone_parts.append(child.tail)
                     continue
                 if isinstance(child.tag, str) and not _is_hidden(child):
-                    clone_parts.append(_element_text_content(child))
+                    local = _local_name(child.tag)
+                    if local == "br":
+                        _append_break_boundary(clone_parts)
+                    elif local == "wbr":
+                        pass
+                    else:
+                        clone_parts.append(_element_text_content(child))
                 if child.tail:
                     clone_parts.append(child.tail)
             item_text = normalize_whitespace("".join(clone_parts))
@@ -467,10 +413,6 @@ class _BlockBuilder:
                 self._emit(kind="table", text=text, el=el, parent_ordinal=parent_ordinal)
             return
 
-        # Generic container: recurse into children, emit uncovered mixed-text segments.
-        # First emit leading uncovered segments interleaved with child walks.
-        # Simpler approach: walk children for block structures, then emit uncovered
-        # segments that don't duplicate descendant block text — but we need order.
         self._walk_container(el, parent_ordinal)
 
     def _walk_container(self, el: etree._Element, parent_ordinal: int | None) -> None:
@@ -494,6 +436,7 @@ class _BlockBuilder:
             self._emit(kind=kind, text=text, el=el, parent_ordinal=parent_ordinal)
 
         def collect_inline_into_buffer(node: etree._Element) -> None:
+            """Collect inline text; flush+walk nested blocks; continue after them."""
             if _is_hidden(node):
                 return
             if node.text:
@@ -503,8 +446,26 @@ class _BlockBuilder:
                     if child.tail:
                         buffer.append(child.tail)
                     continue
+                local = _local_name(child.tag)
+                if local == "br":
+                    _append_break_boundary(buffer)
+                    if child.text:
+                        buffer.append(child.text)
+                    if child.tail:
+                        buffer.append(child.tail)
+                    continue
+                if local == "wbr":
+                    if child.text:
+                        buffer.append(child.text)
+                    if child.tail:
+                        buffer.append(child.tail)
+                    continue
                 if _should_descend_as_block(child):
-                    return
+                    flush_buffer()
+                    self.walk(child, parent_ordinal)
+                    if child.tail:
+                        buffer.append(child.tail)
+                    continue
                 collect_inline_into_buffer(child)
                 if child.tail:
                     buffer.append(child.tail)
@@ -520,13 +481,27 @@ class _BlockBuilder:
                 if child.tail:
                     buffer.append(child.tail)
                 continue
+            local = _local_name(child.tag)
+            if local == "br":
+                _append_break_boundary(buffer)
+                if child.text:
+                    buffer.append(child.text)
+                if child.tail:
+                    buffer.append(child.tail)
+                continue
+            if local == "wbr":
+                if child.text:
+                    buffer.append(child.text)
+                if child.tail:
+                    buffer.append(child.tail)
+                continue
             if _should_descend_as_block(child):
                 flush_buffer()
                 self.walk(child, parent_ordinal)
                 if child.tail:
                     buffer.append(child.tail)
                 continue
-            # Treat as inline content contributing to uncovered text.
+            # Treat as inline content; may contain nested blocks.
             collect_inline_into_buffer(child)
             if child.tail:
                 buffer.append(child.tail)

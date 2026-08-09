@@ -33,42 +33,10 @@ from edgar.projection.document import (
 )
 from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
-from tests.helpers.database import alembic_config, test_database_url
+from tests.helpers.database import alembic_config, test_database_url, truncate_all_tables
 from tests.helpers.document_fixtures import RICH_10K_HTML
 
 pytestmark = pytest.mark.database
-
-TABLE_NAMES = (
-    "filing_section",
-    "document_block",
-    "document_issue",
-    "document_projection_attempt",
-    "document_projection",
-    "filing_document",
-    "xbrl_relationship",
-    "xbrl_fact",
-    "xbrl_unit_measure",
-    "xbrl_unit",
-    "xbrl_context_dimension",
-    "xbrl_context",
-    "concept_reference",
-    "concept_label",
-    "concept_declaration",
-    "concept_identity",
-    "role_declaration",
-    "arcrole_declaration",
-    "semantic_issue",
-    "semantic_projection_attempt",
-    "semantic_projection",
-    "xbrl_report_input_member",
-    "xbrl_report_input",
-    "bundle_uri_binding",
-    "bundle_artifact",
-    "filing_bundle",
-    "content_object",
-    "filing",
-    "issuer",
-)
 
 
 @pytest.fixture(scope="module")
@@ -83,7 +51,7 @@ def engine() -> Iterator[Engine]:
 @pytest.fixture(autouse=True)
 def truncate_all(engine: Engine) -> Iterator[None]:
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE " + ", ".join(TABLE_NAMES) + " RESTART IDENTITY CASCADE"))
+        truncate_all_tables(conn)
     yield
 
 
@@ -349,3 +317,85 @@ def test_reuse_conflict_persists_failed_attempt(engine: Engine, tmp_path: Path) 
         # Original projection still present
         data, _ = load_document_projection(conn, first.projection.projection_id)
         assert any(b.text == "tampered" for b in data.blocks)
+
+
+def test_parser_version_config_mismatch_rejects_writes(engine: Engine, tmp_path: Path) -> None:
+    from edgar.db.document import (
+        DocumentProjectionConflict,
+        catalog_document_projection,
+        ensure_filing_document,
+        record_document_projection_failure,
+    )
+    from edgar.parsing.html import parse_html_document
+    from edgar.parsing.records import DocumentProjectionData
+    from edgar.parsing.sections import extract_filing_sections
+
+    bundle, _bundle_dir, opaque = _publish_html_bundle(tmp_path)
+    with engine.begin() as conn:
+        catalog_bundle(conn, bundle, opaque)
+        artifact_id = conn.execute(
+            select(tables.bundle_artifact.c.id).where(
+                tables.bundle_artifact.c.logical_path == bundle.artifacts[0].logical_path
+            )
+        ).scalar_one()
+        fd_id = ensure_filing_document(conn, int(artifact_id))
+
+    html = ObjectStore(tmp_path).open_bytes(bundle.artifacts[0].content.sha256)
+    parsed = parse_html_document(html)
+    sections, issues, status, _ = extract_filing_sections(
+        parsed, form_type="10-K", extract_regulatory_sections=True
+    )
+    config = build_document_config()
+    data = DocumentProjectionData(
+        parser_version="document-html-mismatch",
+        config_fingerprint=document_config_fingerprint(config),
+        blocks=parsed.blocks,
+        sections=tuple(sections),
+        issues=tuple(list(parsed.issues) + list(issues)),
+    )
+    now = datetime.now(UTC)
+    with engine.begin() as conn:
+        with pytest.raises(DocumentProjectionConflict, match="parser_version"):
+            catalog_document_projection(
+                conn,
+                filing_document_id=fd_id,
+                projection_data=data,
+                status=status,
+                parser_config=config.to_dict(),
+                started_at=now,
+                completed_at=now,
+            )
+        assert int(conn.execute(text("SELECT count(*) FROM document_projection")).scalar_one()) == 0
+        assert (
+            int(conn.execute(text("SELECT count(*) FROM document_projection_attempt")).scalar_one())
+            == 0
+        )
+
+    with engine.begin() as conn:
+        with pytest.raises(DocumentProjectionConflict, match="parser_version"):
+            record_document_projection_failure(
+                conn,
+                filing_document_id=fd_id,
+                parser_version="document-html-mismatch",
+                parser_config=config.to_dict(),
+                config_fingerprint=document_config_fingerprint(config),
+                started_at=now,
+                completed_at=now,
+                issues=[],
+            )
+        assert (
+            int(conn.execute(text("SELECT count(*) FROM document_projection_attempt")).scalar_one())
+            == 0
+        )
+
+
+def test_locator_value_must_be_json_string(engine: Engine) -> None:
+    with engine.begin() as conn:
+        # Constraint exists on document_block.
+        row = conn.execute(
+            text(
+                "SELECT conname FROM pg_constraint "
+                "WHERE conname = 'ck_document_block_locator_value_string'"
+            )
+        ).scalar_one_or_none()
+        assert row == "ck_document_block_locator_value_string"

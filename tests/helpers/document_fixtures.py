@@ -165,3 +165,181 @@ AMBIGUOUS_END_HTML = b"""<!DOCTYPE html>
 <h2>SIGNATURES</h2>
 </body></html>
 """
+
+HEADER_IX_SAME_DOC_HTML = b"""<!DOCTYPE html>
+<html xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"><body>
+<header>VISIBLE</header>
+<ix:header>HIDDEN</ix:header>
+<p>Body text.</p>
+</body></html>
+"""
+
+BR_WBR_HTML = b"""<!DOCTYPE html>
+<html><body>
+<p>Revenue<br>increased</p>
+<p>long<wbr>identifier</p>
+</body></html>
+"""
+
+NESTED_BLOCK_IN_INLINE_HTML = b"""<!DOCTYPE html>
+<html><body>
+<div>
+  A
+  <span>X <p>B</p> Y</span>
+  C
+</div>
+</body></html>
+"""
+
+NESTED_LIST_HTML = b"""<!DOCTYPE html>
+<html><body>
+<ul>
+  <li>Parent item
+    <ul><li>Nested item</li></ul>
+  </li>
+</ul>
+</body></html>
+"""
+
+PROSE_CROSSREF_10Q_HTML = b"""<!DOCTYPE html>
+<html><body>
+<h1>PART I</h1>
+<h2>Item 1. Financial Statements</h2>
+<p>See Part II, Item 1A for additional risk factors.</p>
+<h2>Item 2. Management's Discussion and Analysis</h2>
+<p>MD&amp;A body.</p>
+<h2>Item 3. Market Risk</h2>
+<p>Risk.</p>
+<h2>Item 4. Controls and Procedures</h2>
+<p>Controls.</p>
+<h1>PART II</h1>
+<h2>Item 1. Legal Proceedings</h2>
+<p>Legal.</p>
+<h2>Item 1A. Risk Factors</h2>
+<p>Risks.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+COMPACT_TOC_BODY_HTML = b"""<!DOCTYPE html>
+<html><body>
+<div>Table of Contents</div>
+<div><a href="#item1">Item 1. Business</a> 3</div>
+<div><a href="#item1a">Item 1A. Risk Factors</a> 8</div>
+<h2 id="item1">Item 1. Business</h2>
+<p>Business body immediately after TOC.</p>
+<h2 id="item1a">Item 1A. Risk Factors</h2>
+<p>Risk body.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+INTERVENING_COLLAPSE_HTML = b"""<!DOCTYPE html>
+<html><body>
+<h2>Item 1C. Cybersecurity</h2>
+<p>Cyber content.</p>
+<div>ITEM 2. Properties ... ITEM 3. Legal Proceedings ...</div>
+<h2>Item 7. Management's Discussion</h2>
+<p>MD&amp;A.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+MISSING_INTERMEDIATE_HTML = b"""<!DOCTYPE html>
+<html><body>
+<h2>Item 1. Business</h2>
+<p>Business.</p>
+<h2>Item 1A. Risk Factors</h2>
+<p>Risks.</p>
+<h2>Item 1C. Cybersecurity</h2>
+<p>Cyber. No Item 1B.</p>
+<h2>Item 7. MD&amp;A</h2>
+<p>MD&amp;A.</p>
+<h2>Item 8. Financial Statements</h2>
+<p>Statements.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+NO_TERMINAL_END_HTML = b"""<!DOCTYPE html>
+<html><body>
+<h2>Item 8. Financial Statements</h2>
+<p>Statements without later boundary or signatures.</p>
+</body></html>
+"""
+
+ORDINARY_MISSING_START_HTML = b"""<!DOCTYPE html>
+<html><body>
+<h2>Item 7. Management's Discussion</h2>
+<p>MD&amp;A only.</p>
+<h2>Item 8. Financial Statements</h2>
+<p>Statements.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+LAYOUT_TABLE_SIGNATURES_HTML = b"""<!DOCTYPE html>
+<html><body>
+<table>
+  <tr><td><b>ITEM 7.</b> Management's Discussion</td></tr>
+  <tr><td>MD&amp;A body text.</td></tr>
+  <tr><td><b>ITEM 8.</b> Financial Statements</td></tr>
+  <tr><td>Statements body.</td></tr>
+  <tr><td><b>SIGNATURES</b></td></tr>
+</table>
+</body></html>
+"""
+
+PART_I_ONLY_RESET_10Q_HTML = b"""<!DOCTYPE html>
+<html><body>
+<h1>PART I</h1>
+<h2>Item 1. Financial Statements</h2>
+<p>FS.</p>
+<h2>Item 2. Management's Discussion</h2>
+<p>MD&amp;A.</p>
+<h2>Item 3. Market Risk</h2>
+<p>Risk.</p>
+<h2>Item 4. Controls and Procedures</h2>
+<p>Controls.</p>
+<h2>Item 1. Legal Proceedings</h2>
+<p>Should not be Part I.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+PLAIN_SHORT_ITEM_HTML = b"""<!DOCTYPE html>
+<html><body>
+<div>Item 7. MD&amp;A</div>
+<p>Discussion body.</p>
+<div>Item 8. Financial Statements</div>
+<p>Statements.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+WEAK_CANDIDATE_HTML = b"""<!DOCTYPE html>
+<html><body>
+<div><a href="#x">Item 7. Early page 3</a></div>
+<p>filler</p><p>filler</p><p>filler</p><p>filler</p><p>filler</p>
+<p>filler</p><p>filler</p><p>filler</p><p>filler</p><p>filler</p>
+<h2 id="x">Item 7. Management's Discussion</h2>
+<p>Real MD&amp;A.</p>
+<h2>Item 8. Financial Statements</h2>
+<p>Statements.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""
+
+ADVERSARIAL_GLOBAL_HTML = b"""<!DOCTYPE html>
+<html><body>
+<h2>Item 1. Business</h2>
+<p>Early business body.</p>
+<h2 id="risk">Item 1A. Risk Factors</h2>
+<p>Early strong risks.</p>
+<h2 id="late1">Item 1. Business</h2>
+<p>Late higher-scoring decoy business.</p>
+<div>Item 1A. Risk Factors</div>
+<p>Late weaker risks.</p>
+<h2>SIGNATURES</h2>
+</body></html>
+"""

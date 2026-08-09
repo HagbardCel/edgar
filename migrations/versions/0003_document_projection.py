@@ -150,6 +150,10 @@ def upgrade() -> None:
             name="ck_document_block_parent_precedes",
         ),
         sa.CheckConstraint(
+            "jsonb_typeof(source_locator_value) = 'string'",
+            name="ck_document_block_locator_value_string",
+        ),
+        sa.CheckConstraint(
             "kind IN ("
             "'heading', 'paragraph', 'list', 'list_item', "
             "'table', 'footnote', 'signature', 'other'"

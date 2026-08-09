@@ -59,6 +59,15 @@ def _verify_fingerprint(config: Mapping[str, Any], fingerprint: str) -> None:
         )
 
 
+def _require_locator_string(value: object) -> str:
+    if not isinstance(value, str):
+        raise DocumentProjectionConflict(
+            "document_block.source_locator_value must be a JSON string scalar, "
+            f"got {type(value).__name__}"
+        )
+    return value
+
+
 def _issue_kind(issue: DocumentIssueRecord) -> str:
     code = issue.code
     if code in {
@@ -103,6 +112,12 @@ def record_document_projection_failure(
 ) -> DocumentFailureResult:
     """Persist a failed attempt and attempt-scoped issues. No projection rows."""
     _verify_fingerprint(parser_config, config_fingerprint)
+    config_version = str(parser_config.get("parser_version", ""))
+    if parser_version != config_version:
+        raise DocumentProjectionConflict(
+            "parser_version does not match parser_config['parser_version'] "
+            f"({parser_version!r} != {config_version!r})"
+        )
     attempt_id = int(
         conn.execute(
             insert(tables.document_projection_attempt)
@@ -198,9 +213,7 @@ def load_document_projection(
             text=r["text"],
             heading_level=None if r["heading_level"] is None else int(r["heading_level"]),
             source_locator_scheme=str(r["source_locator_scheme"]),
-            source_locator_value=r["source_locator_value"]
-            if isinstance(r["source_locator_value"], str)
-            else str(r["source_locator_value"]),
+            source_locator_value=_require_locator_string(r["source_locator_value"]),
         )
         for r in block_rows
     )
@@ -358,9 +371,12 @@ def catalog_document_projection(
         raise ValueError(f"invalid projection status: {status!r}")
     fingerprint = projection_data.config_fingerprint
     _verify_fingerprint(parser_config, fingerprint)
-    if projection_data.parser_version != str(parser_config.get("parser_version", "")):
-        # Allow parser_version field alignment with config.
-        pass
+    config_version = str(parser_config.get("parser_version", ""))
+    if projection_data.parser_version != config_version:
+        raise DocumentProjectionConflict(
+            "parser_version does not match parser_config['parser_version'] "
+            f"({projection_data.parser_version!r} != {config_version!r})"
+        )
 
     existing_id = _select_projection_id(
         conn,

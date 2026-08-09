@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 from alembic.config import Config
+from sqlalchemy import Connection, text
 from sqlalchemy.engine import make_url
+
+from edgar.db.schema import ALL_TABLES
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
@@ -35,3 +38,9 @@ def alembic_config(database_url: str) -> Config:
     cfg = Config(str(_ALEMBIC_INI))
     cfg.attributes["database_url"] = database_url
     return cfg
+
+
+def truncate_all_tables(conn: Connection) -> None:
+    """Truncate every catalog/semantic/document table owned by this schema."""
+    names = [table.name for table in ALL_TABLES]
+    conn.execute(text("TRUNCATE " + ", ".join(names) + " RESTART IDENTITY CASCADE"))
