@@ -16,6 +16,7 @@ from sqlalchemy import (
     MetaData,
     Numeric,
     PrimaryKeyConstraint,
+    SmallInteger,
     Table,
     Text,
     UniqueConstraint,
@@ -791,4 +792,215 @@ SEMANTIC_TABLES = (
     xbrl_relationship,
 )
 
-ALL_TABLES = CATALOG_TABLES + SEMANTIC_TABLES
+# --- Document projection (Phase 1C / PR #7) ------------------------------------
+#
+# Parse target is filing_document (bundle_artifact). Projection identity is
+# (filing_document_id, parser_version, parser_config_fingerprint). Attempts are
+# independent provenance and store their own parse-target identity.
+
+filing_document = Table(
+    "filing_document",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("bundle_artifact_id", BigInteger, nullable=False),
+    PrimaryKeyConstraint("id", name="filing_document_pkey"),
+    ForeignKeyConstraint(
+        ["bundle_artifact_id"],
+        ["bundle_artifact.id"],
+        name="filing_document_bundle_artifact_id_fkey",
+    ),
+    UniqueConstraint("bundle_artifact_id", name="uq_filing_document_bundle_artifact"),
+)
+
+document_projection = Table(
+    "document_projection",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("filing_document_id", BigInteger, nullable=False),
+    Column("parser_version", Text, nullable=False),
+    Column("parser_config_fingerprint", Text, nullable=False),
+    Column("parser_config", JSONB, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    PrimaryKeyConstraint("id", name="document_projection_pkey"),
+    ForeignKeyConstraint(
+        ["filing_document_id"],
+        ["filing_document.id"],
+        name="document_projection_filing_document_id_fkey",
+    ),
+    UniqueConstraint(
+        "filing_document_id",
+        "parser_version",
+        "parser_config_fingerprint",
+        name="uq_document_projection_identity",
+    ),
+    CheckConstraint(
+        f"parser_config_fingerprint ~ '{SHA256_CHECK}'",
+        name="ck_document_projection_config_fingerprint_hex",
+    ),
+    CheckConstraint(
+        "status IN ('complete', 'incomplete')",
+        name="ck_document_projection_status",
+    ),
+)
+
+document_projection_attempt = Table(
+    "document_projection_attempt",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("filing_document_id", BigInteger, nullable=False),
+    Column("parser_version", Text, nullable=False),
+    Column("parser_config_fingerprint", Text, nullable=False),
+    Column("parser_config", JSONB, nullable=False),
+    Column("started_at", DateTime(timezone=True), nullable=False),
+    Column("completed_at", DateTime(timezone=True), nullable=False),
+    Column("status", Text, nullable=False),
+    Column("document_projection_id", BigInteger, nullable=True),
+    PrimaryKeyConstraint("id", name="document_projection_attempt_pkey"),
+    ForeignKeyConstraint(
+        ["filing_document_id"],
+        ["filing_document.id"],
+        name="document_projection_attempt_filing_document_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["document_projection_id"],
+        ["document_projection.id"],
+        name="document_projection_attempt_document_projection_id_fkey",
+    ),
+    CheckConstraint(
+        f"parser_config_fingerprint ~ '{SHA256_CHECK}'",
+        name="ck_document_projection_attempt_config_fingerprint_hex",
+    ),
+    CheckConstraint(
+        "(status = 'completed' AND document_projection_id IS NOT NULL)"
+        " OR (status = 'failed' AND document_projection_id IS NULL)",
+        name="ck_document_projection_attempt_status_outcome",
+    ),
+)
+
+document_issue = Table(
+    "document_issue",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("document_projection_id", BigInteger, nullable=True),
+    Column("document_projection_attempt_id", BigInteger, nullable=True),
+    Column("kind", Text, nullable=False),
+    Column("severity", Text, nullable=False),
+    Column("code", Text, nullable=False),
+    Column("message", Text, nullable=False),
+    Column("context", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    PrimaryKeyConstraint("id", name="document_issue_pkey"),
+    ForeignKeyConstraint(
+        ["document_projection_id"],
+        ["document_projection.id"],
+        name="document_issue_document_projection_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["document_projection_attempt_id"],
+        ["document_projection_attempt.id"],
+        name="document_issue_document_projection_attempt_id_fkey",
+    ),
+    CheckConstraint(
+        "(document_projection_id IS NOT NULL AND document_projection_attempt_id IS NULL)"
+        " OR (document_projection_id IS NULL AND document_projection_attempt_id IS NOT NULL)",
+        name="ck_document_issue_single_owner",
+    ),
+)
+
+document_block = Table(
+    "document_block",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("document_projection_id", BigInteger, nullable=False),
+    Column("ordinal", Integer, nullable=False),
+    Column("parent_ordinal", Integer, nullable=True),
+    Column("kind", Text, nullable=False),
+    Column("text", Text, nullable=True),
+    Column("heading_level", SmallInteger, nullable=True),
+    Column("source_locator_scheme", Text, nullable=False),
+    Column("source_locator_value", JSONB, nullable=False),
+    PrimaryKeyConstraint("id", name="document_block_pkey"),
+    ForeignKeyConstraint(
+        ["document_projection_id"],
+        ["document_projection.id"],
+        name="document_block_document_projection_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["document_projection_id", "parent_ordinal"],
+        ["document_block.document_projection_id", "document_block.ordinal"],
+        name="document_block_parent_ordinal_fkey",
+    ),
+    UniqueConstraint(
+        "document_projection_id",
+        "ordinal",
+        name="uq_document_block_projection_ordinal",
+    ),
+    CheckConstraint("ordinal >= 0", name="ck_document_block_ordinal_nonneg"),
+    CheckConstraint(
+        "parent_ordinal IS NULL OR parent_ordinal < ordinal",
+        name="ck_document_block_parent_precedes",
+    ),
+    CheckConstraint(
+        "jsonb_typeof(source_locator_value) = 'string'",
+        name="ck_document_block_locator_value_string",
+    ),
+    CheckConstraint(
+        "kind IN ("
+        "'heading', 'paragraph', 'list', 'list_item', "
+        "'table', 'footnote', 'signature', 'other'"
+        ")",
+        name="ck_document_block_kind",
+    ),
+    CheckConstraint(
+        "(kind = 'heading' AND heading_level BETWEEN 1 AND 6)"
+        " OR (kind <> 'heading' AND heading_level IS NULL)",
+        name="ck_document_block_heading_level",
+    ),
+)
+
+filing_section = Table(
+    "filing_section",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("document_projection_id", BigInteger, nullable=False),
+    Column("section_key", Text, nullable=False),
+    Column("start_block_ordinal", Integer, nullable=False),
+    Column("end_block_ordinal_exclusive", Integer, nullable=False),
+    Column("method", Text, nullable=False),
+    Column("confidence_score", SmallInteger, nullable=False),
+    PrimaryKeyConstraint("id", name="filing_section_pkey"),
+    ForeignKeyConstraint(
+        ["document_projection_id"],
+        ["document_projection.id"],
+        name="filing_section_document_projection_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["document_projection_id", "start_block_ordinal"],
+        ["document_block.document_projection_id", "document_block.ordinal"],
+        name="filing_section_start_block_fkey",
+    ),
+    UniqueConstraint(
+        "document_projection_id",
+        "section_key",
+        name="uq_filing_section_projection_key",
+    ),
+    CheckConstraint(
+        "start_block_ordinal >= 0 AND end_block_ordinal_exclusive > start_block_ordinal",
+        name="ck_filing_section_range",
+    ),
+    CheckConstraint(
+        "confidence_score BETWEEN 0 AND 100",
+        name="ck_filing_section_confidence_score",
+    ),
+)
+
+DOCUMENT_TABLES = (
+    filing_document,
+    document_projection,
+    document_projection_attempt,
+    document_issue,
+    document_block,
+    filing_section,
+)
+
+ALL_TABLES = CATALOG_TABLES + SEMANTIC_TABLES + DOCUMENT_TABLES

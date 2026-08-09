@@ -2,8 +2,9 @@
 
 Reproducible, point-in-time-aware platform for SEC company filings.
 
-**Status:** Phase 1A filesystem acquisition and Phase 1 catalog foundation are
-implemented (`src/edgar/`). Thin Arelle semantic projection (PR #6) is next.
+**Status:** Phase 1A–1C are implemented (`src/edgar/`): filesystem acquisition,
+catalog foundation, thin Arelle semantic projection (PR #6), and offline
+document blocks / regulatory sections (PR #7). Phase 1D acceptance is next.
 
 Apache-2.0 covers this project's software and documentation. It does **not** automatically license third-party SEC filing content or taxonomies retrieved from EDGAR.
 
@@ -46,7 +47,14 @@ docker compose up -d
 uv run edgar db upgrade
 uv run edgar db check
 uv run edgar filings catalog --bundle-dir var/bundles/<cik>/<accession>/<opaque_id> --json
+uv run edgar xbrl project --bundle-dir var/bundles/<cik>/<accession>/<opaque_id> --json
+uv run edgar documents project --bundle-dir var/bundles/<cik>/<accession>/<opaque_id> --json
+uv run edgar documents sections --projection-id <id> --json
 ```
+
+`documents project` defaults to the filing primary HTML document. Pass
+`--artifact-path accession/exhibit.htm` to project another eligible HTML
+attachment (blocks only; no regulatory sections).
 
 Compose initializes `edgar` (durable) and, on a **fresh** volume, also creates disposable `edgar_test`.
 If your volume predates that init script:

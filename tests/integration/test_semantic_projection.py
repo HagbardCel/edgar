@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from alembic import command
-from alembic.config import Config
 from sqlalchemy import Engine, create_engine, select, text, update
-from sqlalchemy.engine import make_url
 
 from edgar.config import Settings
 from edgar.db import schema as tables
@@ -27,64 +24,17 @@ from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.config import build_semantic_config, semantic_config_fingerprint
 from edgar.xbrl.records import SemanticIssueRecord
+from tests.helpers.database import alembic_config, test_database_url, truncate_all_tables
 from tests.helpers.xbrl_bundles import make_minimal_semantic_bundle
 
 pytestmark = pytest.mark.database
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
-
-TABLE_NAMES = (
-    "xbrl_relationship",
-    "xbrl_fact",
-    "xbrl_unit_measure",
-    "xbrl_unit",
-    "xbrl_context_dimension",
-    "xbrl_context",
-    "concept_reference",
-    "concept_label",
-    "concept_declaration",
-    "concept_identity",
-    "role_declaration",
-    "arcrole_declaration",
-    "semantic_issue",
-    "semantic_projection_attempt",
-    "semantic_projection",
-    "xbrl_report_input_member",
-    "xbrl_report_input",
-    "bundle_uri_binding",
-    "bundle_artifact",
-    "filing_bundle",
-    "content_object",
-    "filing",
-    "issuer",
-)
-
-
-def _test_database_url() -> str:
-    raw = os.environ.get("EDGAR_TEST_DATABASE_URL", "").strip()
-    if not raw:
-        pytest.skip("EDGAR_TEST_DATABASE_URL not set")
-    url = make_url(raw)
-    if url.database != "edgar_test":
-        pytest.fail(
-            "Refusing destructive database tests: "
-            "EDGAR_TEST_DATABASE_URL must target database 'edgar_test'"
-        )
-    return raw
-
-
-def _alembic_config(database_url: str) -> Config:
-    cfg = Config(str(_ALEMBIC_INI))
-    cfg.attributes["database_url"] = database_url
-    return cfg
-
 
 @pytest.fixture(scope="module")
 def engine() -> Iterator[Engine]:
-    url = _test_database_url()
+    url = test_database_url()
     eng = create_engine(url, future=True)
-    command.upgrade(_alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "head")
     yield eng
     eng.dispose()
 
@@ -92,7 +42,7 @@ def engine() -> Iterator[Engine]:
 @pytest.fixture(autouse=True)
 def truncate_all(engine: Engine) -> Iterator[None]:
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE " + ", ".join(TABLE_NAMES) + " RESTART IDENTITY CASCADE"))
+        truncate_all_tables(conn)
     yield
 
 
@@ -106,7 +56,7 @@ def _publish(tmp_path: Path) -> tuple[object, Path, str]:
 
 def test_semantic_projection_round_trip_and_reuse(engine: Engine, tmp_path: Path) -> None:
     settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": tmp_path, "edgar_database_url": test_database_url()}
     )
     _bundle, bundle_dir, opaque = _publish(tmp_path)
     with engine.begin() as conn:
@@ -172,7 +122,7 @@ def test_failed_attempt_persists_config(engine: Engine, tmp_path: Path) -> None:
 
 def test_projection_config_corruption_fails_load(engine: Engine, tmp_path: Path) -> None:
     settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": tmp_path, "edgar_database_url": test_database_url()}
     )
     bundle, bundle_dir, opaque = _publish(tmp_path)
     with engine.begin() as conn:
@@ -191,7 +141,7 @@ def test_projection_config_corruption_fails_load(engine: Engine, tmp_path: Path)
 
 def test_preflight_uncataloged_creates_no_attempt(engine: Engine, tmp_path: Path) -> None:
     settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": tmp_path, "edgar_database_url": test_database_url()}
     )
     _bundle, bundle_dir, _opaque = _publish(tmp_path)
     service = SemanticProjectionService(settings, engine=engine)
@@ -206,7 +156,7 @@ def test_preflight_uncataloged_creates_no_attempt(engine: Engine, tmp_path: Path
 
 def test_reuse_conflict_persists_failed_attempt(engine: Engine, tmp_path: Path) -> None:
     settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": tmp_path, "edgar_database_url": test_database_url()}
     )
     bundle, bundle_dir, opaque = _publish(tmp_path)
     with engine.begin() as conn:
@@ -290,7 +240,7 @@ def test_cross_bundle_binding_rejected_on_insert(engine: Engine, tmp_path: Path)
 def test_cross_projection_declaration_fk_rejected(engine: Engine, tmp_path: Path) -> None:
     """A fact pointing at another projection's concept_declaration fails on load."""
     settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": tmp_path, "edgar_database_url": test_database_url()}
     )
     store = ObjectStore(tmp_path)
     # Two published cataloged bundles → two projections sharing concept QName Assets.
@@ -315,7 +265,7 @@ def test_cross_projection_declaration_fk_rejected(engine: Engine, tmp_path: Path
     proj_a = service_a.project_published_bundle(pub_a.bundle_dir)
 
     settings_b = Settings().model_copy(
-        update={"edgar_data_root": root_b, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": root_b, "edgar_database_url": test_database_url()}
     )
     with engine.begin() as conn:
         catalog_bundle(conn, b2, pub_b.opaque_id)
@@ -407,7 +357,7 @@ def test_supported_network_worker_error_records_failed_attempt(
     from edgar.xbrl.semantic import SemanticWorkerError
 
     settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": tmp_path, "edgar_database_url": test_database_url()}
     )
     bundle, bundle_dir, opaque = _publish(tmp_path)
     with engine.begin() as conn:
@@ -473,7 +423,7 @@ def test_worker_process_error_records_failed_attempt(
     from edgar.xbrl.closure import WorkerProtocolError
 
     settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": tmp_path, "edgar_database_url": test_database_url()}
     )
     bundle, bundle_dir, opaque = _publish(tmp_path)
     with engine.begin() as conn:
@@ -525,7 +475,7 @@ def test_resolved_value_coherence_check_rejects_kind_null_with_numeric(
     from sqlalchemy.exc import IntegrityError
 
     settings = Settings().model_copy(
-        update={"edgar_data_root": tmp_path, "edgar_database_url": _test_database_url()}
+        update={"edgar_data_root": tmp_path, "edgar_database_url": test_database_url()}
     )
     bundle, bundle_dir, opaque = _publish(tmp_path)
     with engine.begin() as conn:

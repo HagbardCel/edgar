@@ -191,7 +191,7 @@ Replace any conflated “semantic run” that mixed interpretation identity with
 failed projection attempt D ──► (no projection)
 ```
 
-The zero-or-one cardinality applies to a **component-level projection attempt for one report input** (or one document-parse target), not to a higher-level orchestration or batch run.
+The zero-or-one cardinality applies to a **component-level projection attempt for one report input** (or one `filing_document`), not to a higher-level orchestration or batch run.
 
 - A component-level attempt may produce or revalidate **zero or one** logical projection.
 - A logical projection may be associated with **multiple** such attempts.
@@ -232,18 +232,18 @@ This XBRL decision is locked by [ADR 0008](adr/0008-lean-xbrl-semantic-projectio
 ### Document side (parallel identity)
 
 ```text
-document_parse_target
-    bundle_artifact / filing_document
-    # a defined set later only if genuinely needed
+filing_document
+    bundle_artifact_id UNIQUE
+    # parse-target identity; bundle is transitive:
+    # filing_document → bundle_artifact → filing_bundle
 
 document_projection
-    filing_bundle
-    document_parse_target
-    document-parser version
-    parser configuration fingerprint
+    filing_document_id
+    parser_version
+    parser_config_fingerprint
 ```
 
-**Document projection identity includes its parse target; bundle + parser version alone is insufficient.** Exact rerun of the same bundle + document parse target + parser / config reuses the same logical `document_projection`. Many component-level attempts may associate with one document projection; no owning attempt id. PR #7 may find `filing_document_id` sufficient as the parse-target key—this document only freezes the distinction.
+**Document projection identity is `(filing_document_id, parser_version, parser_config_fingerprint)`.** Bundle identity is implied through `filing_document → bundle_artifact`. Exact rerun of the same document + parser / config reuses the same logical `document_projection` after verified equality. Many attempts may associate with one projection; no owning attempt id. Failed attempts store their own `filing_document_id` / parser version / config because `document_projection_id` is NULL.
 
 ---
 
@@ -425,17 +425,20 @@ source_locator
 
 ---
 
-## 5. Minimal document model
+## 5. Document model (Phase 1C / PR #7)
 
-Full block / section schema design is deferred to PR #7. Phase 1 retains these conceptual distinctions:
+Physical schema (migration `0003_document_projection`):
 
-- `document_parse_target` — which document(s) within the bundle are being parsed (typically a `bundle_artifact` / `filing_document`)
-- `document_projection` — identity includes `filing_bundle` + `document_parse_target` + document-parser version + config fingerprint
-- `filing_document` — occurrence is **bundle-scoped** or resolves through a `bundle_artifact`; must never depend solely on `filing_id` as “the document for this filing”
-- `document_block` — document order, parent / child relationships, source locator, projection version
-- `filing_section` — section boundaries, extraction method / confidence
+- `filing_document` — parse target: unique `bundle_artifact_id` (no copied catalog metadata)
+- `document_projection` — identity `(filing_document_id, parser_version, parser_config_fingerprint)`; status `complete|incomplete`; full `parser_config` JSONB
+- `document_projection_attempt` — independent provenance with its own `filing_document_id` / version / config; completed ↔ projection id; failed ↔ NULL
+- `document_issue` — projection XOR attempt owner (`document_issue`, parallel to `semantic_issue`)
+- `document_block` — ordered blocks with nullable `text`, optional `parent_ordinal` / `heading_level`, locator scheme `html-xpath-v1` with JSONB string xpath value
+- `filing_section` — `(section_key, start_block_ordinal, end_block_ordinal_exclusive, method, confidence_score)`; text is reconstructed from blocks, never copied
 
-Preserve document order and source locators. Missing sections become quality issues, not inferred content.
+Section ends use the full Item/Part **boundary grammar** (and body `SIGNATURE(S)` terminal marker), not only the persisted Phase-1 vocabulary. Primary documents receive regulatory sections; other eligible HTML attachments receive blocks only.
+
+Preserve document order and source locators. Missing sections become document issues, not inferred content.
 
 ---
 

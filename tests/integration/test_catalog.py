@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
 from alembic import command
-from alembic.config import Config
 from sqlalchemy import Engine, create_engine, select, text, update
-from sqlalchemy.engine import make_url
 
 from edgar.config import Settings
 from edgar.db import schema as tables
@@ -30,64 +27,16 @@ from edgar.ingestion.catalog import CatalogService
 from edgar.ingestion.payload import compute_payload_hash
 from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
+from tests.helpers.database import alembic_config, test_database_url, truncate_all_tables
 
 pytestmark = pytest.mark.database
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
-
-CATALOG_TABLE_NAMES = (
-    "xbrl_relationship",
-    "xbrl_fact",
-    "xbrl_unit_measure",
-    "xbrl_unit",
-    "xbrl_context_dimension",
-    "xbrl_context",
-    "concept_reference",
-    "concept_label",
-    "concept_declaration",
-    "concept_identity",
-    "role_declaration",
-    "arcrole_declaration",
-    "semantic_issue",
-    "semantic_projection_attempt",
-    "semantic_projection",
-    "xbrl_report_input_member",
-    "xbrl_report_input",
-    "bundle_uri_binding",
-    "bundle_artifact",
-    "filing_bundle",
-    "content_object",
-    "filing",
-    "issuer",
-)
-
-
-def _test_database_url() -> str:
-    """Sole source of the integration-test database URL (process env only)."""
-    raw = os.environ.get("EDGAR_TEST_DATABASE_URL", "").strip()
-    if not raw:
-        pytest.skip("EDGAR_TEST_DATABASE_URL not set")
-    url = make_url(raw)
-    if url.database != "edgar_test":
-        pytest.fail(
-            "Refusing destructive database tests: "
-            "EDGAR_TEST_DATABASE_URL must target database 'edgar_test'"
-        )
-    return raw
-
-
-def _alembic_config(database_url: str) -> Config:
-    cfg = Config(str(_ALEMBIC_INI))
-    cfg.attributes["database_url"] = database_url
-    return cfg
 
 
 @pytest.fixture(scope="module")
 def engine() -> Iterator[Engine]:
-    url = _test_database_url()
+    url = test_database_url()
     eng = create_engine(url, future=True)
-    command.upgrade(_alembic_config(url), "head")
+    command.upgrade(alembic_config(url), "head")
     yield eng
     eng.dispose()
 
@@ -95,9 +44,7 @@ def engine() -> Iterator[Engine]:
 @pytest.fixture(autouse=True)
 def truncate_catalog(engine: Engine) -> Iterator[None]:
     with engine.begin() as conn:
-        conn.execute(
-            text("TRUNCATE " + ", ".join(CATALOG_TABLE_NAMES) + " RESTART IDENTITY CASCADE")
-        )
+        truncate_all_tables(conn)
     yield
 
 
@@ -205,8 +152,8 @@ def _counts(engine: Engine) -> dict[str, int]:
 
 
 def test_migration_upgrade_downgrade_upgrade(engine: Engine) -> None:
-    url = _test_database_url()
-    cfg = _alembic_config(url)
+    url = test_database_url()
+    cfg = alembic_config(url)
     try:
         command.downgrade(cfg, "base")
         with engine.connect() as conn:
