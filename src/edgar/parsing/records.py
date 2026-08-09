@@ -18,7 +18,6 @@ DocumentBlockKind = Literal[
     "other",
 ]
 SOURCE_LOCATOR_SCHEME = "html-xpath-v1"
-SECTION_METHOD = "sec-item-sequence-v1"
 
 
 @dataclass(frozen=True)
@@ -88,7 +87,7 @@ class FilingSectionRecord:
     section_key: str
     start_block_ordinal: int
     end_block_ordinal_exclusive: int
-    method: str = SECTION_METHOD
+    method: str
     confidence_score: int = 0
 
     def __post_init__(self) -> None:

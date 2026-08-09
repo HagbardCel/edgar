@@ -2,27 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from edgar.cli import app
 from edgar.db.document import DocumentProjectionResult
-
-
-@dataclass(frozen=True)
-class _FakeProjectResult:
-    accession: str
-    bundle_id: int
-    filing_document_id: int
-    artifact_path: str
-    projection: DocumentProjectionResult
+from edgar.projection.document import ProjectDocumentResult
 
 
 def test_documents_project_json(monkeypatch) -> None:
     def fake_project(self, bundle_dir: Path, *, artifact_path: str | None = None):
-        return _FakeProjectResult(
+        return ProjectDocumentResult(
             accession="0000000000-00-000001",
             bundle_id=1,
             filing_document_id=2,
