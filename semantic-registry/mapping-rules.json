@@ -1,0 +1,111 @@
+{
+  "registry_schema_version": 1,
+  "rules": [
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-test-equivalent",
+      "source_concept": {
+        "namespace_uri": "http://example.com/test",
+        "local_name": "Assets"
+      },
+      "target_metric_code": "cash_and_cash_equivalents",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Integration test: synthetic Assets maps to cash metric contract.",
+      "evidence_snapshot": {
+        "note": "synthetic integration fixture"
+      },
+      "evidence": {
+        "accession_number": "0000000001-00-000001",
+        "bundle_fingerprint": "41939b99476890ea0a3311b2e535afdd4b885319af95ee601a5a894014baf07b",
+        "projection_version": "arelle-semantic-v1",
+        "arelle_version": "2.43.1",
+        "semantic_config_fingerprint": "0fd2f67690fc2fbffa0a83563815d1c17cd50d5e2214cb0e49519f9108c75154",
+        "concept": {
+          "namespace_uri": "http://example.com/test",
+          "local_name": "Assets"
+        }
+      },
+      "reviewed_by": "integration-test",
+      "reviewed_at": "2026-03-01T12:00:00+00:00",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-test-incompatible",
+      "source_concept": {
+        "namespace_uri": "http://example.com/test",
+        "local_name": "Assets"
+      },
+      "target_metric_code": "diluted_eps",
+      "target_definition_version": 1,
+      "relationship_type": "incompatible",
+      "scope_kind": "filing",
+      "scope": {
+        "kind": "filing",
+        "accession_number": "0000000001-00-000001"
+      },
+      "confidence_tier": "high",
+      "rationale": "Instant monetary stock concept is incompatible with EPS.",
+      "evidence_snapshot": {
+        "note": "synthetic integration fixture"
+      },
+      "evidence": {
+        "accession_number": "0000000001-00-000001",
+        "bundle_fingerprint": "41939b99476890ea0a3311b2e535afdd4b885319af95ee601a5a894014baf07b",
+        "projection_version": "arelle-semantic-v1",
+        "arelle_version": "2.43.1",
+        "semantic_config_fingerprint": "0fd2f67690fc2fbffa0a83563815d1c17cd50d5e2214cb0e49519f9108c75154",
+        "concept": {
+          "namespace_uri": "http://example.com/test",
+          "local_name": "Assets"
+        }
+      },
+      "reviewed_by": "integration-test",
+      "reviewed_at": "2026-03-01T12:00:00+00:00",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-test-issuer-period",
+      "source_concept": {
+        "namespace_uri": "http://example.com/test",
+        "local_name": "Assets"
+      },
+      "target_metric_code": "cash_and_cash_equivalents",
+      "target_definition_version": 1,
+      "relationship_type": "issuer_equivalent",
+      "scope_kind": "issuer_period",
+      "scope": {
+        "kind": "issuer_period",
+        "cik": "0000000001",
+        "report_period_from": "2024-01-01",
+        "report_period_through": "2024-12-31"
+      },
+      "confidence_tier": "medium",
+      "rationale": "Issuer-period scoped issuer_equivalent for integration coverage.",
+      "evidence_snapshot": {
+        "note": "synthetic integration fixture"
+      },
+      "evidence": {
+        "accession_number": "0000000001-00-000001",
+        "bundle_fingerprint": "41939b99476890ea0a3311b2e535afdd4b885319af95ee601a5a894014baf07b",
+        "projection_version": "arelle-semantic-v1",
+        "arelle_version": "2.43.1",
+        "semantic_config_fingerprint": "0fd2f67690fc2fbffa0a83563815d1c17cd50d5e2214cb0e49519f9108c75154",
+        "concept": {
+          "namespace_uri": "http://example.com/test",
+          "local_name": "Assets"
+        }
+      },
+      "reviewed_by": "integration-test",
+      "reviewed_at": "2026-03-01T12:00:00+00:00",
+      "supersedes": null
+    }
+  ]
+}
