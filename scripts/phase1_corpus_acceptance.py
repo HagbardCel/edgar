@@ -577,10 +577,15 @@ def main() -> int:
     report.update(run_acceptance(settings, manifest))
     print(json.dumps(report, indent=2, sort_keys=True))
 
-    missing = [f["accession"] for f in report["filings"] if not f["bundle_found"]]
-    if missing:
+    missing_or_ambiguous_accessions = [
+        f["accession"]
+        for f in report["filings"]
+        if any(issue["code"] in {"BUNDLE_NOT_FOUND", "AMBIGUOUS_BUNDLE"} for issue in f["issues"])
+    ]
+    if missing_or_ambiguous_accessions:
         print(
-            f"\nMissing or ambiguous local bundles for: {', '.join(missing)}. "
+            f"\nMissing or ambiguous local bundles for: "
+            f"{', '.join(missing_or_ambiguous_accessions)}. "
             "Acquire with `edgar filings retrieve --accession ...` first.",
             file=sys.stderr,
         )
