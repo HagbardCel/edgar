@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any, Literal, get_args
@@ -424,3 +426,14 @@ def bundle_equality_state(bundle: FilingBundle) -> dict[str, Any]:
 
 def bundles_equivalent(left: FilingBundle, right: FilingBundle) -> bool:
     return bundle_equality_state(left) == bundle_equality_state(right)
+
+
+def bundle_fingerprint(bundle: FilingBundle) -> str:
+    """Stable evidence-identity digest for equivalent FilingBundle domain state.
+
+    Once mapping rules reference this value, treat the canonicalization as a durable
+    contract. ``bundles_equivalent(A, B)`` implies equal fingerprints.
+    """
+    state = bundle_equality_state(bundle)
+    payload = json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
