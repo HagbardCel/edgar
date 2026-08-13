@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -13,10 +14,12 @@ from edgar.db.engine import create_db_engine
 from edgar.db.mapping_evidence import (
     MappingEvidenceError,
     enrich_pinned_evidence,
+    enrichment_to_payload,
     resolve_pinned_concept,
 )
 from edgar.metrics.export import export_registry_audit, mapping_rule_audit_payload
 from edgar.metrics.registry import (
+    IssuerPeriodScope,
     LoadedRegistry,
     MappingRuleRecord,
     MetricDefinitionRecord,
@@ -25,6 +28,7 @@ from edgar.metrics.registry import (
     load_registry,
     predecessor_chain,
     rule_state,
+    scope_cik,
     validate_registry,
 )
 
@@ -64,6 +68,9 @@ class MetricRegistryService:
         validate_registry(registry)
         return registry
 
+    def _rules_by_key(self, registry: LoadedRegistry) -> dict[str, MappingRuleRecord]:
+        return {rule.rule_key: rule for rule in registry.rules}
+
     def list_families(self) -> tuple[MetricFamilyRecord, ...]:
         return self.load_git_registry().families
 
@@ -78,11 +85,12 @@ class MetricRegistryService:
         metric_code: str,
         *,
         definition_version: int | None = None,
+        registry: LoadedRegistry | None = None,
     ) -> tuple[MetricDefinitionRecord, ...]:
-        registry = self.load_git_registry()
+        loaded = registry if registry is not None else self.load_git_registry()
         matches = [
             d
-            for d in registry.definitions
+            for d in loaded.definitions
             if d.metric_code == metric_code
             and (definition_version is None or d.definition_version == definition_version)
         ]
@@ -93,9 +101,6 @@ class MetricRegistryService:
             )
         return tuple(matches)
 
-    def _rules_by_key(self, registry: LoadedRegistry) -> dict[str, MappingRuleRecord]:
-        return {rule.rule_key: rule for rule in registry.rules}
-
     def list_mappings(
         self,
         *,
@@ -103,11 +108,12 @@ class MetricRegistryService:
         concept_local_name: str | None = None,
         cik: str | None = None,
         relationship_type: str | None = None,
+        registry: LoadedRegistry | None = None,
     ) -> tuple[MappingRuleView, ...]:
-        registry = self.load_git_registry()
-        rules_by_key = self._rules_by_key(registry)
+        loaded = registry if registry is not None else self.load_git_registry()
+        rules_by_key = self._rules_by_key(loaded)
         views: list[MappingRuleView] = []
-        for rule in registry.rules:
+        for rule in loaded.rules:
             if metric_code is not None and rule.target_metric_code != metric_code:
                 continue
             if (
@@ -117,65 +123,97 @@ class MetricRegistryService:
                 continue
             if relationship_type is not None and rule.relationship_type != relationship_type:
                 continue
-            if cik is not None:
-                scope = rule.scope
-                scope_cik = getattr(scope, "cik", None)
-                if scope_cik != cik:
-                    continue
+            if cik is not None and scope_cik(rule.scope) != cik:
+                continue
             views.append(MappingRuleView(rule=rule, state=rule_state(rule.rule_key, rules_by_key)))
         return tuple(sorted(views, key=lambda v: v.rule.rule_key))
 
-    def get_mapping(self, rule_key: str) -> MappingRuleView | None:
-        registry = self.load_git_registry()
-        rule = self._rules_by_key(registry).get(rule_key)
+    def get_mapping(
+        self,
+        rule_key: str,
+        *,
+        registry: LoadedRegistry | None = None,
+    ) -> MappingRuleView | None:
+        loaded = registry if registry is not None else self.load_git_registry()
+        rules_by_key = self._rules_by_key(loaded)
+        rule = rules_by_key.get(rule_key)
         if rule is None:
             return None
-        return MappingRuleView(
-            rule=rule,
-            state=rule_state(rule_key, self._rules_by_key(registry)),
-        )
+        return MappingRuleView(rule=rule, state=rule_state(rule_key, rules_by_key))
 
-    def get_predecessor_chain(self, rule_key: str) -> tuple[MappingRuleRecord, ...]:
-        registry = self.load_git_registry()
-        return predecessor_chain(rule_key, self._rules_by_key(registry))
+    def get_predecessor_chain(
+        self,
+        rule_key: str,
+        *,
+        registry: LoadedRegistry | None = None,
+    ) -> tuple[MappingRuleRecord, ...]:
+        loaded = registry if registry is not None else self.load_git_registry()
+        return predecessor_chain(rule_key, self._rules_by_key(loaded))
+
+    def _assert_issuer_period_evidence(
+        self,
+        rule: MappingRuleRecord,
+        *,
+        report_period_end: date | None,
+    ) -> None:
+        if not isinstance(rule.scope, IssuerPeriodScope):
+            return
+        if report_period_end is None:
+            raise MappingEvidenceError(
+                f"{rule.rule_key}: issuer_period evidence requires non-null "
+                "filing.report_period_end"
+            )
+        if not (
+            rule.scope.report_period_from <= report_period_end <= rule.scope.report_period_through
+        ):
+            raise MappingEvidenceError(
+                f"{rule.rule_key}: filing.report_period_end {report_period_end.isoformat()} "
+                "is outside issuer_period scope "
+                f"[{rule.scope.report_period_from.isoformat()}, "
+                f"{rule.scope.report_period_through.isoformat()}]"
+            )
 
     def explain_mapping(self, rule_key: str) -> dict[str, Any]:
         registry = self.load_git_registry()
-        view = self.get_mapping(rule_key)
-        if view is None:
+        rules_by_key = self._rules_by_key(registry)
+        rule = rules_by_key.get(rule_key)
+        if rule is None:
             raise KeyError(f"unknown mapping rule: {rule_key}")
-        chain = self.get_predecessor_chain(rule_key)
-        enrichment_payload: dict[str, Any] | None = None
+        state = rule_state(rule_key, rules_by_key)
+        chain = predecessor_chain(rule_key, rules_by_key)
         engine = self._require_engine()
         with engine.connect() as conn:
             try:
-                pinned = resolve_pinned_concept(conn, view.rule.evidence)
+                pinned = resolve_pinned_concept(conn, rule.evidence)
+                self._assert_issuer_period_evidence(
+                    rule, report_period_end=pinned.report_period_end
+                )
                 enrichment = enrich_pinned_evidence(conn, pinned)
-                enrichment_payload = {
-                    "semantic_projection_id": enrichment.pinned.semantic_projection_id,
-                    "concept_declaration_id": enrichment.pinned.concept_declaration_id,
-                    "labels": list(enrichment.labels),
-                    "references": list(enrichment.references),
-                    "presentation_neighbors": list(enrichment.presentation_neighbors),
-                    "calculation_neighbors": list(enrichment.calculation_neighbors),
-                    "definition_neighbors": list(enrichment.definition_neighbors),
-                    "fact_occurrences": list(enrichment.fact_occurrences),
-                }
+                enrichment_payload = enrichment_to_payload(enrichment)
             except MappingEvidenceError as exc:
                 raise MappingEvidenceError(
                     f"pinned evidence resolution failed for {rule_key}: {exc}"
                 ) from exc
         return mapping_rule_audit_payload(
-            view.rule,
-            state=view.state,
+            rule,
+            state=state,
             supersession_chain=chain,
             registry_hash=registry.registry_hash,
             pinned_evidence=enrichment_payload,
         )
 
-    def export_mappings_audit(self) -> list[dict[str, Any]]:
+    def export_mappings_audit(self) -> dict[str, Any]:
         registry = self.load_git_registry()
         return export_registry_audit(
+            registry_hash=registry.registry_hash,
+            rules=registry.rules,
+        )
+
+    def export_mappings_audit_markdown(self) -> str:
+        from edgar.metrics.export import export_registry_audit_markdown
+
+        registry = self.load_git_registry()
+        return export_registry_audit_markdown(
             registry_hash=registry.registry_hash,
             rules=registry.rules,
         )

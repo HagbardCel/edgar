@@ -133,7 +133,7 @@ def export_registry_audit(
     *,
     registry_hash: str,
     rules: tuple[MappingRuleRecord, ...],
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     rules_by_key = {rule.rule_key: rule for rule in rules}
     reports: list[dict[str, Any]] = []
     for rule in sorted(rules, key=lambda r: r.rule_key):
@@ -146,4 +146,27 @@ def export_registry_audit(
                 registry_hash=registry_hash,
             )
         )
-    return reports
+    return {
+        "registry_hash": registry_hash,
+        "reports": reports,
+        "count": len(reports),
+    }
+
+
+def export_registry_audit_markdown(
+    *,
+    registry_hash: str,
+    rules: tuple[MappingRuleRecord, ...],
+) -> str:
+    envelope = export_registry_audit(registry_hash=registry_hash, rules=rules)
+    header = [
+        "# Mapping audit ledger",
+        "",
+        f"Registry hash: `{envelope['registry_hash']}`",
+        f"Rules: {envelope['count']}",
+        "",
+    ]
+    bodies = [mapping_rule_markdown(report) for report in envelope["reports"]]
+    if not bodies:
+        return "\n".join(header)
+    return "\n".join(header) + "\n" + "\n".join(bodies)

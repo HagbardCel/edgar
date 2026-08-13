@@ -9,9 +9,17 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
-from edgar.domain.identifiers import validate_accession, validate_cik
+from edgar.domain.identifiers import accession_to_cik, validate_accession, validate_cik
 
 RelationshipType = Literal[
     "equivalent",
@@ -48,6 +56,32 @@ DEFINITIONS_FILENAME = "metric-definitions.json"
 RULES_FILENAME = "mapping-rules.json"
 _HEX64 = frozenset("0123456789abcdef")
 _V1_REJECTED_RELATIONSHIPS = frozenset({"derived_equivalent"})
+PENDING_REVIEW_SENTINEL = "__pending_review__"
+
+EXPECTED_V1_METRICS = frozenset(
+    {
+        "operating_company_revenue",
+        "gross_profit",
+        "operating_income",
+        "pretax_income",
+        "net_income_attributable_to_parent",
+        "diluted_eps",
+        "operating_cash_flow",
+        "cash_purchases_of_ppe",
+        "cash_and_cash_equivalents",
+        "short_term_borrowings",
+        "current_portion_long_term_debt",
+        "long_term_debt_noncurrent",
+        "stockholders_equity_attributable_to_parent",
+        "shares_outstanding_period_end",
+        "weighted_average_diluted_shares",
+        "stock_based_compensation",
+        "research_and_development_expense",
+        "selling_general_and_administrative_expense",
+        "cash_dividends_paid",
+        "cash_share_repurchases",
+    }
+)
 
 
 class RegistryValidationError(ValueError):
@@ -60,22 +94,16 @@ def _non_empty_str(value: str, field_name: str) -> str:
     return value
 
 
-def _unique_sorted_tuple(values: tuple[str, ...], field_name: str) -> tuple[str, ...]:
-    if len(set(values)) != len(values):
-        raise ValueError(f"duplicate entries in {field_name}")
-    return values
-
-
 class ExpandedQNameRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    namespace_uri: str | None = None
+    namespace_uri: str
     local_name: str
 
-    @field_validator("local_name")
+    @field_validator("namespace_uri", "local_name")
     @classmethod
-    def _local_name(cls, value: str) -> str:
-        return _non_empty_str(value, "local_name")
+    def _nonblank(cls, value: str, info: ValidationInfo) -> str:
+        return _non_empty_str(value, str(info.field_name))
 
     @model_validator(mode="after")
     def _ncname(self) -> Self:
@@ -87,10 +115,22 @@ class ExpandedQNameRecord(BaseModel):
 class MetricFamilyRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    code: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    description: str = Field(min_length=1)
+    code: str
+    name: str
+    description: str
     parent_code: str | None = None
+
+    @field_validator("code", "name", "description")
+    @classmethod
+    def _nonblank(cls, value: str, info: ValidationInfo) -> str:
+        return _non_empty_str(value, str(info.field_name))
+
+    @field_validator("parent_code")
+    @classmethod
+    def _parent(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _non_empty_str(value, "parent_code")
 
 
 class DefinitionConstraints(BaseModel):
@@ -104,13 +144,6 @@ class DefinitionConstraints(BaseModel):
     derivation_policy: DerivationPolicy
     notes: str | None = None
 
-    @field_validator("inclusion_rules", "exclusion_rules")
-    @classmethod
-    def _rule_entries(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        for entry in value:
-            _non_empty_str(entry, "constraint rule entry")
-        return value
-
     @field_validator(
         "inclusion_rules",
         "exclusion_rules",
@@ -118,28 +151,49 @@ class DefinitionConstraints(BaseModel):
         "industry_applicability",
     )
     @classmethod
-    def _no_duplicates(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+    def _rule_entries(cls, value: tuple[str, ...], info: ValidationInfo) -> tuple[str, ...]:
+        field_name = str(info.field_name)
+        for entry in value:
+            _non_empty_str(entry, field_name)
         if len(set(value)) != len(value):
-            raise ValueError("duplicate entries in constraint list")
+            raise ValueError(f"duplicate entries in {field_name}")
         return value
+
+    @field_validator("notes")
+    @classmethod
+    def _notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _non_empty_str(value, "notes")
 
 
 class MetricDefinitionRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    metric_code: str = Field(min_length=1)
+    metric_code: str
     definition_version: int = Field(gt=0)
-    family_code: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    economic_definition: str = Field(min_length=1)
+    family_code: str
+    name: str
+    economic_definition: str
     accounting_basis: AccountingBasis
     period_type: PeriodType
     value_kind: ValueKind
     unit_kind: UnitKind
     entity_scope: EntityScope
     dimension_policy: DimensionPolicy
-    sign_convention: str = Field(min_length=1)
+    sign_convention: str
     constraints: DefinitionConstraints
+
+    @field_validator(
+        "metric_code",
+        "family_code",
+        "name",
+        "economic_definition",
+        "sign_convention",
+    )
+    @classmethod
+    def _nonblank(cls, value: str, info: ValidationInfo) -> str:
+        return _non_empty_str(value, str(info.field_name))
 
     @model_validator(mode="after")
     def _value_unit_coherence(self) -> Self:
@@ -249,6 +303,11 @@ class ProjectionConceptEvidence(BaseModel):
             raise ValueError(f"accession must be canonical dashed form: {value!r}")
         return normalized
 
+    @field_validator("projection_version", "arelle_version")
+    @classmethod
+    def _nonblank(cls, value: str, info: ValidationInfo) -> str:
+        return _non_empty_str(value, str(info.field_name))
+
     @field_validator("bundle_fingerprint", "semantic_config_fingerprint")
     @classmethod
     def _hex64(cls, value: str) -> str:
@@ -260,26 +319,36 @@ class ProjectionConceptEvidence(BaseModel):
 class SupersedesRef(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    rule_key: str = Field(min_length=1)
+    rule_key: str
+
+    @field_validator("rule_key")
+    @classmethod
+    def _nonblank(cls, value: str) -> str:
+        return _non_empty_str(value, "rule_key")
 
 
 class MappingRuleRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    rule_key: str = Field(min_length=1)
+    rule_key: str
     source_concept: ExpandedQNameRecord
-    target_metric_code: str = Field(min_length=1)
+    target_metric_code: str
     target_definition_version: int = Field(gt=0)
     relationship_type: RelationshipType
     scope_kind: ScopeKind
     scope: MappingScope
     confidence_tier: ConfidenceTier
-    rationale: str = Field(min_length=1)
+    rationale: str
     evidence_snapshot: EvidenceSnapshot
     evidence: ProjectionConceptEvidence
-    reviewed_by: str = Field(min_length=1)
+    reviewed_by: str
     reviewed_at: datetime
     supersedes: SupersedesRef | None = None
+
+    @field_validator("rule_key", "target_metric_code", "rationale", "reviewed_by")
+    @classmethod
+    def _nonblank(cls, value: str, info: ValidationInfo) -> str:
+        return _non_empty_str(value, str(info.field_name))
 
     @field_validator("reviewed_at")
     @classmethod
@@ -407,6 +476,8 @@ def load_registry(registry_dir: Path) -> LoadedRegistry:
 
 
 def rule_state(rule_key: str, rules: Mapping[str, MappingRuleRecord]) -> RuleState:
+    if rule_key not in rules:
+        raise KeyError(f"unknown mapping rule: {rule_key}")
     for rule in rules.values():
         if rule.supersedes is not None and rule.supersedes.rule_key == rule_key:
             return "superseded"
@@ -429,6 +500,13 @@ def predecessor_chain(
         chain.insert(0, current)
         current_key = None if current.supersedes is None else current.supersedes.rule_key
     return tuple(chain)
+
+
+def scope_cik(scope: MappingScope) -> str | None:
+    """Issuer CIK encoded by the rule's explicit stored scope, if any."""
+    if isinstance(scope, FilingScope):
+        return accession_to_cik(scope.accession_number)
+    return getattr(scope, "cik", None)
 
 
 def _expected_aggregation(period_type: PeriodType, value_kind: ValueKind) -> AggregationBehavior:
@@ -489,6 +567,23 @@ def _validate_supersession_graph(rules_by_key: Mapping[str, MappingRuleRecord]) 
         predecessor_chain(rule_key, rules_by_key)
 
 
+def _validate_scope_evidence_coherence(rule: MappingRuleRecord) -> None:
+    evidence_accession = rule.evidence.accession_number
+    scope = rule.scope
+    if isinstance(scope, FilingScope):
+        if scope.accession_number != evidence_accession:
+            raise RegistryValidationError(
+                f"{rule.rule_key}: filing scope accession must match evidence.accession_number"
+            )
+        return
+    if isinstance(scope, (IssuerScope, IssuerPeriodScope)):
+        evidence_cik = accession_to_cik(evidence_accession)
+        if scope.cik != evidence_cik:
+            raise RegistryValidationError(
+                f"{rule.rule_key}: scope.cik must match CIK encoded by evidence.accession_number"
+            )
+
+
 def validate_registry(registry: LoadedRegistry) -> None:
     families_by_code = {f.code: f for f in registry.families}
     if len(families_by_code) != len(registry.families):
@@ -532,6 +627,7 @@ def validate_registry(registry: LoadedRegistry) -> None:
             raise RegistryValidationError(
                 f"{rule.rule_key}: evidence.concept must match source_concept"
             )
+        _validate_scope_evidence_coherence(rule)
 
     if rules_by_key:
         _validate_supersession_graph(rules_by_key)

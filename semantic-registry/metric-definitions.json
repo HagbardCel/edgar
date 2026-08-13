@@ -267,9 +267,10 @@
       "sign_convention": "natural_sign",
       "constraints": {
         "inclusion_rules": [
-          "Cash and cash equivalents including restricted cash only if explicitly part of cash equivalents line."
+          "Cash and cash equivalents, excluding separately defined restricted cash."
         ],
         "exclusion_rules": [
+          "Combined cash, cash equivalents and restricted cash totals where restricted cash is economically included in the reported value.",
           "Marketable securities",
           "Short-term investments reported separately"
         ],

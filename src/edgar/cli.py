@@ -337,7 +337,8 @@ def metrics_list(
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """List metric definitions from the Git registry."""
-    registry = _metric_service(registry_dir).load_git_registry()
+    service = _metric_service(registry_dir)
+    registry = service.load_git_registry()
     rows = sorted(registry.definitions, key=lambda d: (d.metric_code, d.definition_version))
     payload = {
         "registry_hash": registry.registry_hash,
@@ -373,14 +374,15 @@ def metrics_show(
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Show one metric definition contract."""
+    service = _metric_service(registry_dir)
+    registry = service.load_git_registry()
     try:
-        rows = _metric_service(registry_dir).get_metric(metric_code, definition_version=version)
+        rows = service.get_metric(metric_code, definition_version=version, registry=registry)
     except ValueError as exc:
         _metric_cli_error(exc)
     if not rows:
         typer.echo(f"unknown metric: {metric_code}", err=True)
         raise typer.Exit(code=1)
-    registry = _metric_service(registry_dir).load_git_registry()
     payload = {
         "registry_hash": registry.registry_hash,
         "definitions": [r.model_dump(mode="json") for r in rows],
@@ -403,12 +405,14 @@ def mappings_list(
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """List curated mapping rules from Git."""
-    registry = _metric_service(registry_dir).load_git_registry()
-    rows = _metric_service(registry_dir).list_mappings(
+    service = _metric_service(registry_dir)
+    registry = service.load_git_registry()
+    rows = service.list_mappings(
         metric_code=metric,
         concept_local_name=concept,
         cik=cik,
         relationship_type=relationship,
+        registry=registry,
     )
     payload = {
         "registry_hash": registry.registry_hash,
@@ -470,15 +474,12 @@ def mappings_export(
     registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
 ) -> None:
     """Export mapping audit ledger from Git (DB-free)."""
-    from edgar.metrics.export import mapping_rule_markdown
-
-    reports = _metric_service(registry_dir).export_mappings_audit()
+    service = _metric_service(registry_dir)
     if fmt == "json":
-        payload = {"reports": reports, "count": len(reports)}
+        payload = service.export_mappings_audit()
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
     elif fmt == "markdown":
-        for report in reports:
-            typer.echo(mapping_rule_markdown(cast(dict[str, Any], report)))
+        typer.echo(service.export_mappings_audit_markdown())
     else:
         typer.echo(f"unsupported format: {fmt}", err=True)
         raise typer.Exit(code=1)
