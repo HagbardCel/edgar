@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from edgar.metrics.registry import MappingRuleRecord, RuleState, rule_state
+from edgar.metrics.registry import MappingRuleRecord, RuleState, predecessor_chain, rule_state
 
 
 def mapping_rule_audit_payload(
@@ -26,14 +26,14 @@ def mapping_rule_audit_payload(
             "definition_version": rule.target_definition_version,
         },
         "relationship_type": rule.relationship_type,
-        "scope": rule.scope.model_dump(),
+        "scope": rule.scope.model_dump(mode="json"),
         "scope_kind": rule.scope_kind,
         "confidence_tier": rule.confidence_tier,
         "rationale": rule.rationale,
         "reviewed_by": rule.reviewed_by,
         "reviewed_at": rule.reviewed_at.isoformat(),
         "evidence_snapshot": dict(rule.evidence_snapshot.root),
-        "evidence": rule.evidence.model_dump(),
+        "evidence": rule.evidence.model_dump(mode="json"),
         "supersedes": None if rule.supersedes is None else rule.supersedes.model_dump(),
         "supersession_chain": [r.rule_key for r in supersession_chain],
     }
@@ -47,6 +47,12 @@ def mapping_rule_markdown(payload: dict[str, Any]) -> str:
         f"# {payload['rule_key']}",
         "",
         f"**State:** {payload['state']}",
+        f"**Registry hash:** `{payload['registry_hash']}`",
+        "",
+        "## Relationship",
+        "",
+        f"- Type: `{payload['relationship_type']}`",
+        f"- Confidence: `{payload['confidence_tier']}`",
         "",
         "## Source",
         "",
@@ -60,26 +66,67 @@ def mapping_rule_markdown(payload: dict[str, Any]) -> str:
         "",
         "## Scope (metadata only; applicability is Phase 2B)",
         "",
+        f"Scope kind: `{payload['scope_kind']}`",
+        "",
         "```json",
         json.dumps(payload["scope"], indent=2, sort_keys=True),
         "```",
+        "",
+        "## Review",
+        "",
+        f"- Reviewed by: {payload['reviewed_by']}",
+        f"- Reviewed at: {payload['reviewed_at']}",
         "",
         "## Rationale",
         "",
         str(payload["rationale"]),
         "",
+        "## Evidence snapshot",
+        "",
+        "```json",
+        json.dumps(payload["evidence_snapshot"], indent=2, sort_keys=True),
+        "```",
+        "",
+        "## Pinned projection evidence",
+        "",
+        "```json",
+        json.dumps(payload["evidence"], indent=2, sort_keys=True),
+        "```",
+        "",
     ]
+    if payload.get("supersedes") is not None:
+        lines.extend(
+            [
+                "## Supersedes",
+                "",
+                f"Predecessor rule: `{payload['supersedes']['rule_key']}`",
+                "",
+            ]
+        )
+    if payload.get("supersession_chain"):
+        lines.extend(
+            [
+                "## Predecessor chain",
+                "",
+                ", ".join(f"`{key}`" for key in payload["supersession_chain"]),
+                "",
+            ]
+        )
     if "pinned_evidence_enrichment" in payload:
         enrichment = payload["pinned_evidence_enrichment"]
         lines.extend(
             [
-                "## Pinned projection evidence",
+                "## Pinned evidence enrichment",
                 "",
                 f"Facts in pinned projection: {len(enrichment.get('fact_occurrences', []))}",
                 "",
+                "```json",
+                json.dumps(enrichment, indent=2, sort_keys=True),
+                "```",
+                "",
             ]
         )
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines)
 
 
 def export_registry_audit(
@@ -90,23 +137,12 @@ def export_registry_audit(
     rules_by_key = {rule.rule_key: rule for rule in rules}
     reports: list[dict[str, Any]] = []
     for rule in sorted(rules, key=lambda r: r.rule_key):
-        chain: list[MappingRuleRecord] = []
-        current_key = rule.rule_key
-        while True:
-            chain.append(rules_by_key[current_key])
-            predecessors = [
-                r
-                for r in rules
-                if r.supersedes is not None and r.supersedes.rule_key == current_key
-            ]
-            if not predecessors:
-                break
-            current_key = predecessors[0].rule_key
+        chain = predecessor_chain(rule.rule_key, rules_by_key)
         reports.append(
             mapping_rule_audit_payload(
                 rule,
                 state=rule_state(rule.rule_key, rules_by_key),
-                supersession_chain=tuple(reversed(chain)),
+                supersession_chain=chain,
                 registry_hash=registry_hash,
             )
         )

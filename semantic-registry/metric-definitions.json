@@ -1,8 +1,6 @@
 {
-  "registry_schema_version": 1,
   "definitions": [
     {
-      "definition_schema_version": 1,
       "metric_code": "operating_company_revenue",
       "definition_version": 1,
       "family_code": "revenue",
@@ -36,7 +34,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "gross_profit",
       "definition_version": 1,
       "family_code": "profit",
@@ -68,7 +65,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "operating_income",
       "definition_version": 1,
       "family_code": "profit",
@@ -101,7 +97,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "pretax_income",
       "definition_version": 1,
       "family_code": "profit",
@@ -133,7 +128,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "net_income_attributable_to_parent",
       "definition_version": 1,
       "family_code": "profit",
@@ -165,7 +159,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "diluted_eps",
       "definition_version": 1,
       "family_code": "eps",
@@ -198,7 +191,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "operating_cash_flow",
       "definition_version": 1,
       "family_code": "cash_flow",
@@ -230,7 +222,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "cash_purchases_of_ppe",
       "definition_version": 1,
       "family_code": "capex",
@@ -263,7 +254,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "cash_and_cash_equivalents",
       "definition_version": 1,
       "family_code": "cash",
@@ -295,7 +285,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "short_term_borrowings",
       "definition_version": 1,
       "family_code": "debt",
@@ -327,7 +316,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "current_portion_long_term_debt",
       "definition_version": 1,
       "family_code": "debt",
@@ -359,7 +347,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "long_term_debt_noncurrent",
       "definition_version": 1,
       "family_code": "debt",
@@ -391,7 +378,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "stockholders_equity_attributable_to_parent",
       "definition_version": 1,
       "family_code": "equity",
@@ -423,7 +409,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "shares_outstanding_period_end",
       "definition_version": 1,
       "family_code": "shares",
@@ -455,7 +440,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "weighted_average_diluted_shares",
       "definition_version": 1,
       "family_code": "shares",
@@ -487,7 +471,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "stock_based_compensation",
       "definition_version": 1,
       "family_code": "operating_expense",
@@ -519,7 +502,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "research_and_development_expense",
       "definition_version": 1,
       "family_code": "operating_expense",
@@ -551,7 +533,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "selling_general_and_administrative_expense",
       "definition_version": 1,
       "family_code": "operating_expense",
@@ -582,7 +563,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "cash_dividends_paid",
       "definition_version": 1,
       "family_code": "capital_allocation",
@@ -614,7 +594,6 @@
       "dimension_policy": "undimensioned_only"
     },
     {
-      "definition_schema_version": 1,
       "metric_code": "cash_share_repurchases",
       "definition_version": 1,
       "family_code": "capital_allocation",

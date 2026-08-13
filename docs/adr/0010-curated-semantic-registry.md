@@ -20,7 +20,9 @@ Phase 2A introduces a human-reviewed metric ontology and curated XBRL concept→
 
 5. **CLI split** — `metrics list/show` and `mappings list/export` read Git only. `mappings explain` resolves pinned projection evidence against PostgreSQL but does **not** implement scope-based applicability (Phase 2B).
 
-6. **Pre-production compatibility** — Application supports current registry format only. Format changes require editing code, JSON, and tests together. No upgrade dispatcher until durable observations exist.
+6. **Pre-production compatibility** — Application supports the current registry shape only. `definition_version` is the sole economic semantics version field. Format changes require editing code, JSON, and tests together. No registry serialization-version framework or upgrade dispatcher.
+
+This ADR refines the storage-authority detail in [ADR 0006](0006-regenerable-parser-outputs-vs-curated-overlays.md): curated metric definitions and mapping rules are Git-authoritative, not PostgreSQL tables.
 
 ## Consequences
 

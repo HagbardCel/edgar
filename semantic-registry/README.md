@@ -36,7 +36,9 @@ Do not use `filing_bundle_opaque_id` in authoritative evidence.
 
 ## Governance
 
-- Only human-reviewed rules belong in `mapping-rules.json`.
+- `mapping-rules.json` starts empty until human-reviewed rules from the real corpus are added.
+- Only human-reviewed rules belong in `mapping-rules.json` — never synthetic integration-test decisions.
+- Workflow: propose candidate + evidence packet → human reviews filing/XBRL evidence → human records `reviewed_by` / `reviewed_at` → rule committed to Git.
 - Semantic changes to approved rules → new `rule_key` + `supersedes`.
 - Do not fabricate `reviewed_by`.
 

@@ -72,7 +72,8 @@ SEC EDGAR and approved external data sources
 ### Systems of record
 
 - **Filesystem/object storage:** immutable source artifacts and large derived artifacts
-- **PostgreSQL:** metadata, provenance, normalized entities, mappings, reviews, text structure, and operational state
+- **PostgreSQL:** metadata, provenance, normalized filing/XBRL entities, text structure, and operational state; later canonical observations (Phase 2C+)
+- **Git (`semantic-registry/`):** curated metric definitions and human-reviewed mapping rules (Phase 2A+)
 - **Parquet:** research panels and large analytical extracts
 - **DuckDB:** local analytical querying
 - **Search/vector index:** added only when concrete retrieval workloads justify it
@@ -161,7 +162,7 @@ Slice 0: acquisition/replay spike
 
 Phase 1B and Phase 1C may proceed in parallel only after Phase 1A produces a valid immutable filing bundle. Durable retrieval is the input dependency for both parser tracks.
 
-Parser outputs are versioned, regenerable materializations of immutable filing bundles. Curated review and mapping decisions are separate, non-regenerable source data that must be transactionally stored, exported and backed up.
+Parser outputs are versioned, regenerable materializations of immutable filing bundles. Curated review and mapping decisions are Git-authoritative source data under `semantic-registry/` (see ADR 0010), not PostgreSQL registry tables.
 
 Amendment filings use a directed `amends` relationship (see ADR 0005); they do not supersede the original filing as a whole.
 

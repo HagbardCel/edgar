@@ -29,6 +29,6 @@ CLI:
 ## Exit gate
 
 - 20 corrected metric contracts in Git
-- 3–5 reviewed mapping rules with real `bundle_fingerprint` evidence (replace synthetic CI fixtures when corpus is projected)
+- 3–5 human-reviewed mapping rules with real `bundle_fingerprint` evidence added after Phase 1D corpus projections exist (synthetic rules remain in test fixtures only)
 - `make check` and `make phase1-acceptance` green
-- Zero registry DB tables or migrations
+- Zero registry DB tables, migrations, or format-version machinery

@@ -23,6 +23,7 @@ from edgar.metrics.registry import (
     MetricFamilyRecord,
     RuleState,
     load_registry,
+    predecessor_chain,
     rule_state,
     validate_registry,
 )
@@ -134,31 +135,16 @@ class MetricRegistryService:
             state=rule_state(rule_key, self._rules_by_key(registry)),
         )
 
-    def get_supersession_chain(self, rule_key: str) -> tuple[MappingRuleRecord, ...]:
+    def get_predecessor_chain(self, rule_key: str) -> tuple[MappingRuleRecord, ...]:
         registry = self.load_git_registry()
-        rules_by_key = self._rules_by_key(registry)
-        if rule_key not in rules_by_key:
-            raise KeyError(f"unknown mapping rule: {rule_key}")
-        chain = [rules_by_key[rule_key]]
-        current = rule_key
-        while True:
-            predecessors = [
-                r
-                for r in registry.rules
-                if r.supersedes is not None and r.supersedes.rule_key == current
-            ]
-            if not predecessors:
-                break
-            current = predecessors[0].rule_key
-            chain.append(rules_by_key[current])
-        return tuple(reversed(chain))
+        return predecessor_chain(rule_key, self._rules_by_key(registry))
 
     def explain_mapping(self, rule_key: str) -> dict[str, Any]:
         registry = self.load_git_registry()
         view = self.get_mapping(rule_key)
         if view is None:
             raise KeyError(f"unknown mapping rule: {rule_key}")
-        chain = self.get_supersession_chain(rule_key)
+        chain = self.get_predecessor_chain(rule_key)
         enrichment_payload: dict[str, Any] | None = None
         engine = self._require_engine()
         with engine.connect() as conn:

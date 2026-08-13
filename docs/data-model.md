@@ -17,6 +17,8 @@ Related:
 
 Both offline branches of a FilingBundle appear below: Arelle semantic projection and document parsing.
 
+**Phase 2 boundary:** Phase 2A curated metric definitions and mapping rules are Git-authoritative and are intentionally outside this Phase-1 PostgreSQL persistence model; see [ADR 0010](adr/0010-curated-semantic-registry.md).
+
 ---
 
 ## 1. Catalog identity

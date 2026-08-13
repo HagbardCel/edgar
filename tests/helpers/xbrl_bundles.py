@@ -52,6 +52,9 @@ SCHEMA = b"""<?xml version="1.0"?>
   <element name="Assets" id="test_Assets" type="xbrli:monetaryItemType"
            substitutionGroup="xbrli:item" nillable="true"
            xbrli:periodType="instant" xbrli:balance="debit"/>
+  <element name="CashAndCashEquivalents" id="test_CashAndCashEquivalents"
+           type="xbrli:monetaryItemType" substitutionGroup="xbrli:item" nillable="true"
+           xbrli:periodType="instant" xbrli:balance="debit"/>
 </schema>
 """
 
@@ -70,6 +73,9 @@ INSTANCE = b"""<?xml version="1.0"?>
   </xbrli:context>
   <xbrli:unit id="u1"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
   <t:Assets contextRef="c1" unitRef="u1" decimals="INF" id="f1">100</t:Assets>
+  <t:CashAndCashEquivalents contextRef="c1" unitRef="u1" decimals="INF" id="f3">
+    100
+  </t:CashAndCashEquivalents>
   <t:Assets contextRef="c1" unitRef="u1" decimals="INF" id="f2">100</t:Assets>
 </xbrli:xbrl>
 """

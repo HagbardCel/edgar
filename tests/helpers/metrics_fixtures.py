@@ -29,14 +29,12 @@ def build_test_mapping_rules(
 ) -> dict[str, object]:
     reviewed_at = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC).isoformat()
     return {
-        "registry_schema_version": 1,
         "rules": [
             {
-                "rule_schema_version": 1,
                 "rule_key": "map-test-equivalent",
                 "source_concept": {
                     "namespace_uri": "http://example.com/test",
-                    "local_name": "Assets",
+                    "local_name": "CashAndCashEquivalents",
                 },
                 "target_metric_code": "cash_and_cash_equivalents",
                 "target_definition_version": 1,
@@ -44,7 +42,7 @@ def build_test_mapping_rules(
                 "scope_kind": "global",
                 "scope": {"kind": "global"},
                 "confidence_tier": "high",
-                "rationale": "Integration test: synthetic Assets maps to cash metric contract.",
+                "rationale": "Integration test: synthetic cash maps to cash metric.",
                 "evidence_snapshot": {"note": "synthetic integration fixture"},
                 "evidence": {
                     "accession_number": accession,
@@ -54,7 +52,7 @@ def build_test_mapping_rules(
                     "semantic_config_fingerprint": semantic_config_fingerprint,
                     "concept": {
                         "namespace_uri": "http://example.com/test",
-                        "local_name": "Assets",
+                        "local_name": "CashAndCashEquivalents",
                     },
                 },
                 "reviewed_by": "integration-test",
@@ -62,7 +60,6 @@ def build_test_mapping_rules(
                 "supersedes": None,
             },
             {
-                "rule_schema_version": 1,
                 "rule_key": "map-test-incompatible",
                 "source_concept": {
                     "namespace_uri": "http://example.com/test",
@@ -92,11 +89,10 @@ def build_test_mapping_rules(
                 "supersedes": None,
             },
             {
-                "rule_schema_version": 1,
                 "rule_key": "map-test-issuer-period",
                 "source_concept": {
                     "namespace_uri": "http://example.com/test",
-                    "local_name": "Assets",
+                    "local_name": "CashAndCashEquivalents",
                 },
                 "target_metric_code": "cash_and_cash_equivalents",
                 "target_definition_version": 1,
@@ -119,7 +115,7 @@ def build_test_mapping_rules(
                     "semantic_config_fingerprint": semantic_config_fingerprint,
                     "concept": {
                         "namespace_uri": "http://example.com/test",
-                        "local_name": "Assets",
+                        "local_name": "CashAndCashEquivalents",
                     },
                 },
                 "reviewed_by": "integration-test",

@@ -7,15 +7,11 @@ import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Annotated, Any, Literal, Self, cast
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 from edgar.domain.identifiers import validate_accession, validate_cik
-
-REGISTRY_SCHEMA_VERSION = 1
-DEFINITION_SCHEMA_VERSION = 1
-RULE_SCHEMA_VERSION = 1
 
 RelationshipType = Literal[
     "equivalent",
@@ -34,39 +30,40 @@ ConfidenceTier = Literal["high", "medium", "low"]
 PeriodType = Literal["instant", "duration"]
 RuleState = Literal["current", "superseded"]
 DimensionPolicy = Literal["undimensioned_only"]
-
-RELATIONSHIP_TYPES = frozenset(
-    {
-        "equivalent",
-        "issuer_equivalent",
-        "narrower_than",
-        "broader_than",
-        "component_of",
-        "derived_equivalent",
-        "presentation_alias",
-        "proxy_for",
-        "incompatible",
-        "unresolved",
-    }
-)
-AGGREGATION_BEHAVIORS = frozenset(
-    {
-        "additive_over_disjoint_periods",
-        "point_in_time_balance",
-        "non_additive_per_share",
-        "point_in_time_count",
-        "weighted_average_non_additive",
-    }
-)
+AccountingBasis = Literal["us_gaap"]
+DerivationPolicy = Literal["direct_only"]
+ValueKind = Literal["monetary", "per_share", "shares"]
+UnitKind = Literal["currency", "currency_per_share", "shares"]
+EntityScope = Literal["consolidated"]
+AggregationBehavior = Literal[
+    "additive_over_disjoint_periods",
+    "point_in_time_balance",
+    "non_additive_per_share",
+    "point_in_time_count",
+    "weighted_average_non_additive",
+]
 
 FAMILIES_FILENAME = "metric-families.json"
 DEFINITIONS_FILENAME = "metric-definitions.json"
 RULES_FILENAME = "mapping-rules.json"
 _HEX64 = frozenset("0123456789abcdef")
+_V1_REJECTED_RELATIONSHIPS = frozenset({"derived_equivalent"})
 
 
 class RegistryValidationError(ValueError):
     """Raised when registry content fails cross-record or semantic validation."""
+
+
+def _non_empty_str(value: str, field_name: str) -> str:
+    if not value.strip():
+        raise ValueError(f"{field_name} must be non-empty")
+    return value
+
+
+def _unique_sorted_tuple(values: tuple[str, ...], field_name: str) -> tuple[str, ...]:
+    if len(set(values)) != len(values):
+        raise ValueError(f"duplicate entries in {field_name}")
+    return values
 
 
 class ExpandedQNameRecord(BaseModel):
@@ -78,51 +75,85 @@ class ExpandedQNameRecord(BaseModel):
     @field_validator("local_name")
     @classmethod
     def _local_name(cls, value: str) -> str:
-        if not value:
-            raise ValueError("local_name must be non-empty")
-        if any(ch in value for ch in ":{}/ \t\r\n"):
-            raise ValueError(f"local_name is not an NCName: {value!r}")
-        return value
+        return _non_empty_str(value, "local_name")
+
+    @model_validator(mode="after")
+    def _ncname(self) -> Self:
+        if any(ch in self.local_name for ch in ":{}/ \t\r\n"):
+            raise ValueError(f"local_name is not an NCName: {self.local_name!r}")
+        return self
 
 
 class MetricFamilyRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    code: str
-    name: str
-    description: str
+    code: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    description: str = Field(min_length=1)
     parent_code: str | None = None
 
 
 class DefinitionConstraints(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    inclusion_rules: tuple[str, ...]
-    exclusion_rules: tuple[str, ...]
+    inclusion_rules: tuple[str, ...] = Field(min_length=1)
+    exclusion_rules: tuple[str, ...] = Field(min_length=1)
     statement_expectations: tuple[str, ...] = ()
     industry_applicability: tuple[str, ...] = ()
-    aggregation_behavior: str
-    derivation_policy: str
+    aggregation_behavior: AggregationBehavior
+    derivation_policy: DerivationPolicy
     notes: str | None = None
+
+    @field_validator("inclusion_rules", "exclusion_rules")
+    @classmethod
+    def _rule_entries(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        for entry in value:
+            _non_empty_str(entry, "constraint rule entry")
+        return value
+
+    @field_validator(
+        "inclusion_rules",
+        "exclusion_rules",
+        "statement_expectations",
+        "industry_applicability",
+    )
+    @classmethod
+    def _no_duplicates(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(value)) != len(value):
+            raise ValueError("duplicate entries in constraint list")
+        return value
 
 
 class MetricDefinitionRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    definition_schema_version: int
-    metric_code: str
-    definition_version: int
-    family_code: str
-    name: str
-    economic_definition: str
-    accounting_basis: str
+    metric_code: str = Field(min_length=1)
+    definition_version: int = Field(gt=0)
+    family_code: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    economic_definition: str = Field(min_length=1)
+    accounting_basis: AccountingBasis
     period_type: PeriodType
-    value_kind: str
-    unit_kind: str
-    entity_scope: str
+    value_kind: ValueKind
+    unit_kind: UnitKind
+    entity_scope: EntityScope
     dimension_policy: DimensionPolicy
-    sign_convention: str
+    sign_convention: str = Field(min_length=1)
     constraints: DefinitionConstraints
+
+    @model_validator(mode="after")
+    def _value_unit_coherence(self) -> Self:
+        expected: dict[ValueKind, UnitKind] = {
+            "monetary": "currency",
+            "per_share": "currency_per_share",
+            "shares": "shares",
+        }
+        if self.unit_kind != expected[self.value_kind]:
+            raise ValueError(
+                f"{self.metric_code}: value_kind {self.value_kind!r} requires "
+                f"unit_kind {expected[self.value_kind]!r}, got {self.unit_kind!r}"
+            )
+        return self
 
 
 class GlobalScope(BaseModel):
@@ -229,25 +260,24 @@ class ProjectionConceptEvidence(BaseModel):
 class SupersedesRef(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    rule_key: str
+    rule_key: str = Field(min_length=1)
 
 
 class MappingRuleRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    rule_schema_version: int
-    rule_key: str
+    rule_key: str = Field(min_length=1)
     source_concept: ExpandedQNameRecord
-    target_metric_code: str
-    target_definition_version: int
+    target_metric_code: str = Field(min_length=1)
+    target_definition_version: int = Field(gt=0)
     relationship_type: RelationshipType
     scope_kind: ScopeKind
     scope: MappingScope
     confidence_tier: ConfidenceTier
-    rationale: str
+    rationale: str = Field(min_length=1)
     evidence_snapshot: EvidenceSnapshot
     evidence: ProjectionConceptEvidence
-    reviewed_by: str
+    reviewed_by: str = Field(min_length=1)
     reviewed_at: datetime
     supersedes: SupersedesRef | None = None
 
@@ -268,28 +298,24 @@ class MappingRuleRecord(BaseModel):
 class FamiliesFile(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    registry_schema_version: int
     families: tuple[MetricFamilyRecord, ...]
 
 
 class DefinitionsFile(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    registry_schema_version: int
     definitions: tuple[MetricDefinitionRecord, ...]
 
 
 class RulesFile(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    registry_schema_version: int
     rules: tuple[MappingRuleRecord, ...]
 
 
 class LoadedRegistry(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    registry_schema_version: int
     families: tuple[MetricFamilyRecord, ...]
     definitions: tuple[MetricDefinitionRecord, ...]
     rules: tuple[MappingRuleRecord, ...]
@@ -306,90 +332,33 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _canonicalize_qname(qname: ExpandedQNameRecord) -> dict[str, Any]:
-    return {"local_name": qname.local_name, "namespace_uri": qname.namespace_uri}
-
-
 def _qnames_equal(left: ExpandedQNameRecord, right: ExpandedQNameRecord) -> bool:
     return left.namespace_uri == right.namespace_uri and left.local_name == right.local_name
 
 
-def _canonicalize_scope(scope: MappingScope) -> dict[str, Any]:
-    if isinstance(scope, GlobalScope):
-        return {"kind": scope.kind}
-    if isinstance(scope, IssuerScope):
-        return {"cik": scope.cik, "kind": scope.kind}
-    if isinstance(scope, IssuerPeriodScope):
-        return {
-            "cik": scope.cik,
-            "kind": scope.kind,
-            "report_period_from": scope.report_period_from.isoformat(),
-            "report_period_through": scope.report_period_through.isoformat(),
-        }
-    scope = cast(FilingScope, scope)
-    return {"accession_number": scope.accession_number, "kind": scope.kind}
+def _constraints_for_hash(constraints: DefinitionConstraints) -> dict[str, Any]:
+    dumped = constraints.model_dump(mode="json")
+    for key in (
+        "inclusion_rules",
+        "exclusion_rules",
+        "statement_expectations",
+        "industry_applicability",
+    ):
+        dumped[key] = sorted(dumped[key])
+    return dumped
 
 
-def _canonicalize_constraints(constraints: DefinitionConstraints) -> dict[str, Any]:
-    return {
-        "aggregation_behavior": constraints.aggregation_behavior,
-        "derivation_policy": constraints.derivation_policy,
-        "exclusion_rules": sorted(constraints.exclusion_rules),
-        "inclusion_rules": sorted(constraints.inclusion_rules),
-        "industry_applicability": sorted(constraints.industry_applicability),
-        "notes": constraints.notes,
-        "statement_expectations": sorted(constraints.statement_expectations),
-    }
+def _definition_for_hash(defn: MetricDefinitionRecord) -> dict[str, Any]:
+    payload = defn.model_dump(mode="json")
+    payload["constraints"] = _constraints_for_hash(defn.constraints)
+    return payload
 
 
-def _canonicalize_definition(defn: MetricDefinitionRecord) -> dict[str, Any]:
-    return {
-        "accounting_basis": defn.accounting_basis,
-        "constraints": _canonicalize_constraints(defn.constraints),
-        "definition_schema_version": defn.definition_schema_version,
-        "definition_version": defn.definition_version,
-        "dimension_policy": defn.dimension_policy,
-        "economic_definition": defn.economic_definition,
-        "entity_scope": defn.entity_scope,
-        "family_code": defn.family_code,
-        "metric_code": defn.metric_code,
-        "name": defn.name,
-        "period_type": defn.period_type,
-        "sign_convention": defn.sign_convention,
-        "unit_kind": defn.unit_kind,
-        "value_kind": defn.value_kind,
-    }
-
-
-def _canonicalize_evidence(evidence: ProjectionConceptEvidence) -> dict[str, Any]:
-    return {
-        "accession_number": evidence.accession_number,
-        "arelle_version": evidence.arelle_version,
-        "bundle_fingerprint": evidence.bundle_fingerprint,
-        "concept": _canonicalize_qname(evidence.concept),
-        "projection_version": evidence.projection_version,
-        "semantic_config_fingerprint": evidence.semantic_config_fingerprint,
-    }
-
-
-def _canonicalize_rule(rule: MappingRuleRecord) -> dict[str, Any]:
-    return {
-        "confidence_tier": rule.confidence_tier,
-        "evidence": _canonicalize_evidence(rule.evidence),
-        "evidence_snapshot": dict(sorted(rule.evidence_snapshot.root.items())),
-        "rationale": rule.rationale,
-        "relationship_type": rule.relationship_type,
-        "reviewed_at": rule.reviewed_at.astimezone(UTC).isoformat(),
-        "reviewed_by": rule.reviewed_by,
-        "rule_key": rule.rule_key,
-        "rule_schema_version": rule.rule_schema_version,
-        "scope": _canonicalize_scope(rule.scope),
-        "scope_kind": rule.scope_kind,
-        "source_concept": _canonicalize_qname(rule.source_concept),
-        "supersedes": None if rule.supersedes is None else {"rule_key": rule.supersedes.rule_key},
-        "target_definition_version": rule.target_definition_version,
-        "target_metric_code": rule.target_metric_code,
-    }
+def _rule_for_hash(rule: MappingRuleRecord) -> dict[str, Any]:
+    payload = rule.model_dump(mode="json")
+    payload["reviewed_at"] = rule.reviewed_at.astimezone(UTC).isoformat()
+    payload["evidence_snapshot"] = dict(sorted(rule.evidence_snapshot.root.items()))
+    return payload
 
 
 def fingerprint_registry_content(
@@ -398,19 +367,18 @@ def fingerprint_registry_content(
     definitions: Sequence[MetricDefinitionRecord],
     rules: Sequence[MappingRuleRecord],
 ) -> str:
-    sorted_definitions = sorted(definitions, key=lambda d: (d.metric_code, d.definition_version))
     payload = {
-        "definitions": [_canonicalize_definition(d) for d in sorted_definitions],
-        "families": [
-            {
-                "code": f.code,
-                "description": f.description,
-                "name": f.name,
-                "parent_code": f.parent_code,
-            }
-            for f in sorted(families, key=lambda f: f.code)
+        "definitions": [
+            _definition_for_hash(d)
+            for d in sorted(
+                definitions,
+                key=lambda item: (item.metric_code, item.definition_version),
+            )
         ],
-        "rules": [_canonicalize_rule(r) for r in sorted(rules, key=lambda r: r.rule_key)],
+        "families": [
+            f.model_dump(mode="json") for f in sorted(families, key=lambda item: item.code)
+        ],
+        "rules": [_rule_for_hash(r) for r in sorted(rules, key=lambda item: item.rule_key)],
     }
     return sha256_hex(canonical_json_bytes(payload))
 
@@ -425,20 +393,12 @@ def load_registry(registry_dir: Path) -> LoadedRegistry:
         _load_json(registry_dir / DEFINITIONS_FILENAME)
     )
     rules_file = RulesFile.model_validate(_load_json(registry_dir / RULES_FILENAME))
-    versions = {
-        families_file.registry_schema_version,
-        definitions_file.registry_schema_version,
-        rules_file.registry_schema_version,
-    }
-    if len(versions) != 1 or next(iter(versions)) != REGISTRY_SCHEMA_VERSION:
-        raise RegistryValidationError(f"unsupported registry_schema_version: {versions}")
     registry_hash = fingerprint_registry_content(
         families=families_file.families,
         definitions=definitions_file.definitions,
         rules=rules_file.rules,
     )
     return LoadedRegistry(
-        registry_schema_version=REGISTRY_SCHEMA_VERSION,
         families=families_file.families,
         definitions=definitions_file.definitions,
         rules=rules_file.rules,
@@ -453,7 +413,25 @@ def rule_state(rule_key: str, rules: Mapping[str, MappingRuleRecord]) -> RuleSta
     return "current"
 
 
-def _expected_aggregation(period_type: str, value_kind: str) -> str:
+def predecessor_chain(
+    rule_key: str, rules_by_key: Mapping[str, MappingRuleRecord]
+) -> tuple[MappingRuleRecord, ...]:
+    if rule_key not in rules_by_key:
+        raise KeyError(f"unknown mapping rule: {rule_key}")
+    chain: list[MappingRuleRecord] = []
+    seen: set[str] = set()
+    current_key: str | None = rule_key
+    while current_key is not None:
+        if current_key in seen:
+            raise RegistryValidationError(f"supersession cycle detected at {current_key!r}")
+        seen.add(current_key)
+        current = rules_by_key[current_key]
+        chain.insert(0, current)
+        current_key = None if current.supersedes is None else current.supersedes.rule_key
+    return tuple(chain)
+
+
+def _expected_aggregation(period_type: PeriodType, value_kind: ValueKind) -> AggregationBehavior:
     if value_kind == "per_share":
         return "non_additive_per_share"
     if value_kind == "shares":
@@ -465,10 +443,57 @@ def _expected_aggregation(period_type: str, value_kind: str) -> str:
     return "additive_over_disjoint_periods"
 
 
+def _validate_family_graph(families_by_code: Mapping[str, MetricFamilyRecord]) -> None:
+    for family in families_by_code.values():
+        if family.parent_code is None:
+            continue
+        if family.parent_code == family.code:
+            raise RegistryValidationError(f"family {family.code} cannot be its own parent")
+        if family.parent_code not in families_by_code:
+            raise RegistryValidationError(f"family {family.code} has unknown parent_code")
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(code: str) -> None:
+        if code in visited:
+            return
+        if code in visiting:
+            raise RegistryValidationError(f"family parent cycle detected at {code!r}")
+        visiting.add(code)
+        parent = families_by_code[code].parent_code
+        if parent is not None:
+            visit(parent)
+        visiting.remove(code)
+        visited.add(code)
+
+    for code in families_by_code:
+        visit(code)
+
+
+def _validate_supersession_graph(rules_by_key: Mapping[str, MappingRuleRecord]) -> None:
+    for rule in rules_by_key.values():
+        if rule.supersedes is None:
+            continue
+        predecessor_key = rule.supersedes.rule_key
+        if predecessor_key == rule.rule_key:
+            raise RegistryValidationError(f"{rule.rule_key}: cannot supersede itself")
+        if predecessor_key not in rules_by_key:
+            raise RegistryValidationError(f"{rule.rule_key}: unknown supersedes target")
+        predecessor = rules_by_key[predecessor_key]
+        if not _qnames_equal(rule.source_concept, predecessor.source_concept):
+            raise RegistryValidationError(
+                f"{rule.rule_key}: source_concept must match predecessor {predecessor_key}"
+            )
+    for rule_key in rules_by_key:
+        predecessor_chain(rule_key, rules_by_key)
+
+
 def validate_registry(registry: LoadedRegistry) -> None:
     families_by_code = {f.code: f for f in registry.families}
     if len(families_by_code) != len(registry.families):
         raise RegistryValidationError("duplicate family code")
+    _validate_family_graph(families_by_code)
 
     definitions_by_key = {(d.metric_code, d.definition_version): d for d in registry.definitions}
     if len(definitions_by_key) != len(registry.definitions):
@@ -487,17 +512,19 @@ def validate_registry(registry: LoadedRegistry) -> None:
                 f"{defn.metric_code}: aggregation_behavior must be {expected!r}, "
                 f"got {defn.constraints.aggregation_behavior!r}"
             )
-        if defn.constraints.aggregation_behavior not in AGGREGATION_BEHAVIORS:
-            raise RegistryValidationError(f"{defn.metric_code}: invalid aggregation_behavior")
 
     for rule in registry.rules:
-        if rule.rule_schema_version != RULE_SCHEMA_VERSION:
-            raise RegistryValidationError(f"{rule.rule_key}: unsupported rule_schema_version")
-        if rule.relationship_type not in RELATIONSHIP_TYPES:
-            raise RegistryValidationError(f"{rule.rule_key}: invalid relationship_type")
-        if rule.relationship_type == "issuer_equivalent" and rule.scope_kind == "global":
+        if rule.relationship_type in _V1_REJECTED_RELATIONSHIPS:
             raise RegistryValidationError(
-                f"{rule.rule_key}: issuer_equivalent cannot use global scope"
+                f"{rule.rule_key}: relationship_type {rule.relationship_type!r} "
+                "is not allowed in v1"
+            )
+        if rule.relationship_type == "issuer_equivalent" and rule.scope_kind not in {
+            "issuer_period",
+            "filing",
+        }:
+            raise RegistryValidationError(
+                f"{rule.rule_key}: issuer_equivalent requires issuer_period or filing scope"
             )
         if (rule.target_metric_code, rule.target_definition_version) not in definitions_by_key:
             raise RegistryValidationError(f"{rule.rule_key}: unknown target metric definition")
@@ -505,10 +532,6 @@ def validate_registry(registry: LoadedRegistry) -> None:
             raise RegistryValidationError(
                 f"{rule.rule_key}: evidence.concept must match source_concept"
             )
-        if rule.supersedes is not None and rule.supersedes.rule_key not in rules_by_key:
-            raise RegistryValidationError(f"{rule.rule_key}: unknown supersedes target")
 
-    for rule_key in rules_by_key:
-        if rule_state(rule_key, rules_by_key) == "current":
-            continue
-        # superseded rules remain in JSON for audit; no further checks
+    if rules_by_key:
+        _validate_supersession_graph(rules_by_key)
