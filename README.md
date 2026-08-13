@@ -64,6 +64,14 @@ docker compose exec postgres \
   psql -U edgar -d edgar -c "CREATE DATABASE edgar_test"
 ```
 
+## Makefile
+
+```bash
+make check                 # ruff, pyright, pytest (incl. database marker)
+make phase1-acceptance     # contract + integration junit report
+make phase1-corpus-acceptance  # local real-corpus coverage (requires acquired bundles)
+```
+
 ## Opt-in tests
 
 ```bash
@@ -77,9 +85,9 @@ uv run --env-file .env pytest -m database
 
 Database integration tests refuse to run unless `EDGAR_TEST_DATABASE_URL` targets a database named exactly `edgar_test`. They destructively reset that database. Merely listing the variable in `.env` is not enough for the test helper unless you use `--env-file` (or export it).
 
-## Historical Slice 0 spike
+## Historical Slice 0 evidence
 
-The Slice 0 spike under `scripts/spikes/` remains for verification of frozen evidence and is **not** a production API. Production code does not import it.
+Seven frozen evidence files under `fixtures/manifests/0001065088-24-000036/` are guarded by `tests/contract/test_frozen_slice0_evidence.py`. Historical spike documentation lives under `docs/spikes/`.
 
 ## Documentation
 
