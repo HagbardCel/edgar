@@ -4,6 +4,16 @@
 acquisition_policy_version = "acq-v1"
 
 [[filings]]
+role = "prior_ebay_10k"
+company = "eBay Inc."
+cik = "0001065088"
+accession = "0001065088-23-000006"
+form = "10-K"
+filed = "2023-02-23"
+industry_group = "technology"
+reason = "Prior-year eBay 10-K for same-CIK US-GAAP taxonomy transition evidence (2022 vs 2023)."
+
+[[filings]]
 role = "base_10k"
 company = "eBay Inc."
 cik = "0001065088"
@@ -57,4 +67,4 @@ reason = "Beverages/manufacturing quarterly; industry contrast."
 [coverage_notes]
 continuation_chains = "Class C informational; parser contract tests cover multiplicity."
 malformed_html = "Class C for real corpus; committed document parser tests cover awkward HTML."
-taxonomy_transition = "Class A measured; add prior-year eBay 10-K if five filings share one US-GAAP year."
+taxonomy_transition = "Class A measured; prior_ebay_10k added after five-filing run showed no same-CIK US-GAAP year pair."

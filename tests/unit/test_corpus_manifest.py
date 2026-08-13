@@ -49,9 +49,16 @@ industry_group = "tech"
 def test_load_default_corpus_toml() -> None:
     manifest = load_corpus_manifest(_CORPUS_TOML)
     assert manifest.acquisition_policy_version == ACQUISITION_POLICY_VERSION
-    assert len(manifest.filings) == 5
+    assert len(manifest.filings) == 6
     roles = {f.role for f in manifest.filings}
-    assert roles == {"base_10k", "amendment_10ka", "second_10k", "first_10q", "second_10q"}
+    assert roles == {
+        "prior_ebay_10k",
+        "base_10k",
+        "amendment_10ka",
+        "second_10k",
+        "first_10q",
+        "second_10q",
+    }
     assert manifest.coverage_notes is not None
     base = next(f for f in manifest.filings if f.role == "base_10k")
     assert base.filed == date(2024, 2, 28)
