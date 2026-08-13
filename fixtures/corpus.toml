@@ -1,6 +1,7 @@
-# Initial fixture corpus for Phase 1.
-# Acquisition policy version: acq-v0-spike
+# Locally acquired Phase-1 acceptance corpus.
 # Last updated: 2026-07-30
+
+acquisition_policy_version = "acq-v1"
 
 [[filings]]
 role = "base_10k"
@@ -10,6 +11,7 @@ accession = "0001065088-24-000036"
 form = "10-K"
 filed = "2024-02-28"
 industry_group = "technology"
+reason = "Spike accession; full iXBRL annual report."
 
 [[filings]]
 role = "amendment_10ka"
@@ -20,6 +22,7 @@ form = "10-K/A"
 filed = "2024-05-29"
 amends = "0001065088-24-000036"
 industry_group = "technology"
+reason = "Amendment No. 1 to the Feb 28, 2024 10-K (explicit amends relationship; Inline XBRL present)."
 
 [[filings]]
 role = "second_10k"
@@ -29,6 +32,7 @@ accession = "0000104169-24-000056"
 form = "10-K"
 filed = "2024-03-15"
 industry_group = "retail"
+reason = "Non-tech retail mega-cap; industry contrast and extensions."
 
 [[filings]]
 role = "first_10q"
@@ -38,6 +42,7 @@ accession = "0000019617-24-000453"
 form = "10-Q"
 filed = "2024-08-02"
 industry_group = "banking"
+reason = "Banking industry quarterly with dimensional disclosures."
 
 [[filings]]
 role = "second_10q"
@@ -47,6 +52,7 @@ accession = "0000021344-24-000044"
 form = "10-Q"
 filed = "2024-07-29"
 industry_group = "beverages"
+reason = "Beverages/manufacturing quarterly; industry contrast."
 
 [coverage_notes]
 continuation_chains = "Class C informational; parser contract tests cover multiplicity."

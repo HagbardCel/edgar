@@ -3,17 +3,42 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from sqlalchemy import Connection, func, select, text
 from sqlalchemy.engine import Row
 
+from edgar.corpus_manifest import CorpusFiling, CorpusManifest
 from edgar.db import schema as tables
 from edgar.domain.bundle import FilingBundle
 from edgar.storage.bundles import BundleRepository
+
+AcceptanceComponent = Literal[
+    "database",
+    "manifest",
+    "resolution",
+    "identity",
+    "catalog",
+    "semantic",
+    "document",
+    "idempotency",
+    "coverage",
+]
+
+
+@dataclass(frozen=True)
+class AcceptanceIssue:
+    component: AcceptanceComponent
+    code: str
+    message: str
+    source: str
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
 
 STANDARD_TAXONOMY_HOSTS = frozenset(
     {
@@ -33,6 +58,7 @@ class PublishedBundleResolution:
     bundle: FilingBundle | None
     candidates: tuple[dict[str, str], ...]
     error: str | None
+    error_code: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +154,7 @@ def resolve_published_bundle(
             bundle=None,
             candidates=(),
             error="bundle not found under EDGAR_DATA_ROOT",
+            error_code="BUNDLE_NOT_FOUND",
         )
     if len(published) > 1:
         return PublishedBundleResolution(
@@ -135,6 +162,7 @@ def resolve_published_bundle(
             bundle=None,
             candidates=candidates,
             error=f"ambiguous corpus identity: {len(published)} published bundles for accession",
+            error_code="AMBIGUOUS_BUNDLE",
         )
     bundle_dir, bundle = published[0]
     return PublishedBundleResolution(
@@ -143,6 +171,90 @@ def resolve_published_bundle(
         candidates=candidates,
         error=None,
     )
+
+
+def validate_corpus_bundle_identity(
+    manifest_filing: CorpusFiling,
+    bundle: FilingBundle,
+    manifest: CorpusManifest,
+    *,
+    source: str,
+) -> list[AcceptanceIssue]:
+    """Verify resolved bundle metadata matches the typed corpus manifest row."""
+    issues: list[AcceptanceIssue] = []
+    filing = bundle.filing
+
+    if filing.cik != manifest_filing.cik:
+        issues.append(
+            AcceptanceIssue(
+                component="identity",
+                code="CIK_MISMATCH",
+                message=f"bundle cik {filing.cik!r} != manifest cik {manifest_filing.cik!r}",
+                source=source,
+            )
+        )
+    if filing.accession != manifest_filing.accession:
+        issues.append(
+            AcceptanceIssue(
+                component="identity",
+                code="ACCESSION_MISMATCH",
+                message=(
+                    f"bundle accession {filing.accession!r} != "
+                    f"manifest accession {manifest_filing.accession!r}"
+                ),
+                source=source,
+            )
+        )
+    if filing.form_type != manifest_filing.form:
+        issues.append(
+            AcceptanceIssue(
+                component="identity",
+                code="FORM_MISMATCH",
+                message=(
+                    f"bundle form_type {filing.form_type!r} != "
+                    f"manifest form {manifest_filing.form!r}"
+                ),
+                source=source,
+            )
+        )
+    if manifest_filing.filed is not None and filing.filing_date != manifest_filing.filed:
+        issues.append(
+            AcceptanceIssue(
+                component="identity",
+                code="FILED_MISMATCH",
+                message=(
+                    f"bundle filing_date {filing.filing_date.isoformat()!r} != "
+                    f"manifest filed {manifest_filing.filed.isoformat()!r}"
+                ),
+                source=source,
+            )
+        )
+    if bundle.acquisition_policy_version != manifest.acquisition_policy_version:
+        issues.append(
+            AcceptanceIssue(
+                component="identity",
+                code="ACQUISITION_POLICY_MISMATCH",
+                message=(
+                    "bundle acquisition_policy_version "
+                    f"{bundle.acquisition_policy_version!r} != manifest "
+                    f"{manifest.acquisition_policy_version!r}"
+                ),
+                source=source,
+            )
+        )
+    return issues
+
+
+def coverage_unmet_issues(unmet: list[str], *, source: str) -> list[AcceptanceIssue]:
+    return [
+        AcceptanceIssue(
+            component="coverage",
+            code=f"COVERAGE_{key.upper()}_UNMET",
+            message=f"class-A requirement {key!r} not met",
+            source=source,
+        )
+        for key in unmet
+    ]
 
 
 def _scalar_count(conn: Connection, stmt: Any) -> int:
@@ -497,10 +609,9 @@ def evaluate_class_a_requirements(
     presentation_roles: dict[str, Any],
     taxonomy: dict[str, Any],
 ) -> dict[str, Any]:
-    by_role = {p.role: p for p in projections}
-    two_10k = [by_role[r].company for r in ("base_10k", "second_10k") if r in by_role]
-    two_10q = [by_role[r].company for r in ("first_10q", "second_10q") if r in by_role]
-    amendment = [by_role["amendment_10ka"].company] if "amendment_10ka" in by_role else []
+    two_10k = [p.company for p in projections if p.form == "10-K"]
+    two_10q = [p.company for p in projections if p.form == "10-Q"]
+    amendment = [p.company for p in projections if p.form in ("10-K/A", "10-Q/A")]
     industries = sorted({p.industry_group for p in projections})
 
     requirements = {

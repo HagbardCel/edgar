@@ -33,7 +33,7 @@ check:
 phase1-acceptance:
 	mkdir -p var/reports
 	EDGAR_TEST_DATABASE_URL="$(EDGAR_TEST_DATABASE_URL)" \
-	  uv run pytest -q -m "not network" tests/contract tests/integration \
+	  uv run pytest -q -m "not network" \
 	    --junitxml=var/reports/phase1-acceptance.xml
 
 phase1-corpus-acceptance:

@@ -9,10 +9,10 @@ from typing import Annotated
 import typer
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import text
 
 from edgar import __version__
 from edgar.config import Settings
+from edgar.db.check import DatabaseRevisionMismatch, require_database_at_head
 from edgar.db.document import list_document_sections
 from edgar.db.engine import create_db_engine
 from edgar.db.semantic import list_network_relationships
@@ -56,22 +56,15 @@ def db_check() -> None:
     """Verify database reachability and Alembic revision == head."""
     settings = Settings()
     url = settings.require_database_url()
-    engine = create_db_engine(url)
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1"))
-    from alembic.runtime.migration import MigrationContext
-    from alembic.script import ScriptDirectory
-
-    cfg = _alembic_config(url)
-    script = ScriptDirectory.from_config(cfg)
-    head = script.get_current_head()
-    with engine.connect() as conn:
-        context = MigrationContext.configure(conn)
-        current = context.get_current_revision()
-    if current != head:
-        typer.echo(f"database revision {current!r} != head {head!r}", err=True)
-        raise typer.Exit(code=1)
-    typer.echo(f"database ok; alembic revision={current}")
+    try:
+        revision = require_database_at_head(url, engine=create_db_engine(url))
+    except DatabaseRevisionMismatch as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        typer.echo(f"database unavailable: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"database ok; alembic revision={revision.current}")
 
 
 @db_app.command("upgrade")

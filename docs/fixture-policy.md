@@ -16,29 +16,34 @@ tests/fixtures/expected/
 
 May include XML/HTML fragments, sample indexes, expected inspection JSON, manifests, and hashes. Do not commit complete SEC bundles.
 
-### Downloaded frozen corpus
+### Locally acquired Phase-1 acceptance corpus
 
-Full filing bundles outside Git:
+Full filing bundles are acquired outside Git under the configured data root:
 
 ```text
-var/fixtures/sec/
+{EDGAR_DATA_ROOT}/bundles/{cik}/{accession}/{opaque_id}/
 ```
 
 Repository commits:
 
 ```text
 fixtures/corpus.toml
-fixtures/manifests/   # expected hashes once frozen
+fixtures/manifests/   # frozen Slice-0 evidence hashes (one accession)
 ```
 
-Commands (planned):
+Acquire corpus bundles with:
 
 ```bash
-uv run edgar fixtures fetch
-uv run edgar fixtures verify
+export EDGAR_DATA_ROOT="$PWD/var/phase1-corpus"
+export SEC_USER_AGENT="Your Name your@email.com"
+uv run edgar filings retrieve --accession 0001065088-24-000036
 ```
 
-"Frozen" means pinned by accession, acquisition policy/version, expected **payload snapshot/inventory**, and the authoritative replay contract, including required report input(s) and URI bindings necessary to reproduce offline loading. `payload_hash` alone does not identify the complete replay bundle.
+`edgar fixtures fetch` / `edgar fixtures verify` are **not implemented**. Use `edgar filings retrieve` for the locally acquired acceptance corpus.
+
+Each published `FilingBundle` is immutable once acquired. The repository does **not** yet pin every real-corpus bundle's complete acquisition snapshot across machines. The seven Slice-0 JSON files under `fixtures/manifests/0001065088-24-000036/` remain the committed frozen evidence boundary.
+
+"Frozen" (for that committed evidence) means pinned by accession, acquisition policy/version, expected **payload snapshot/inventory**, and the authoritative replay contract, including required report input(s) and URI bindings necessary to reproduce offline loading. `payload_hash` alone does not identify the complete replay bundle.
 
 ## Attachment policy
 
@@ -89,7 +94,7 @@ Minimum coverage across the set (gate classification):
 | Dimensional disclosures | **A** — scoped DB evidence |
 | Multiple statement roles (presentation networks) | **A** — scoped DB evidence |
 | Taxonomy transition | **A** — one US-GAAP year per projection, same CIK ≥2 years |
-| Exact hash / offline replay | **B** — `make phase1-acceptance` contract/integration |
+| Exact hash / offline replay | **B** — `make phase1-acceptance` (unit + contract + integration) |
 | Numeric and non-numeric Inline XBRL facts | **B** — contract tests |
 | Duplicate fact multiplicity | **B** — contract + unit tests |
 | Awkward / malformed HTML parser behavior | **B** — document parser unit tests |

@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import tomllib
+from datetime import date
 from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from edgar.domain.identifiers import validate_accession, validate_cik
+from edgar.domain.bundle import ACQUISITION_POLICY_VERSION
+from edgar.domain.identifiers import (
+    assert_cik_accession_consistent,
+    validate_accession,
+    validate_cik,
+)
 
 CorpusForm = Literal["10-K", "10-K/A", "10-Q", "10-Q/A"]
 
@@ -22,8 +28,9 @@ class CorpusFiling(BaseModel):
     accession: str
     form: CorpusForm
     industry_group: str = Field(min_length=1)
-    filed: str | None = None
+    filed: date | None = None
     amends: str | None = None
+    reason: str | None = None
 
     @field_validator("cik")
     @classmethod
@@ -42,11 +49,27 @@ class CorpusFiling(BaseModel):
             return None
         return validate_accession(value)
 
+    @model_validator(mode="after")
+    def _cik_accession_consistent(self) -> Self:
+        assert_cik_accession_consistent(self.cik, self.accession)
+        return self
+
+    @model_validator(mode="after")
+    def _amendment_form_coherence(self) -> Self:
+        is_amendment = self.form.endswith("/A")
+        if is_amendment and self.amends is None:
+            raise ValueError(f"form {self.form!r} for role {self.role!r} requires amends")
+        if self.amends is not None and not is_amendment:
+            raise ValueError(f"amends for role {self.role!r} requires an amendment form")
+        return self
+
 
 class CorpusManifest(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    acquisition_policy_version: str
     filings: tuple[CorpusFiling, ...] = Field(min_length=1)
+    coverage_notes: dict[str, str] | None = None
 
     @model_validator(mode="after")
     def _cross_record(self) -> Self:
@@ -70,7 +93,11 @@ class CorpusManifest(BaseModel):
 
 def load_corpus_manifest(path: Path) -> CorpusManifest:
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
-    filings_raw = raw.get("filings")
-    if not filings_raw:
-        raise ValueError("corpus manifest must contain a non-empty filings array")
-    return CorpusManifest(filings=tuple(CorpusFiling.model_validate(item) for item in filings_raw))
+    manifest = CorpusManifest.model_validate(raw)
+    if manifest.acquisition_policy_version != ACQUISITION_POLICY_VERSION:
+        raise ValueError(
+            "corpus manifest acquisition_policy_version "
+            f"{manifest.acquisition_policy_version!r} != current "
+            f"{ACQUISITION_POLICY_VERSION!r}"
+        )
+    return manifest

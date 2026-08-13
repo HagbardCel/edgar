@@ -639,7 +639,7 @@ Real locally acquired corpus (requires bundles under `EDGAR_DATA_ROOT`):
 make phase1-corpus-acceptance
 ```
 
-`phase1-acceptance` runs committed contract/integration tests offline. `phase1-corpus-acceptance` catalogs and projects every filing in `fixtures/corpus.toml`, proves second-pass reuse and stable per-bundle/projection snapshots, and measures class-A Milestone-8 coverage from scoped PostgreSQL evidence.
+`phase1-acceptance` runs all committed unit, contract, and integration tests offline (`pytest -m "not network"`). `phase1-corpus-acceptance` catalogs and projects every filing in `fixtures/corpus.toml`, proves second-pass reuse and stable per-bundle/projection snapshots, and measures class-A Milestone-8 coverage from scoped PostgreSQL evidence.
 
 ### Milestone-8 requirement gates
 
@@ -653,7 +653,7 @@ make phase1-corpus-acceptance
 | Taxonomy transition | **A** — same CIK, ≥2 projection taxonomy years |
 | Awkward HTML | **B** — document parser unit tests; **C** for live corpus specimen |
 | Continuation chains | **C** — informational in corpus report; **B** for parser persistence |
-| Hash/offline/idempotency contracts | **B** — `make phase1-acceptance` |
+| Hash/offline/idempotency contracts | **B** — `make phase1-acceptance` (unit + contract + integration) |
 
 It should (real corpus command):
 

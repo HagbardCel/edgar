@@ -27,6 +27,11 @@ def _sha256_hex(path: Path) -> str:
 
 def test_frozen_slice0_evidence_bytes_unchanged() -> None:
     assert EVIDENCE_DIR.is_dir(), f"missing evidence directory {EVIDENCE_DIR}"
+    actual = {path.name for path in EVIDENCE_DIR.glob("*.json")}
+    assert actual == set(FROZEN_EVIDENCE_SHA256), (
+        f"unexpected JSON evidence files: extra={sorted(actual - set(FROZEN_EVIDENCE_SHA256))}, "
+        f"missing={sorted(set(FROZEN_EVIDENCE_SHA256) - actual)}"
+    )
     for name, expected in sorted(FROZEN_EVIDENCE_SHA256.items()):
         path = EVIDENCE_DIR / name
         assert path.is_file(), f"missing frozen evidence file {path}"
