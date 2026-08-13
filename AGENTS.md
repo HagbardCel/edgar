@@ -6,7 +6,9 @@ Build a reproducible, point-in-time-aware platform for SEC company filings.
 
 The system preserves immutable filing evidence; parses deterministic document structure and XBRL semantics; creates versioned canonical metrics; joins filings to historical securities and market outcomes; and supports reproducible quantitative and textual research.
 
-The current implementation phase is **Phase 1: immutable filing and semantic XBRL foundation**.
+The current implementation phase is **Phase 1D: Acceptance & Hardening**.
+
+Phase 1 foundations remain in force. See `docs/phase-1-plan.md`.
 
 Optimize for:
 

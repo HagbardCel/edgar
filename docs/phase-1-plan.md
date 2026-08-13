@@ -625,25 +625,45 @@ Use approximately six to ten heterogeneous filings:
 - multiple statement roles
 - at least one taxonomy transition case
 
-### Acceptance command
+### Acceptance commands
+
+Frozen contract and integration suite:
 
 ```bash
 make phase1-acceptance
 ```
 
-It should:
+Real locally acquired corpus (requires bundles under `EDGAR_DATA_ROOT`):
 
-1. verify PostgreSQL
-2. apply migrations
-3. load frozen raw fixtures
-4. parse all fixtures offline
-5. validate hashes
-6. validate expected sections
-7. validate taxonomy resources and network counts
-8. validate facts and contexts
-9. rerun the same pipeline
-10. confirm stable hashes and no duplicate rows
-11. produce a machine-readable report
+```bash
+make phase1-corpus-acceptance
+```
+
+`phase1-acceptance` runs committed contract/integration tests offline. `phase1-corpus-acceptance` catalogs and projects every filing in `fixtures/corpus.toml`, proves second-pass reuse and stable per-bundle/projection snapshots, and measures class-A Milestone-8 coverage from scoped PostgreSQL evidence.
+
+### Milestone-8 requirement gates
+
+| Requirement | Gate |
+| --- | --- |
+| 2× 10-K, 2× 10-Q, amendment | **A** — real corpus |
+| Multiple industries | **A** — corpus manifest + projection |
+| Material extension concepts | **A** — used issuer extensions in facts/relationships |
+| Dimensional disclosures | **A** — scoped DB evidence |
+| Multiple statement roles | **A** — distinct presentation `link_role_uri` |
+| Taxonomy transition | **A** — same CIK, ≥2 projection taxonomy years |
+| Awkward HTML | **B** — document parser unit tests; **C** for live corpus specimen |
+| Continuation chains | **C** — informational in corpus report; **B** for parser persistence |
+| Hash/offline/idempotency contracts | **B** — `make phase1-acceptance` |
+
+It should (real corpus command):
+
+1. verify PostgreSQL connectivity
+2. load `fixtures/corpus.toml` (fail closed if empty)
+3. resolve exactly one published bundle per accession (fail on zero or many)
+4. catalog, semantic-project, and document-project each filing
+5. rerun all three and prove reuse with unchanged canonical snapshots
+6. measure class-A coverage scoped to this run's projection IDs
+7. produce a machine-readable report
 
 ### Exit criteria
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local real-corpus acceptance: coverage matrix over fixtures/corpus.yaml.
+"""Local real-corpus acceptance: coverage matrix over fixtures/corpus.toml.
 
 Uses locally acquired bundles under EDGAR_DATA_ROOT and the normal EDGAR database.
 Idempotent and non-destructive — does not truncate tables.
@@ -9,13 +9,27 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine, text
 
 from edgar.config import Settings
+from edgar.corpus_acceptance import (
+    STANDARD_TAXONOMY_HOSTS,
+    CanonicalSnapshot,
+    CorpusProjection,
+    canonical_snapshot,
+    continuation_provenance_coverage,
+    dimension_coverage,
+    evaluate_class_a_requirements,
+    extension_coverage,
+    presentation_role_coverage,
+    resolve_published_bundle,
+    taxonomy_transition_coverage,
+)
+from edgar.corpus_manifest import load_corpus_manifest
 from edgar.ingestion.catalog import CatalogService
 from edgar.projection.document import DocumentProjectionService
 from edgar.projection.semantic import SemanticProjectionService
@@ -23,100 +37,85 @@ from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_CORPUS_PATH = _REPO_ROOT / "fixtures" / "corpus.yaml"
+_CORPUS_PATH = _REPO_ROOT / "fixtures" / "corpus.toml"
 
 
 @dataclass
-class FilingStatus:
+class PassResult:
+    catalog_reused: bool
+    semantic_reused: bool
+    document_reused: bool
+    bundle_id: int
+    semantic_projection_id: int
+    document_projection_id: int
+    concept_declaration_count: int | None
+    fact_count: int | None
+
+
+@dataclass
+class FilingRunStatus:
     role: str
     company: str
     cik: str
     accession: str
     form: str
+    industry_group: str
     bundle_found: bool = False
     bundle_dir: str | None = None
+    bundle_candidates: list[dict[str, str]] = field(default_factory=list)
     cataloged: bool = False
     semantic_projected: bool = False
     document_projected: bool = False
-    concept_count: int | None = None
+    concept_declaration_count: int | None = None
     fact_count: int | None = None
+    first_pass: PassResult | None = None
+    second_pass: PassResult | None = None
+    idempotent: bool = False
     errors: list[str] = field(default_factory=list)
 
 
-def _parse_corpus_yaml(text: str) -> dict[str, Any]:
-    """Minimal parser for fixtures/corpus.yaml (avoids PyYAML dependency)."""
-    filings: list[dict[str, str]] = []
-    current: dict[str, str] | None = None
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if line.startswith("- role:"):
-            if current is not None:
-                filings.append(current)
-            current = {"role": line.split(":", 1)[1].strip()}
-            continue
-        if current is None:
-            continue
-        for key in ("company", "cik", "accession", "form", "filed", "amends"):
-            if line.startswith(f"{key}:"):
-                current[key] = line.split(":", 1)[1].strip().strip('"')
-                break
-    if current is not None:
-        filings.append(current)
-    return {"filings": filings}
+def _snapshot_dict(snapshot: CanonicalSnapshot) -> dict[str, Any]:
+    return asdict(snapshot)
 
 
-def _load_corpus() -> dict[str, Any]:
-    return _parse_corpus_yaml(_CORPUS_PATH.read_text(encoding="utf-8"))
+def _run_pipeline(
+    *,
+    bundle_dir: Path,
+    catalog: CatalogService,
+    semantic: SemanticProjectionService,
+    document: DocumentProjectionService,
+) -> PassResult:
+    cat = catalog.catalog_published_bundle(bundle_dir)
+    sem = semantic.project_published_bundle(bundle_dir)
+    doc = document.project_published_bundle(bundle_dir)
+    return PassResult(
+        catalog_reused=cat.reused,
+        semantic_reused=sem.projection.reused,
+        document_reused=doc.projection.reused,
+        bundle_id=cat.bundle_id,
+        semantic_projection_id=sem.projection.projection_id,
+        document_projection_id=doc.projection.projection_id,
+        concept_declaration_count=sem.projection.counts.get("concept_declarations"),
+        fact_count=sem.projection.counts.get("facts"),
+    )
 
 
-def _find_published_bundle(
-    repo: BundleRepository, cik: str, accession: str
-) -> tuple[Path, Any] | None:
-    published = repo.list_published(cik, accession)
-    if not published:
-        return None
-    return published[0]
-
-
-def _coverage_requirements(filings: list[FilingStatus]) -> dict[str, Any]:
-    by_role = {f.role: f for f in filings}
-    return {
-        "two_10k": [
-            name
-            for name in (
-                by_role.get("base_10k", FilingStatus("", "", "", "", "")).company,
-                by_role.get("second_10k", FilingStatus("", "", "", "", "")).company,
-            )
-            if name
-        ],
-        "two_10q": [
-            name
-            for name in (
-                by_role.get("first_10q", FilingStatus("", "", "", "", "")).company,
-                by_role.get("second_10q", FilingStatus("", "", "", "", "")).company,
-            )
-            if name
-        ],
-        "amendment": [
-            by_role["amendment_10ka"].company
-            if "amendment_10ka" in by_role and by_role["amendment_10ka"].bundle_found
-            else None
-        ],
-        "taxonomy_transition": [],
-        "extension_concepts": [
-            f.company for f in filings if f.semantic_projected and (f.concept_count or 0) > 0
-        ],
-        "dimensions": [
-            f.company for f in filings if f.role == "first_10q" and f.semantic_projected
-        ],
-    }
+def _verify_idempotency(first: PassResult, second: PassResult, snapshots_match: bool) -> bool:
+    return (
+        second.catalog_reused
+        and second.semantic_reused
+        and second.document_reused
+        and first.bundle_id == second.bundle_id
+        and first.semantic_projection_id == second.semantic_projection_id
+        and first.document_projection_id == second.document_projection_id
+        and snapshots_match
+    )
 
 
 def run_acceptance() -> dict[str, Any]:
     settings = Settings()
     data_root = settings.edgar_data_root
-    corpus = _load_corpus()
-    filings_cfg = corpus.get("filings") or []
+    manifest = load_corpus_manifest(_CORPUS_PATH)
 
     store = ObjectStore(data_root)
     repo = BundleRepository(data_root, store)
@@ -126,57 +125,127 @@ def run_acceptance() -> dict[str, Any]:
     semantic = SemanticProjectionService(settings, engine=engine, bundles=repo)
     document = DocumentProjectionService(settings, engine=engine, bundles=repo)
 
-    statuses: list[FilingStatus] = []
-    for entry in filings_cfg:
-        status = FilingStatus(
-            role=str(entry.get("role", "")),
-            company=str(entry.get("company", "")),
-            cik=str(entry["cik"]),
-            accession=str(entry["accession"]),
-            form=str(entry.get("form", "")),
+    statuses: list[FilingRunStatus] = []
+    projections: list[CorpusProjection] = []
+
+    for filing in manifest.filings:
+        status = FilingRunStatus(
+            role=filing.role,
+            company=filing.company,
+            cik=filing.cik,
+            accession=filing.accession,
+            form=filing.form,
+            industry_group=filing.industry_group,
         )
-        found = _find_published_bundle(repo, status.cik, status.accession)
-        if found is None:
-            status.errors.append("bundle not found under EDGAR_DATA_ROOT")
+        resolution = resolve_published_bundle(repo, filing.cik, filing.accession)
+        status.bundle_candidates = [dict(c) for c in resolution.candidates]
+        if resolution.error is not None:
+            status.errors.append(resolution.error)
             statuses.append(status)
             continue
 
-        bundle_dir, _bundle = found
+        assert resolution.bundle_dir is not None
         status.bundle_found = True
-        status.bundle_dir = str(bundle_dir)
+        status.bundle_dir = str(resolution.bundle_dir)
 
         try:
-            catalog.catalog_published_bundle(bundle_dir)
+            first = _run_pipeline(
+                bundle_dir=resolution.bundle_dir,
+                catalog=catalog,
+                semantic=semantic,
+                document=document,
+            )
+            status.first_pass = first
             status.cataloged = True
-        except Exception as exc:  # noqa: BLE001
-            status.errors.append(f"catalog failed: {exc}")
-            statuses.append(status)
-            continue
+            status.semantic_projected = True
+            status.document_projected = True
+            status.concept_declaration_count = first.concept_declaration_count
+            status.fact_count = first.fact_count
 
-        try:
-            sem = semantic.project_published_bundle(bundle_dir)
-            status.semantic_projected = sem.projection.status in {"complete", "incomplete"}
-            status.concept_count = sem.projection.counts.get("concepts")
-            status.fact_count = sem.projection.counts.get("facts")
-        except Exception as exc:  # noqa: BLE001
-            status.errors.append(f"semantic projection failed: {exc}")
+            with engine.connect() as conn:
+                first_snapshot = _snapshot_dict(
+                    canonical_snapshot(
+                        conn,
+                        CorpusProjection(
+                            role=filing.role,
+                            company=filing.company,
+                            cik=filing.cik,
+                            accession=filing.accession,
+                            form=filing.form,
+                            industry_group=filing.industry_group,
+                            bundle_id=first.bundle_id,
+                            semantic_projection_id=first.semantic_projection_id,
+                            document_projection_id=first.document_projection_id,
+                        ),
+                    )
+                )
 
-        try:
-            doc = document.project_published_bundle(bundle_dir)
-            status.document_projected = doc.projection.status in {"complete", "incomplete"}
-        except Exception as exc:  # noqa: BLE001
-            status.errors.append(f"document projection failed: {exc}")
+            second = _run_pipeline(
+                bundle_dir=resolution.bundle_dir,
+                catalog=catalog,
+                semantic=semantic,
+                document=document,
+            )
+            status.second_pass = second
 
-        try:
-            catalog.catalog_published_bundle(bundle_dir)
+            with engine.connect() as conn:
+                corpus_projection = CorpusProjection(
+                    role=filing.role,
+                    company=filing.company,
+                    cik=filing.cik,
+                    accession=filing.accession,
+                    form=filing.form,
+                    industry_group=filing.industry_group,
+                    bundle_id=second.bundle_id,
+                    semantic_projection_id=second.semantic_projection_id,
+                    document_projection_id=second.document_projection_id,
+                )
+                second_snapshot = _snapshot_dict(canonical_snapshot(conn, corpus_projection))
+
+            status.idempotent = _verify_idempotency(
+                first, second, first_snapshot == second_snapshot
+            )
+            if not status.idempotent:
+                status.errors.append("idempotency check failed on second pass")
+
+            projections.append(corpus_projection)
         except Exception as exc:  # noqa: BLE001
-            status.errors.append(f"idempotent catalog failed: {exc}")
+            status.errors.append(str(exc))
 
         statuses.append(status)
 
-    requirements = _coverage_requirements(statuses)
+    coverage: dict[str, Any] = {}
+    class_a: dict[str, Any] = {"requirements": {}, "unmet": ["no successful projections"]}
+    if projections:
+        projection_tuple = tuple(projections)
+        with engine.connect() as conn:
+            ext = extension_coverage(conn, projection_tuple)
+            dims = dimension_coverage(conn, projection_tuple)
+            roles = presentation_role_coverage(conn, projection_tuple)
+            tax = taxonomy_transition_coverage(conn, projection_tuple)
+            cont = continuation_provenance_coverage(conn, projection_tuple)
+        coverage = {
+            "extensions": ext,
+            "dimensions": dims,
+            "presentation_roles": roles,
+            "taxonomy_transition": tax,
+            "continuation_provenance": cont,
+            "standard_taxonomy_hosts": sorted(STANDARD_TAXONOMY_HOSTS),
+        }
+        class_a = evaluate_class_a_requirements(
+            projection_tuple,
+            extension=ext,
+            dimensions=dims,
+            presentation_roles=roles,
+            taxonomy=tax,
+        )
+
     all_ready = all(
-        s.bundle_found and s.cataloged and s.semantic_projected and s.document_projected
+        s.bundle_found
+        and s.cataloged
+        and s.semantic_projected
+        and s.document_projected
+        and s.idempotent
         for s in statuses
     )
 
@@ -190,24 +259,32 @@ def run_acceptance() -> dict[str, Any]:
                 "cik": s.cik,
                 "accession": s.accession,
                 "form": s.form,
+                "industry_group": s.industry_group,
                 "bundle_found": s.bundle_found,
                 "bundle_dir": s.bundle_dir,
+                "bundle_candidates": s.bundle_candidates,
                 "cataloged": s.cataloged,
                 "semantic_projected": s.semantic_projected,
                 "document_projected": s.document_projected,
-                "concept_count": s.concept_count,
+                "concept_declaration_count": s.concept_declaration_count,
                 "fact_count": s.fact_count,
+                "first_pass": None if s.first_pass is None else asdict(s.first_pass),
+                "second_pass": None if s.second_pass is None else asdict(s.second_pass),
+                "idempotent": s.idempotent,
                 "errors": s.errors,
             }
             for s in statuses
         ],
-        "requirements": requirements,
-        "phase2_readiness": {
-            "all_filings_projected": all_ready,
-            "note": (
-                "Mapping evidence requires semantic projections with concept/fact counts; "
-                "run after local corpus acquisition."
-            ),
+        "coverage": coverage,
+        "class_a_requirements": class_a,
+        "phase1d_readiness": {
+            "all_filings_projected_and_idempotent": all_ready,
+            "class_a_met": not class_a.get("unmet"),
+        },
+        "acceptance_gates": {
+            "A_real_corpus": class_a.get("requirements", {}),
+            "B_committed_tests": "make phase1-acceptance (contract + integration)",
+            "C_informational": ["continuation_provenance", "real_corpus_awkward_html"],
         },
     }
 
@@ -222,16 +299,26 @@ def main() -> int:
 
     report = run_acceptance()
     print(json.dumps(report, indent=2, sort_keys=True))
+
     missing = [f["accession"] for f in report["filings"] if not f["bundle_found"]]
     if missing:
         print(
-            f"\nMissing local bundles for: {', '.join(missing)}. "
+            f"\nMissing or ambiguous local bundles for: {', '.join(missing)}. "
             "Acquire with `edgar filings retrieve --accession ...` first.",
             file=sys.stderr,
         )
         return 2
+
     if any(f["errors"] for f in report["filings"]):
         return 3
+
+    if report["class_a_requirements"].get("unmet"):
+        print(
+            f"\nUnmet class-A requirements: {', '.join(report['class_a_requirements']['unmet'])}",
+            file=sys.stderr,
+        )
+        return 4
+
     return 0
 
 

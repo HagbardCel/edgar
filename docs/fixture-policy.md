@@ -27,7 +27,7 @@ var/fixtures/sec/
 Repository commits:
 
 ```text
-fixtures/corpus.yaml
+fixtures/corpus.toml
 fixtures/manifests/   # expected hashes once frozen
 ```
 
@@ -77,18 +77,25 @@ Configurable limits: `MAX_FILE_BYTES`, `MAX_BUNDLE_BYTES`, `MAX_EXTERNAL_DEPENDE
 
 ## Initial micro-corpus
 
-See [fixtures/corpus.yaml](../fixtures/corpus.yaml).
+See [fixtures/corpus.toml](../fixtures/corpus.toml).
 
-Minimum coverage across the set:
+Minimum coverage across the set (gate classification):
 
-- Material issuer extension concepts
-- Dimensional disclosures (explicit; typed if available)
-- Awkward or malformed HTML (add a sixth filing if needed)
-- Multiple statement roles
-- Inline XBRL continuation chains (at least one)
-- Numeric and non-numeric Inline XBRL facts (at least one)
-- Duplicate visual fact presentations (ideally)
-- Taxonomy transition (desirable, not mandatory)
+| Requirement | Gate |
+| --- | --- |
+| 2× 10-K, 2× 10-Q, amendment | **A** — `make phase1-corpus-acceptance` |
+| Multiple industries | **A** — corpus `industry_group` + successful projection |
+| Material extension concepts (used in facts/relationships) | **A** — scoped DB evidence |
+| Dimensional disclosures | **A** — scoped DB evidence |
+| Multiple statement roles (presentation networks) | **A** — scoped DB evidence |
+| Taxonomy transition | **A** — one US-GAAP year per projection, same CIK ≥2 years |
+| Exact hash / offline replay | **B** — `make phase1-acceptance` contract/integration |
+| Numeric and non-numeric Inline XBRL facts | **B** — contract tests |
+| Duplicate fact multiplicity | **B** — contract + unit tests |
+| Awkward / malformed HTML parser behavior | **B** — document parser unit tests |
+| Awkward HTML in live corpus | **C** — add filing only if needed |
+| Inline XBRL continuation chains | **C** — informational in corpus report |
+| Duplicate visual presentations in live corpus | **C** — parser multiplicity covered by **B** |
 
 ## Expectation split
 

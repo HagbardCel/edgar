@@ -1,0 +1,54 @@
+# Initial fixture corpus for Phase 1.
+# Acquisition policy version: acq-v0-spike
+# Last updated: 2026-07-30
+
+[[filings]]
+role = "base_10k"
+company = "eBay Inc."
+cik = "0001065088"
+accession = "0001065088-24-000036"
+form = "10-K"
+filed = "2024-02-28"
+industry_group = "technology"
+
+[[filings]]
+role = "amendment_10ka"
+company = "eBay Inc."
+cik = "0001065088"
+accession = "0001065088-24-000094"
+form = "10-K/A"
+filed = "2024-05-29"
+amends = "0001065088-24-000036"
+industry_group = "technology"
+
+[[filings]]
+role = "second_10k"
+company = "Walmart Inc."
+cik = "0000104169"
+accession = "0000104169-24-000056"
+form = "10-K"
+filed = "2024-03-15"
+industry_group = "retail"
+
+[[filings]]
+role = "first_10q"
+company = "JPMorgan Chase & Co."
+cik = "0000019617"
+accession = "0000019617-24-000453"
+form = "10-Q"
+filed = "2024-08-02"
+industry_group = "banking"
+
+[[filings]]
+role = "second_10q"
+company = "The Coca-Cola Company"
+cik = "0000021344"
+accession = "0000021344-24-000044"
+form = "10-Q"
+filed = "2024-07-29"
+industry_group = "beverages"
+
+[coverage_notes]
+continuation_chains = "Class C informational; parser contract tests cover multiplicity."
+malformed_html = "Class C for real corpus; committed document parser tests cover awkward HTML."
+taxonomy_transition = "Class A measured; add prior-year eBay 10-K if five filings share one US-GAAP year."
