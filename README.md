@@ -68,7 +68,7 @@ docker compose exec postgres \
 
 ```bash
 make check                 # ruff, pyright, pytest (incl. database marker)
-make phase1-acceptance     # contract + integration junit report
+make phase1-acceptance     # complete non-network Phase-1 pytest suite + JUnit
 make phase1-corpus-acceptance  # local real-corpus coverage (requires acquired bundles)
 ```
 

@@ -627,7 +627,7 @@ Use approximately six to ten heterogeneous filings:
 
 ### Acceptance commands
 
-Frozen contract and integration suite:
+Committed offline acceptance suite:
 
 ```bash
 make phase1-acceptance

@@ -57,7 +57,7 @@ def db_check() -> None:
     settings = Settings()
     url = settings.require_database_url()
     try:
-        revision = require_database_at_head(url, engine=create_db_engine(url))
+        revision = require_database_at_head(url)
     except DatabaseRevisionMismatch as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc

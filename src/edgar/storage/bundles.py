@@ -79,7 +79,12 @@ def validate_bundle_integrity(bundle: FilingBundle, store: ObjectStore) -> None:
         if digest not in measured:
             if not store.exists(digest):
                 raise BundleStorageError(f"missing CAS object {digest} for {artifact.logical_path}")
-            data = store.open_bytes(digest)
+            try:
+                data = store.open_bytes(digest)
+            except (OSError, ValueError) as exc:
+                raise BundleStorageError(
+                    f"cannot validate CAS object {digest} for {artifact.logical_path}: {exc}"
+                ) from exc
             measured[digest] = (digest, len(data))
         _sha, size = measured[digest]
         if size != artifact.content.byte_size:

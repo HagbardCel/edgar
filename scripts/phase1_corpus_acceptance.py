@@ -324,7 +324,7 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
                     component="resolution",
                     code=resolution.error_code or "BUNDLE_NOT_FOUND",
                     message=resolution.error,
-                    source=str(data_root / "bundles"),
+                    source=str(data_root / "bundles" / filing.cik / filing.accession),
                 )
             )
             statuses.append(status)

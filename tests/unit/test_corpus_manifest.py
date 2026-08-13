@@ -127,7 +127,10 @@ def test_corpus_manifest_rejects_cik_accession_inconsistency(tmp_path: Path) -> 
 def test_corpus_manifest_rejects_unknown_top_level_key(tmp_path: Path) -> None:
     path = tmp_path / "unknown-key.toml"
     path.write_text(
-        _MINIMAL_CORPUS + '\nunexpected = "value"\n',
+        _MINIMAL_CORPUS.replace(
+            "[[filings]]",
+            'unexpected = "value"\n\n[[filings]]',
+        ),
         encoding="utf-8",
     )
     with pytest.raises(ValidationError):
@@ -387,3 +390,30 @@ def test_resolve_published_bundle_zero_one_many(tmp_path: Path) -> None:
     assert many.error_code == "AMBIGUOUS_BUNDLE"
     assert "ambiguous" in many.error
     assert len(many.candidates) == 2
+
+
+def test_resolve_published_bundle_corrupt_descriptor(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(_minimal_bundle(store, content=b"ok"))
+    (published.bundle_dir / "bundle.json").write_text("{not-json", encoding="utf-8")
+
+    resolution = resolve_published_bundle(repo, "0000000001", "0000000001-00-000001")
+    assert resolution.error_code == "BUNDLE_INTEGRITY_FAILED"
+    assert resolution.error is not None
+    assert resolution.bundle_dir is None
+    assert resolution.candidates == ()
+
+
+def test_resolve_published_bundle_corrupt_cas_object(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path)
+    repo = BundleRepository(tmp_path, store)
+    bundle = _minimal_bundle(store, content=b"ok")
+    repo.publish(bundle)
+    digest = bundle.artifacts[0].content.sha256
+    store.path_for(digest).write_bytes(b"tampered")
+
+    resolution = resolve_published_bundle(repo, "0000000001", "0000000001-00-000001")
+    assert resolution.error_code == "BUNDLE_INTEGRITY_FAILED"
+    assert resolution.error is not None
+    assert resolution.bundle_dir is None

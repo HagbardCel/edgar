@@ -14,7 +14,7 @@ from sqlalchemy.engine import Row
 from edgar.corpus_manifest import CorpusFiling, CorpusManifest
 from edgar.db import schema as tables
 from edgar.domain.bundle import FilingBundle
-from edgar.storage.bundles import BundleRepository
+from edgar.storage.bundles import BundleRepository, BundleStorageError
 
 AcceptanceComponent = Literal[
     "database",
@@ -139,7 +139,16 @@ def parse_us_gaap_taxonomy_year(namespace_uri: str | None) -> int | None:
 def resolve_published_bundle(
     repo: BundleRepository, cik: str, accession: str
 ) -> PublishedBundleResolution:
-    published = repo.list_published(cik, accession)
+    try:
+        published = repo.list_published(cik, accession)
+    except BundleStorageError as exc:
+        return PublishedBundleResolution(
+            bundle_dir=None,
+            bundle=None,
+            candidates=(),
+            error=str(exc),
+            error_code="BUNDLE_INTEGRITY_FAILED",
+        )
     candidates = tuple(
         {
             "bundle_dir": str(bundle_dir),
