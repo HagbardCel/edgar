@@ -1,6 +1,6 @@
 # ADR 0006: Regenerable parser outputs vs curated overlays
 
-- **Status:** Proposed
+- **Status:** Accepted; storage-authority detail refined by [ADR 0010](0010-curated-semantic-registry.md)
 - **Date:** 2026-07-30
 
 ## Context

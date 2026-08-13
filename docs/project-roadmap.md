@@ -842,4 +842,5 @@ Post–PR #4 filesystem acquisition:
 4. ~~Thin Arelle semantic projection (PR #6 / Phase 1B).~~
 5. ~~Document blocks and regulatory sections (PR #7 / Phase 1C).~~
 6. Diverse acceptance corpus; retire Slice-0 executable machinery while retaining frozen evidence + minimal immutability guard (PR #8 / Phase 1D).
-7. Draft the first 15–20 metric measurement contracts in parallel after Phase 1B evidence exists, but do not wire them into ingestion until Phase 1 acceptance passes.
+7. ~~Metric ontology + curated mapping registry (PR #9 / Phase 2A).~~
+8. Deterministic mapping engine (PR #10 / Phase 2B).

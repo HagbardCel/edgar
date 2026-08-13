@@ -1,0 +1,709 @@
+{
+  "registry_schema_version": 1,
+  "definitions": [
+    {
+      "definition_schema_version": 1,
+      "metric_code": "operating_company_revenue",
+      "definition_version": 1,
+      "family_code": "revenue",
+      "name": "Operating company revenue",
+      "economic_definition": "Revenue from ordinary operating activities for a consolidated non-financial operating company.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "positive_revenue",
+      "constraints": {
+        "inclusion_rules": [
+          "Product and service revenue from core operating activities before operating expenses."
+        ],
+        "exclusion_rules": [
+          "Banking net revenue",
+          "Insurance premiums",
+          "Investment income",
+          "Regulated utility revenue"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "non_financial_operating_companies"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "gross_profit",
+      "definition_version": 1,
+      "family_code": "profit",
+      "name": "Gross profit",
+      "economic_definition": "Revenue minus cost of goods sold for consolidated operations.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Total revenue less cost of revenue or cost of goods sold."
+        ],
+        "exclusion_rules": [
+          "Operating income",
+          "Segment gross profit without consolidated total"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "operating_income",
+      "definition_version": 1,
+      "family_code": "profit",
+      "name": "Operating income",
+      "economic_definition": "Income from operations before non-operating items.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Operating income or loss from continuing operations at consolidated level."
+        ],
+        "exclusion_rules": [
+          "Income before tax",
+          "EBITDA",
+          "Adjusted operating income"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "pretax_income",
+      "definition_version": 1,
+      "family_code": "profit",
+      "name": "Pretax income",
+      "economic_definition": "Income before income tax expense.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Income before provision for income taxes."
+        ],
+        "exclusion_rules": [
+          "Net income",
+          "Operating income"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "net_income_attributable_to_parent",
+      "definition_version": 1,
+      "family_code": "profit",
+      "name": "Net income attributable to parent",
+      "economic_definition": "Net income attributable to the parent entity.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Net income or loss attributable to parent shareholders."
+        ],
+        "exclusion_rules": [
+          "Net income consolidated including NCI",
+          "Income available to common shareholders"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "diluted_eps",
+      "definition_version": 1,
+      "family_code": "eps",
+      "name": "Diluted EPS",
+      "economic_definition": "Diluted earnings per common share.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "per_share",
+      "unit_kind": "currency_per_share",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Diluted EPS attributable to common shareholders."
+        ],
+        "exclusion_rules": [
+          "Basic EPS",
+          "Diluted EPS continuing operations only",
+          "Adjusted or non-GAAP EPS"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "operating_cash_flow",
+      "definition_version": 1,
+      "family_code": "cash_flow",
+      "name": "Operating cash flow",
+      "economic_definition": "Net cash from operating activities.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Net cash provided by operating activities."
+        ],
+        "exclusion_rules": [
+          "Free cash flow",
+          "Cash from investing activities"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "cash_flow_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "cash_purchases_of_ppe",
+      "definition_version": 1,
+      "family_code": "capex",
+      "name": "Cash purchases of PP&E",
+      "economic_definition": "Cash paid for property plant and equipment.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Payments to acquire property plant and equipment."
+        ],
+        "exclusion_rules": [
+          "Capitalized software",
+          "Finance lease additions",
+          "PP&E additions non-cash"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "cash_flow_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "cash_and_cash_equivalents",
+      "definition_version": 1,
+      "family_code": "cash",
+      "name": "Cash and cash equivalents",
+      "economic_definition": "Cash and cash equivalents at period end.",
+      "accounting_basis": "us_gaap",
+      "period_type": "instant",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Cash and cash equivalents including restricted cash only if explicitly part of cash equivalents line."
+        ],
+        "exclusion_rules": [
+          "Marketable securities",
+          "Short-term investments reported separately"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "balance_sheet"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "short_term_borrowings",
+      "definition_version": 1,
+      "family_code": "debt",
+      "name": "Short-term borrowings",
+      "economic_definition": "Short-term borrowings excluding current portion of long-term debt.",
+      "accounting_basis": "us_gaap",
+      "period_type": "instant",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Short-term debt and borrowings due within one year not classified as current LT debt."
+        ],
+        "exclusion_rules": [
+          "Commercial paper reported separately",
+          "Current portion of long-term debt"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "balance_sheet"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "current_portion_long_term_debt",
+      "definition_version": 1,
+      "family_code": "debt",
+      "name": "Current portion of long-term debt",
+      "economic_definition": "Current maturities of long-term debt.",
+      "accounting_basis": "us_gaap",
+      "period_type": "instant",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Long-term debt due within one year."
+        ],
+        "exclusion_rules": [
+          "Short-term borrowings",
+          "Operating lease liabilities"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "balance_sheet"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "long_term_debt_noncurrent",
+      "definition_version": 1,
+      "family_code": "debt",
+      "name": "Long-term debt noncurrent",
+      "economic_definition": "Long-term debt excluding current portion.",
+      "accounting_basis": "us_gaap",
+      "period_type": "instant",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Noncurrent long-term debt and similar borrowings."
+        ],
+        "exclusion_rules": [
+          "Finance lease liabilities",
+          "Total debt aggregate"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "balance_sheet"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "stockholders_equity_attributable_to_parent",
+      "definition_version": 1,
+      "family_code": "equity",
+      "name": "Stockholders equity attributable to parent",
+      "economic_definition": "Parent stockholders equity.",
+      "accounting_basis": "us_gaap",
+      "period_type": "instant",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Total stockholders equity attributable to parent."
+        ],
+        "exclusion_rules": [
+          "Total equity including noncontrolling interests",
+          "Temporary equity"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "balance_sheet"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "shares_outstanding_period_end",
+      "definition_version": 1,
+      "family_code": "shares",
+      "name": "Shares outstanding period end",
+      "economic_definition": "Common shares outstanding at period end.",
+      "accounting_basis": "us_gaap",
+      "period_type": "instant",
+      "value_kind": "shares",
+      "unit_kind": "shares",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Common shares issued and outstanding at period end."
+        ],
+        "exclusion_rules": [
+          "Weighted average shares",
+          "Treasury shares not outstanding"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "balance_sheet"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "weighted_average_diluted_shares",
+      "definition_version": 1,
+      "family_code": "shares",
+      "name": "Weighted average diluted shares",
+      "economic_definition": "Weighted average diluted common shares.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "shares",
+      "unit_kind": "shares",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Weighted average number of diluted common shares outstanding."
+        ],
+        "exclusion_rules": [
+          "Basic weighted average shares",
+          "Period-end shares outstanding"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "stock_based_compensation",
+      "definition_version": 1,
+      "family_code": "operating_expense",
+      "name": "Stock-based compensation",
+      "economic_definition": "Stock-based compensation expense.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Share-based compensation expense recognized in income statement."
+        ],
+        "exclusion_rules": [
+          "APIC pool changes",
+          "Cash paid for tax withholding on shares"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "research_and_development_expense",
+      "definition_version": 1,
+      "family_code": "operating_expense",
+      "name": "Research and development expense",
+      "economic_definition": "Research and development expense.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Research and development costs expensed as incurred or per policy."
+        ],
+        "exclusion_rules": [
+          "Capitalized development costs",
+          "Acquired IP R&D"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "selling_general_and_administrative_expense",
+      "definition_version": 1,
+      "family_code": "operating_expense",
+      "name": "SG&A expense",
+      "economic_definition": "Selling general and administrative expense.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Selling general and administrative operating expenses."
+        ],
+        "exclusion_rules": [
+          "Marketing expense reported separately without SG&A total"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "income_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "cash_dividends_paid",
+      "definition_version": 1,
+      "family_code": "capital_allocation",
+      "name": "Cash dividends paid",
+      "economic_definition": "Cash dividends paid to shareholders.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Cash paid for dividends to common and preferred shareholders."
+        ],
+        "exclusion_rules": [
+          "Dividends declared but not paid",
+          "Stock dividends"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "cash_flow_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    },
+    {
+      "definition_schema_version": 1,
+      "metric_code": "cash_share_repurchases",
+      "definition_version": 1,
+      "family_code": "capital_allocation",
+      "name": "Cash share repurchases",
+      "economic_definition": "Cash paid for share repurchases.",
+      "accounting_basis": "us_gaap",
+      "period_type": "duration",
+      "value_kind": "monetary",
+      "unit_kind": "currency",
+      "entity_scope": "consolidated",
+      "sign_convention": "natural_sign",
+      "constraints": {
+        "inclusion_rules": [
+          "Cash paid to repurchase common or treasury shares."
+        ],
+        "exclusion_rules": [
+          "Authorized but unsettled repurchases",
+          "Treasury stock cost without cash flow line"
+        ],
+        "allowed_dimensions": [
+          "consolidated_only"
+        ],
+        "statement_expectations": [
+          "cash_flow_statement"
+        ],
+        "industry_applicability": [
+          "general"
+        ],
+        "aggregation_behavior": "additive_over_disjoint_periods",
+        "derivation_policy": "direct_only",
+        "operations_policy": "continuing_and_total_operations_policy_v1"
+      }
+    }
+  ]
+}

@@ -105,6 +105,7 @@ Post–architecture implementation dependency (GitHub PR sequencing):
  → 1B Thin Arelle semantic projection (PR #6) — implemented
  → 1C Document blocks / sections (PR #7) — implemented
  → 1D Acceptance; retire Slice-0 executable machinery (PR #8)
+ → 2A Metric ontology + curated mapping registry (PR #9) — implemented
 ```
 
-Capability experiments (metrics after 1B, text after 1C) may begin once the corresponding evidence exists. Metric mapping remains Phase 2.
+Phase 2A adds Git-authoritative `semantic-registry/` and PostgreSQL materialization. Canonical observations remain Phase 2C. See [phase-2-plan.md](phase-2-plan.md) and [ADR 0010](adr/0010-curated-semantic-registry.md).

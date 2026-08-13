@@ -1003,4 +1003,207 @@ DOCUMENT_TABLES = (
     filing_section,
 )
 
-ALL_TABLES = CATALOG_TABLES + SEMANTIC_TABLES + DOCUMENT_TABLES
+# --- Metric ontology / curated mapping registry (Phase 2A) --------------------
+#
+# Git JSON is authoritative; PostgreSQL is a transactional materialization
+# (ADR 0010). Definitions and rules are immutable under natural keys. Family
+# codes are stable; family metadata may change. Revisions are append-only;
+# registry_hash is indexed, not unique; latest = highest id.
+
+metric_family = Table(
+    "metric_family",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("code", Text, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("description", Text, nullable=False),
+    Column("parent_family_id", BigInteger, nullable=True),
+    Column("family_hash", Text, nullable=False),
+    PrimaryKeyConstraint("id", name="metric_family_pkey"),
+    UniqueConstraint("code", name="uq_metric_family_code"),
+    ForeignKeyConstraint(
+        ["parent_family_id"],
+        ["metric_family.id"],
+        name="metric_family_parent_family_id_fkey",
+    ),
+    CheckConstraint(
+        f"family_hash ~ '{SHA256_CHECK}'",
+        name="ck_metric_family_family_hash_hex",
+    ),
+)
+
+metric_definition = Table(
+    "metric_definition",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("metric_code", Text, nullable=False),
+    Column("definition_version", Integer, nullable=False),
+    Column("definition_schema_version", Integer, nullable=False),
+    Column("family_id", BigInteger, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("economic_definition", Text, nullable=False),
+    Column("accounting_basis", Text, nullable=False),
+    Column("period_type", Text, nullable=False),
+    Column("value_kind", Text, nullable=False),
+    Column("unit_kind", Text, nullable=False),
+    Column("entity_scope", Text, nullable=False),
+    Column("sign_convention", Text, nullable=False),
+    Column("constraints", JSONB, nullable=False),
+    Column("definition_hash", Text, nullable=False),
+    PrimaryKeyConstraint("id", name="metric_definition_pkey"),
+    UniqueConstraint(
+        "metric_code",
+        "definition_version",
+        name="uq_metric_definition_code_version",
+    ),
+    ForeignKeyConstraint(
+        ["family_id"],
+        ["metric_family.id"],
+        name="metric_definition_family_id_fkey",
+    ),
+    CheckConstraint(
+        "definition_version > 0",
+        name="ck_metric_definition_version_positive",
+    ),
+    CheckConstraint(
+        "definition_schema_version > 0",
+        name="ck_metric_definition_schema_version_positive",
+    ),
+    CheckConstraint(
+        "period_type IN ('instant', 'duration')",
+        name="ck_metric_definition_period_type",
+    ),
+    CheckConstraint(
+        f"definition_hash ~ '{SHA256_CHECK}'",
+        name="ck_metric_definition_definition_hash_hex",
+    ),
+)
+
+metric_mapping_rule = Table(
+    "metric_mapping_rule",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("rule_key", Text, nullable=False),
+    Column("rule_schema_version", Integer, nullable=False),
+    Column("source_concept_identity_id", BigInteger, nullable=False),
+    Column("target_metric_definition_id", BigInteger, nullable=False),
+    Column("relationship_type", Text, nullable=False),
+    Column("scope_kind", Text, nullable=False),
+    Column("scope", JSONB, nullable=False),
+    Column("confidence_tier", Text, nullable=False),
+    Column("rationale", Text, nullable=False),
+    Column("evidence_snapshot", JSONB, nullable=False),
+    Column("evidence_citations", JSONB, nullable=False),
+    Column("reviewed_by", Text, nullable=False),
+    Column("reviewed_at", DateTime(timezone=True), nullable=False),
+    Column("supersedes_rule_id", BigInteger, nullable=True),
+    Column("rule_hash", Text, nullable=False),
+    PrimaryKeyConstraint("id", name="metric_mapping_rule_pkey"),
+    UniqueConstraint("rule_key", name="uq_metric_mapping_rule_rule_key"),
+    ForeignKeyConstraint(
+        ["source_concept_identity_id"],
+        ["concept_identity.id"],
+        name="metric_mapping_rule_source_concept_identity_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["target_metric_definition_id"],
+        ["metric_definition.id"],
+        name="metric_mapping_rule_target_metric_definition_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["supersedes_rule_id"],
+        ["metric_mapping_rule.id"],
+        name="metric_mapping_rule_supersedes_rule_id_fkey",
+    ),
+    CheckConstraint(
+        "rule_schema_version > 0",
+        name="ck_metric_mapping_rule_schema_version_positive",
+    ),
+    CheckConstraint(
+        "relationship_type IN ("
+        "'equivalent', 'issuer_equivalent', 'narrower_than', 'broader_than', "
+        "'component_of', 'derived_equivalent', 'presentation_alias', "
+        "'proxy_for', 'incompatible', 'unresolved'"
+        ")",
+        name="ck_metric_mapping_rule_relationship_type",
+    ),
+    CheckConstraint(
+        "scope_kind IN ('global', 'issuer', 'issuer_period', 'filing')",
+        name="ck_metric_mapping_rule_scope_kind",
+    ),
+    CheckConstraint(
+        "confidence_tier IN ('high', 'medium', 'low')",
+        name="ck_metric_mapping_rule_confidence_tier",
+    ),
+    CheckConstraint(
+        "scope->>'kind' = scope_kind",
+        name="ck_metric_mapping_rule_scope_kind_matches",
+    ),
+    CheckConstraint(
+        "jsonb_typeof(scope) = 'object'",
+        name="ck_metric_mapping_rule_scope_object",
+    ),
+    CheckConstraint(
+        "jsonb_typeof(evidence_snapshot) = 'object'",
+        name="ck_metric_mapping_rule_evidence_snapshot_object",
+    ),
+    CheckConstraint(
+        "jsonb_typeof(evidence_citations) = 'array'",
+        name="ck_metric_mapping_rule_evidence_citations_array",
+    ),
+    CheckConstraint(
+        f"rule_hash ~ '{SHA256_CHECK}'",
+        name="ck_metric_mapping_rule_rule_hash_hex",
+    ),
+    CheckConstraint(
+        "supersedes_rule_id IS NULL OR supersedes_rule_id <> id",
+        name="ck_metric_mapping_rule_supersedes_not_self",
+    ),
+)
+
+semantic_registry_revision = Table(
+    "semantic_registry_revision",
+    metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False),
+    Column("registry_hash", Text, nullable=False),
+    Column("registry_schema_version", Integer, nullable=False),
+    Column("families_file_hash", Text, nullable=False),
+    Column("definitions_file_hash", Text, nullable=False),
+    Column("rules_file_hash", Text, nullable=False),
+    Column("synced_at", DateTime(timezone=True), nullable=False),
+    PrimaryKeyConstraint("id", name="semantic_registry_revision_pkey"),
+    CheckConstraint(
+        "registry_schema_version > 0",
+        name="ck_semantic_registry_revision_schema_version_positive",
+    ),
+    CheckConstraint(
+        f"registry_hash ~ '{SHA256_CHECK}'",
+        name="ck_semantic_registry_revision_registry_hash_hex",
+    ),
+    CheckConstraint(
+        f"families_file_hash ~ '{SHA256_CHECK}'",
+        name="ck_semantic_registry_revision_families_file_hash_hex",
+    ),
+    CheckConstraint(
+        f"definitions_file_hash ~ '{SHA256_CHECK}'",
+        name="ck_semantic_registry_revision_definitions_file_hash_hex",
+    ),
+    CheckConstraint(
+        f"rules_file_hash ~ '{SHA256_CHECK}'",
+        name="ck_semantic_registry_revision_rules_file_hash_hex",
+    ),
+    Index(
+        "ix_semantic_registry_revision_registry_hash",
+        "registry_hash",
+        unique=False,
+    ),
+)
+
+METRIC_TABLES = (
+    metric_family,
+    metric_definition,
+    metric_mapping_rule,
+    semantic_registry_revision,
+)
+
+ALL_TABLES = CATALOG_TABLES + SEMANTIC_TABLES + DOCUMENT_TABLES + METRIC_TABLES

@@ -298,6 +298,10 @@ Research datasets must state which tiers they include.
 
 ### `mapping_review`
 
+**Phase 2A note:** This table is **not** implemented. ADR 0010 replaces it: every stored `metric_mapping_rule` is a historically human-approved decision; `reviewed_by` / `reviewed_at` are mandatory; current vs superseded is derived from the supersession graph (no `review_status` column). See [phase-2-data-model.md](phase-2-data-model.md).
+
+Planned fields (Phase 2C+ review workflow):
+
 - decision
 - reviewer
 - evidence snapshot

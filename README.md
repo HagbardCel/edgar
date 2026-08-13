@@ -2,9 +2,9 @@
 
 Reproducible, point-in-time-aware platform for SEC company filings.
 
-**Status:** Phase 1A–1C are implemented (`src/edgar/`): filesystem acquisition,
-catalog foundation, thin Arelle semantic projection (PR #6), and offline
-document blocks / regulatory sections (PR #7). Phase 1D acceptance is next.
+**Status:** Phase 1A–1C and Phase 2A metric registry are implemented: filesystem acquisition,
+catalog foundation, thin Arelle semantic projection (PR #6), offline document blocks /
+regulatory sections (PR #7), and Git-authoritative metric ontology + curated mapping registry.
 
 Apache-2.0 covers this project's software and documentation. It does **not** automatically license third-party SEC filing content or taxonomies retrieved from EDGAR.
 
@@ -50,7 +50,13 @@ uv run edgar filings catalog --bundle-dir var/bundles/<cik>/<accession>/<opaque_
 uv run edgar xbrl project --bundle-dir var/bundles/<cik>/<accession>/<opaque_id> --json
 uv run edgar documents project --bundle-dir var/bundles/<cik>/<accession>/<opaque_id> --json
 uv run edgar documents sections --projection-id <id> --json
+uv run edgar metrics sync
+uv run edgar metrics list --json
+uv run edgar mappings list --json
+uv run edgar mappings explain RULE_KEY --json
 ```
+
+`metrics sync` requires cataloged bundles and semantic projections for every pinned evidence citation in `semantic-registry/mapping-rules.json`. Run corpus catalog/project workflows first (see `scripts/phase2a_acceptance.sh`).
 
 `documents project` defaults to the filing primary HTML document. Pass
 `--artifact-path accession/exhibit.htm` to project another eligible HTML

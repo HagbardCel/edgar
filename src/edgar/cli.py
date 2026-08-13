@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import typer
 from alembic import command
@@ -18,6 +18,11 @@ from edgar.db.engine import create_db_engine
 from edgar.db.semantic import list_network_relationships
 from edgar.ingestion.acquisition import AcquisitionService
 from edgar.ingestion.catalog import CatalogService
+from edgar.metrics.service import (
+    MetricRegistryService,
+    RegistryIntegrityError,
+    RegistryNotSyncedError,
+)
 from edgar.parsing.config import DOCUMENT_PROJECTION_VERSION
 from edgar.projection.document import (
     DocumentPreflightError,
@@ -31,10 +36,14 @@ filings_app = typer.Typer(help="Filing acquisition and catalog workflows.")
 db_app = typer.Typer(help="PostgreSQL catalog database workflows.")
 xbrl_app = typer.Typer(help="XBRL semantic projection workflows.")
 documents_app = typer.Typer(help="Document block and regulatory section workflows.")
+metrics_app = typer.Typer(help="Metric ontology registry workflows.")
+mappings_app = typer.Typer(help="Curated XBRL concept mapping audit workflows.")
 app.add_typer(filings_app, name="filings")
 app.add_typer(db_app, name="db")
 app.add_typer(xbrl_app, name="xbrl")
 app.add_typer(documents_app, name="documents")
+app.add_typer(metrics_app, name="metrics")
+app.add_typer(mappings_app, name="mappings")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
@@ -321,6 +330,216 @@ def documents_sections(
                 f"[{row['start_block_ordinal']}, {row['end_block_ordinal_exclusive']}) "
                 f"confidence={row['confidence_score']}"
             )
+
+
+def _metric_service(
+    registry_dir: Path | None,
+) -> MetricRegistryService:
+    return MetricRegistryService(Settings(), registry_dir=registry_dir)
+
+
+def _metric_cli_error(exc: Exception) -> None:
+    typer.echo(str(exc), err=True)
+    raise typer.Exit(code=1) from exc
+
+
+@metrics_app.command("sync")
+def metrics_sync(
+    registry_dir: Annotated[
+        Path | None,
+        typer.Option("--registry-dir", help="Override semantic-registry directory"),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit machine-readable JSON")] = False,
+) -> None:
+    """Materialize the Git semantic registry into PostgreSQL."""
+    try:
+        result = _metric_service(registry_dir).sync()
+    except Exception as exc:
+        _metric_cli_error(exc)
+    payload = {
+        "registry_hash": result.registry_hash,
+        "revision_id": result.revision_id,
+        "verified_noop": result.verified_noop,
+        "family_count": result.family_count,
+        "definition_count": result.definition_count,
+        "rule_count": result.rule_count,
+    }
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        if result.verified_noop:
+            typer.echo(f"registry verified no-op; hash={result.registry_hash}")
+        else:
+            typer.echo(
+                f"synced registry revision={result.revision_id} "
+                f"families={result.family_count} "
+                f"definitions={result.definition_count} rules={result.rule_count}"
+            )
+
+
+@metrics_app.command("list")
+def metrics_list(
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """List metric definitions from the synced registry."""
+    try:
+        rows = _metric_service(registry_dir).list_metrics()
+    except (RegistryNotSyncedError, RegistryIntegrityError) as exc:
+        _metric_cli_error(exc)
+    payload = {
+        "metrics": [
+            {
+                "metric_code": r.metric_code,
+                "definition_version": r.definition_version,
+                "name": r.name,
+                "family_code": r.family_code,
+                "period_type": r.period_type,
+            }
+            for r in rows
+        ],
+        "count": len(rows),
+    }
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"metrics={len(rows)}")
+        for row in rows:
+            typer.echo(f"  {row.metric_code}@{row.definition_version} ({row.name})")
+
+
+@metrics_app.command("show")
+def metrics_show(
+    metric_code: Annotated[str, typer.Argument(help="Metric code")],
+    version: Annotated[
+        int | None,
+        typer.Option("--version", help="Definition version (required if multiple exist)"),
+    ] = None,
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show one metric definition contract."""
+    try:
+        rows = _metric_service(registry_dir).get_metric(
+            metric_code, definition_version=version
+        )
+    except (RegistryNotSyncedError, RegistryIntegrityError) as exc:
+        _metric_cli_error(exc)
+    except ValueError as exc:
+        _metric_cli_error(exc)
+    if not rows:
+        typer.echo(f"unknown metric: {metric_code}", err=True)
+        raise typer.Exit(code=1)
+    payload = {
+        "definitions": [r.model_dump(mode="json") for r in rows],
+        "count": len(rows),
+    }
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        for row in rows:
+            typer.echo(f"{row.metric_code}@{row.definition_version}: {row.economic_definition}")
+
+
+@mappings_app.command("list")
+def mappings_list(
+    metric: Annotated[str | None, typer.Option("--metric")] = None,
+    concept: Annotated[str | None, typer.Option("--concept", help="local_name filter")] = None,
+    cik: Annotated[str | None, typer.Option("--cik")] = None,
+    relationship: Annotated[str | None, typer.Option("--relationship")] = None,
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """List curated mapping rules."""
+    try:
+        rows = _metric_service(registry_dir).list_mappings(
+            metric_code=metric,
+            concept_local_name=concept,
+            cik=cik,
+            relationship_type=relationship,
+        )
+    except (RegistryNotSyncedError, RegistryIntegrityError) as exc:
+        _metric_cli_error(exc)
+    payload = {
+        "rules": [
+            {
+                "rule_key": r.rule.rule_key,
+                "state": r.state,
+                "source_concept": r.rule.source_concept.model_dump(),
+                "target_metric_code": r.rule.target_metric_code,
+                "target_definition_version": r.rule.target_definition_version,
+                "relationship_type": r.rule.relationship_type,
+                "scope_kind": r.rule.scope_kind,
+            }
+            for r in rows
+        ],
+        "count": len(rows),
+    }
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"mappings={len(rows)}")
+        for row in rows:
+            q = row.rule.source_concept
+            typer.echo(
+                f"  {row.rule.rule_key} [{row.state}] "
+                f"{q.local_name} -> {row.rule.target_metric_code}@"
+                f"{row.rule.target_definition_version} "
+                f"({row.rule.relationship_type})"
+            )
+
+
+@mappings_app.command("explain")
+def mappings_explain(
+    rule_key: Annotated[str, typer.Argument(help="Mapping rule key")],
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Explain one mapping rule with evidence and source occurrences."""
+    try:
+        payload = cast(dict[str, Any], _metric_service(registry_dir).explain_mapping(rule_key))
+    except KeyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except (RegistryNotSyncedError, RegistryIntegrityError) as exc:
+        _metric_cli_error(exc)
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"rule {rule_key} state={payload['state']}")
+        typer.echo(f"relationship={payload['relationship_type']}")
+        typer.echo(
+            f"target={payload['target_metric']['metric_code']}@"
+            f"{payload['target_metric']['definition_version']}"
+        )
+        typer.echo(payload["source_fact_occurrences"]["label"])
+        typer.echo(f"occurrences={payload['source_fact_occurrences']['count']}")
+
+
+@mappings_app.command("export")
+def mappings_export(
+    fmt: Annotated[
+        str,
+        typer.Option("--format", help="json | markdown"),
+    ] = "json",
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+) -> None:
+    """Export mapping audit reports (derived; not accepted by metrics sync)."""
+    from edgar.metrics.export import mapping_rule_markdown
+
+    try:
+        reports = _metric_service(registry_dir).export_mappings_audit()
+    except (RegistryNotSyncedError, RegistryIntegrityError) as exc:
+        _metric_cli_error(exc)
+    if fmt == "json":
+        payload = {"reports": reports, "count": len(reports)}
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    elif fmt == "markdown":
+        for report in reports:
+            typer.echo(mapping_rule_markdown(cast(dict[str, Any], report)))
+    else:
+        typer.echo(f"unsupported format: {fmt}", err=True)
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

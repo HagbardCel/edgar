@@ -1,0 +1,759 @@
+{
+  "registry_schema_version": 1,
+  "rules": [
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000001",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "Revenues"
+      },
+      "target_metric_code": "operating_company_revenue",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "eBay 10-K: standard Revenues maps to operating company revenue.",
+      "evidence_snapshot": {
+        "concept": "Revenues",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "Revenues"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-Revenues"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000002",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "OperatingIncomeLoss"
+      },
+      "target_metric_code": "operating_income",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Global equivalent for consolidated operating income.",
+      "evidence_snapshot": {
+        "concept": "OperatingIncomeLoss",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "OperatingIncomeLoss"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-OperatingIncomeLoss"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000003",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "EarningsPerShareDiluted"
+      },
+      "target_metric_code": "diluted_eps",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Diluted EPS equivalent to canonical diluted_eps contract.",
+      "evidence_snapshot": {
+        "concept": "EarningsPerShareDiluted",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "EarningsPerShareDiluted"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-EarningsPerShareDiluted"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000004",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "NetCashProvidedByUsedInOperatingActivities"
+      },
+      "target_metric_code": "operating_cash_flow",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Operating cash flow statement total equivalent.",
+      "evidence_snapshot": {
+        "concept": "NetCashProvidedByUsedInOperatingActivities",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "NetCashProvidedByUsedInOperatingActivities"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-NetCashProvidedByUsedInOperatingActivities"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000005",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "PaymentsToAcquirePropertyPlantAndEquipment"
+      },
+      "target_metric_code": "cash_purchases_of_ppe",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Cash capex payments equivalent.",
+      "evidence_snapshot": {
+        "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "PaymentsToAcquirePropertyPlantAndEquipment"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-PaymentsToAcquirePropertyPlantAndEquipment"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000006",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "CashAndCashEquivalentsAtCarryingValue"
+      },
+      "target_metric_code": "cash_and_cash_equivalents",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Cash and equivalents balance sheet mapping.",
+      "evidence_snapshot": {
+        "concept": "CashAndCashEquivalentsAtCarryingValue",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "CashAndCashEquivalentsAtCarryingValue"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-CashAndCashEquivalentsAtCarryingValue"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000007",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "LongTermDebtNoncurrent"
+      },
+      "target_metric_code": "long_term_debt_noncurrent",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Noncurrent long-term debt equivalent.",
+      "evidence_snapshot": {
+        "concept": "LongTermDebtNoncurrent",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "LongTermDebtNoncurrent"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-LongTermDebtNoncurrent"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000008",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "StockholdersEquity"
+      },
+      "target_metric_code": "stockholders_equity_attributable_to_parent",
+      "target_definition_version": 1,
+      "relationship_type": "broader_than",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Total stockholders equity is broader than parent-attributable equity.",
+      "evidence_snapshot": {
+        "concept": "StockholdersEquity",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "StockholdersEquity"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-StockholdersEquity"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000009",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "NetIncomeLoss"
+      },
+      "target_metric_code": "net_income_attributable_to_parent",
+      "target_definition_version": 1,
+      "relationship_type": "narrower_than",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Consolidated net income narrower than parent-attributable when NCI exists.",
+      "evidence_snapshot": {
+        "concept": "NetIncomeLoss",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "NetIncomeLoss"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-NetIncomeLoss"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000010",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "CostOfGoodsAndServicesSold"
+      },
+      "target_metric_code": "gross_profit",
+      "target_definition_version": 1,
+      "relationship_type": "component_of",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "COGS is a component of gross profit (not equivalent).",
+      "evidence_snapshot": {
+        "concept": "CostOfGoodsAndServicesSold",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "CostOfGoodsAndServicesSold"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-CostOfGoodsAndServicesSold"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000011",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "InterestIncomeOperating"
+      },
+      "target_metric_code": "operating_company_revenue",
+      "target_definition_version": 1,
+      "relationship_type": "incompatible",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "JPM 10-Q: bank interest income incompatible with operating company revenue.",
+      "evidence_snapshot": {
+        "concept": "InterestIncomeOperating",
+        "accession": "0000019617-24-000453"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0000019617-24-000453",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "InterestIncomeOperating"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-InterestIncomeOperating"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000012",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "Revenues"
+      },
+      "target_metric_code": "operating_company_revenue",
+      "target_definition_version": 1,
+      "relationship_type": "issuer_equivalent",
+      "scope_kind": "issuer_period",
+      "scope": {
+        "kind": "issuer_period",
+        "cik": "0001065088",
+        "report_period_from": "2023-01-01",
+        "report_period_through": "2023-12-31"
+      },
+      "confidence_tier": "high",
+      "rationale": "eBay issuer-period issuer_equivalent for FY2023 Revenues.",
+      "evidence_snapshot": {
+        "concept": "Revenues",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "Revenues"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-Revenues"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000013",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "ResearchAndDevelopmentExpense"
+      },
+      "target_metric_code": "research_and_development_expense",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "R&D expense equivalent mapping.",
+      "evidence_snapshot": {
+        "concept": "ResearchAndDevelopmentExpense",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "ResearchAndDevelopmentExpense"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-ResearchAndDevelopmentExpense"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000014",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "SellingGeneralAndAdministrativeExpense"
+      },
+      "target_metric_code": "selling_general_and_administrative_expense",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "SG&A expense equivalent mapping.",
+      "evidence_snapshot": {
+        "concept": "SellingGeneralAndAdministrativeExpense",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "SellingGeneralAndAdministrativeExpense"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-SellingGeneralAndAdministrativeExpense"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000015",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "PaymentsOfDividends"
+      },
+      "target_metric_code": "cash_dividends_paid",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "filing",
+      "scope": {
+        "kind": "filing",
+        "accession_number": "0000104169-24-000056"
+      },
+      "confidence_tier": "high",
+      "rationale": "Walmart filing-scoped dividends cash flow mapping.",
+      "evidence_snapshot": {
+        "concept": "PaymentsOfDividends",
+        "accession": "0000104169-24-000056"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0000104169-24-000056",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "PaymentsOfDividends"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-PaymentsOfDividends"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000016",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "Revenues"
+      },
+      "target_metric_code": "operating_company_revenue",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Superseded preliminary Revenues equivalent (historically approved).",
+      "evidence_snapshot": {
+        "concept": "Revenues",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "Revenues"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-Revenues"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_schema_version": 1,
+      "rule_key": "map-000017",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "Revenues"
+      },
+      "target_metric_code": "operating_company_revenue",
+      "target_definition_version": 1,
+      "relationship_type": "unresolved",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Reviewed abstention: Revenues mapping deferred pending segment review.",
+      "evidence_snapshot": {
+        "concept": "Revenues",
+        "accession": "0001065088-24-000036"
+      },
+      "evidence_citations": [
+        {
+          "accession_number": "0001065088-24-000036",
+          "filing_bundle_opaque_id": "a1b2c3d4e5f6478096a5b4c3d2e1f0a0",
+          "xbrl_report_input_ordinal": 0,
+          "projection_version": "arelle-semantic-v1",
+          "arelle_version": "2.43.1",
+          "semantic_config_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "kind": "concept_declaration",
+          "concept": {
+            "namespace_uri": "http://fasb.org/us-gaap/2023",
+            "local_name": "Revenues"
+          },
+          "source_locator": {
+            "document_uri": "https://www.sec.gov/Archives/edgar/data/ix.xbrl",
+            "scheme": "xml_id",
+            "value": "loc-Revenues"
+          }
+        }
+      ],
+      "reviewed_by": "fabian",
+      "reviewed_at": "2026-02-10T15:00:00Z",
+      "supersedes": {
+        "rule_key": "map-000016"
+      }
+    }
+  ]
+}

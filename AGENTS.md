@@ -6,7 +6,7 @@ Build a reproducible, point-in-time-aware platform for SEC company filings.
 
 The system preserves immutable filing evidence; parses deterministic document structure and XBRL semantics; creates versioned canonical metrics; joins filings to historical securities and market outcomes; and supports reproducible quantitative and textual research.
 
-The current implementation phase is **Phase 1: immutable filing and semantic XBRL foundation**.
+The current implementation phase is **Phase 2A: canonical metric ontology and curated mapping registry**.
 
 Optimize for:
 
@@ -27,7 +27,7 @@ Do not optimize for breadth or ingestion speed before the relevant phase gate is
 Before changing code:
 
 1. Read this file.
-2. Read `docs/phase-1-plan.md`.
+2. Read `docs/phase-2-plan.md` (active) and `docs/phase-1-plan.md`.
 3. Read `docs/project-roadmap.md`.
 4. Read `docs/architecture.md` and `docs/fixture-policy.md`.
 5. Read `docs/data-model.md`.
@@ -50,30 +50,26 @@ Never infer success from plausible code. Run the relevant checks.
 
 ---
 
-## Active Phase 1 scope
+## Active Phase 2A scope
 
-Implement and maintain:
+Implement and maintain (Phase 1 foundations remain in force):
 
-- SEC discovery for `10-K`, `10-K/A`, `10-Q`, `10-Q/A`
-- immutable raw filing retrieval and manifests
-- issuer, filing, document, and artifact metadata
-- semantic HTML blocks
-- regulatory filing sections
-- XBRL concepts and schema attributes
-- labels and references
-- role and arcrole definitions
-- presentation, calculation, and definition relationships
-- contexts, dimensions, units, and facts
-- parser versions and quality issues
-- local PostgreSQL
-- deterministic offline fixtures
-- CLI workflows
-- optional local-LLM development experiments
+- Git-authoritative `semantic-registry/` (families, 20 v1 metric definitions, curated mapping rules)
+- envelope vs per-record schema versions with frozen canonicalizers
+- PostgreSQL metric registry materialization and revision-log sync
+- verified no-op re-sync, Git-hash public-read gate, advisory-locked sync
+- discriminated evidence citations with exactly-one resolution at sync
+- derived current vs superseded rule state (full retirement via supersession)
+- `edgar metrics` and `edgar mappings` CLI (sync, list, show, explain, export)
 
 Do not add without explicit scope change:
 
-- canonical metric mappings
-- derived financial metrics
+- `metric_observation` or canonical fact acceptance
+- automated mapping candidates or precedence among current rules
+- derived financial metrics or industry master
+- LLM auto-approval of mappings or fabricating `reviewed_by`
+- `derived_equivalent` mapping data
+- open-ended `issuer` scope with `issuer_equivalent`
 - security-master or market data
 - research dataset generation
 - embeddings or vector databases
@@ -81,13 +77,25 @@ Do not add without explicit scope change:
 - distributed queues
 - cloud infrastructure
 - production LLM dependencies
-- additional filing forms
 
-Phase 1 must preserve all evidence needed for Phase 2 metric mapping. It must not perform that mapping prematurely.
+Phase 1 ingestion, parsing, and semantic projection remain required substrate. Phase 2A stores human-reviewed concept→metric decisions only; it does not turn facts into canonical observations.
 
 ---
 
-## Non-negotiable invariants
+## Phase 1 scope (maintained)
+
+Implement and maintain:
+
+- SEC discovery for `10-K`, `10-K/A`, `10-Q`, `10-Q/A`
+- immutable raw filing retrieval and manifests
+- issuer, filing, document, and artifact metadata
+- semantic HTML blocks and regulatory filing sections
+- XBRL concepts, labels, references, networks, contexts, dimensions, units, and facts
+- parser versions, quality issues, local PostgreSQL, deterministic offline fixtures, CLI workflows
+
+Phase 1 parser outputs remain regenerable; curated registry content is Git-authoritative ([ADR 0010](docs/adr/0010-curated-semantic-registry.md)).
+
+---
 
 ### Source artifacts
 
