@@ -103,9 +103,8 @@ def test_invalid_transformation_facts_are_faithfully_represented(tmp_path: Path)
     assert result.data.projection_version == "arelle-semantic-v2"
 
     codes = {d.code for d in result.data.diagnostics}
-    assert "ix11.11.1.2:invalidTransformation" in codes or (
-        "ix11.10.1.2:invalidTransformation" in codes
-    )
+    assert "ix11.10.1.2:invalidTransformation" in codes
+    assert "ix11.11.1.2:invalidTransformation" in codes
     for diag in result.data.diagnostics:
         if diag.code.endswith(":invalidTransformation"):
             assert classify_diagnostic(diag) == "complete_compatible"
@@ -116,12 +115,23 @@ def test_invalid_transformation_facts_are_faithfully_represented(tmp_path: Path)
         if fact.source_locator.scheme == "unqualified_id"
     }
     valid = by_id["fvalid"]
+    invalid_nf = by_id["finvalid-nf"]
     invalid = by_id["finvalid"]
 
     assert valid.value_status == "valid"
     assert valid.resolved_value_kind == "numeric"
     assert valid.resolved_numeric_value == Decimal("1234.56")
     assert valid.resolved_text_value is None
+
+    assert invalid_nf.concept_qname.local_name == "Liabilities"
+    assert invalid_nf.context_locator == valid.context_locator
+    assert invalid_nf.unit_locator == valid.unit_locator
+    assert invalid_nf.raw_lexical_value == "987.65"
+    assert invalid_nf.value_status == "invalid"
+    assert invalid_nf.resolved_value_kind is None
+    assert invalid_nf.resolved_numeric_value is None
+    assert invalid_nf.resolved_text_value is None
+    assert invalid_nf.source_locator.value == "finvalid-nf"
 
     assert invalid.value_status == "invalid"
     assert invalid.raw_lexical_value == "January 1, 2024"

@@ -1,4 +1,4 @@
-"""Inline XBRL fixture: one valid numeric fact + one invalidTransformation fact."""
+"""Inline XBRL fixture: one valid numeric fact + two invalidTransformation facts."""
 
 from __future__ import annotations
 
@@ -19,6 +19,9 @@ SCHEMA = b"""<?xml version="1.0"?>
   <element name="Assets" id="it_Assets" type="xbrli:monetaryItemType"
            substitutionGroup="xbrli:item" nillable="true"
            xbrli:periodType="instant"/>
+  <element name="Liabilities" id="it_Liabilities" type="xbrli:monetaryItemType"
+           substitutionGroup="xbrli:item" nillable="true"
+           xbrli:periodType="instant"/>
   <element name="Note" id="it_Note" type="xbrli:stringItemType"
            substitutionGroup="xbrli:item" nillable="true"
            xbrli:periodType="instant"/>
@@ -26,7 +29,8 @@ SCHEMA = b"""<?xml version="1.0"?>
 """
 
 # SEC legacy transformation namespace is not registered in Arelle 2.43.1 →
-# ix11.11.1.2:invalidTransformation on the Note fact; Assets remains valid.
+# ix11.10.1.2:invalidTransformation on the Liabilities ix:nonFraction and
+# ix11.11.1.2:invalidTransformation on the Note ix:nonNumeric; Assets remains valid.
 INLINE = b"""<?xml version="1.0"?>
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
@@ -59,6 +63,11 @@ INLINE = b"""<?xml version="1.0"?>
         <ix:nonFraction name="t:Assets" contextRef="c1" unitRef="u1"
                         decimals="INF" scale="0" id="fvalid"
                         format="ixt:numdotdecimal">1234.56</ix:nonFraction>
+      </p>
+      <p>
+        <ix:nonFraction name="t:Liabilities" contextRef="c1" unitRef="u1"
+                        decimals="INF" scale="0" id="finvalid-nf"
+                        format="ixt-sec:datemonthdayyear">987.65</ix:nonFraction>
       </p>
       <p>
         <ix:nonNumeric name="t:Note" contextRef="c1" id="finvalid"
