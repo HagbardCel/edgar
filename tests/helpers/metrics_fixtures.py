@@ -8,8 +8,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from edgar.metrics.registry import LoadedRegistry, load_registry, validate_registry
-from edgar.xbrl.arelle_env import arelle_version
-from edgar.xbrl.config import SEMANTIC_PROJECTION_VERSION
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_REGISTRY = _REPO_ROOT / "semantic-registry"
@@ -24,8 +22,6 @@ def copy_registry_skeleton(dest: Path) -> Path:
 
 def build_test_mapping_rules(
     *,
-    bundle_fingerprint: str,
-    semantic_config_fingerprint: str,
     accession: str = "0000000001-00-000001",
 ) -> dict[str, object]:
     reviewed_at = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC).isoformat()
@@ -47,10 +43,6 @@ def build_test_mapping_rules(
                 "evidence_snapshot": {"note": "synthetic integration fixture"},
                 "evidence": {
                     "accession_number": accession,
-                    "bundle_fingerprint": bundle_fingerprint,
-                    "projection_version": SEMANTIC_PROJECTION_VERSION,
-                    "arelle_version": arelle_version(),
-                    "semantic_config_fingerprint": semantic_config_fingerprint,
                     "concept": {
                         "namespace_uri": "http://example.com/test",
                         "local_name": "CashAndCashEquivalents",
@@ -76,10 +68,6 @@ def build_test_mapping_rules(
                 "evidence_snapshot": {"note": "synthetic integration fixture"},
                 "evidence": {
                     "accession_number": accession,
-                    "bundle_fingerprint": bundle_fingerprint,
-                    "projection_version": SEMANTIC_PROJECTION_VERSION,
-                    "arelle_version": arelle_version(),
-                    "semantic_config_fingerprint": semantic_config_fingerprint,
                     "concept": {
                         "namespace_uri": "http://example.com/test",
                         "local_name": "Assets",
@@ -110,10 +98,6 @@ def build_test_mapping_rules(
                 "evidence_snapshot": {"note": "synthetic integration fixture"},
                 "evidence": {
                     "accession_number": accession,
-                    "bundle_fingerprint": bundle_fingerprint,
-                    "projection_version": SEMANTIC_PROJECTION_VERSION,
-                    "arelle_version": arelle_version(),
-                    "semantic_config_fingerprint": semantic_config_fingerprint,
                     "concept": {
                         "namespace_uri": "http://example.com/test",
                         "local_name": "CashAndCashEquivalents",
@@ -130,16 +114,10 @@ def build_test_mapping_rules(
 def write_test_registry_with_rules(
     dest: Path,
     *,
-    bundle_fingerprint: str,
-    semantic_config_fingerprint: str,
     accession: str = "0000000001-00-000001",
 ) -> LoadedRegistry:
     copy_registry_skeleton(dest)
-    rules_doc = build_test_mapping_rules(
-        bundle_fingerprint=bundle_fingerprint,
-        semantic_config_fingerprint=semantic_config_fingerprint,
-        accession=accession,
-    )
+    rules_doc = build_test_mapping_rules(accession=accession)
     rules_path = dest / "mapping-rules.json"
     rules_path.write_text(json.dumps(rules_doc, indent=2) + "\n", encoding="utf-8")
     registry = load_registry(dest)

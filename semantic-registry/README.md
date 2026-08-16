@@ -19,20 +19,21 @@ uv run edgar metrics list
 uv run edgar metrics show operating_company_revenue --version 1
 uv run edgar mappings list
 uv run edgar mappings export --format json
-uv run edgar mappings explain <rule_key>   # requires DB + pinned projection evidence
+uv run edgar mappings explain <rule_key>   # requires DB + pinned source.* evidence
 ```
 
-`mappings export` is DB-free. `mappings explain` resolves pinned `ProjectionConceptEvidence` only; it displays scope metadata but does not apply scope-based applicability (Phase 2B).
+`mappings export` is DB-free. `mappings explain` resolves pinned `SourceConceptEvidence` only; it displays scope metadata but does not apply scope-based applicability (Phase 2B).
 
 ## Evidence
 
 Mapping rules pin:
 
-- `bundle_fingerprint` (from `bundle_fingerprint()` in `src/edgar/domain/bundle.py`)
-- semantic projection identity (`projection_version`, `arelle_version`, `semantic_config_fingerprint`)
-- concept QName
+- `accession_number` (canonical dashed form)
+- concept expanded QName (`namespace_uri` + `local_name`)
 
-Do not use `filing_bundle_opaque_id` in authoritative evidence.
+Explain returns one enrichment section per matching `source.xbrl_report` for that filing. `arelle_version` may appear as optional display metadata on report payloads but is not part of pin identity.
+
+Do not use `filing_bundle_opaque_id`, `bundle_fingerprint`, `projection_version`, or `semantic_config_fingerprint` in authoritative evidence.
 
 ## Governance
 
