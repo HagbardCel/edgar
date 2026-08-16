@@ -21,6 +21,7 @@ from edgar.domain.payload import compute_payload_hash
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.closure import run_online_closure
 from edgar.xbrl.uri import normalize_uri, sha256_of_uri
+from tests.helpers import invalid_transform_fixture as _invalid_transform
 from tests.helpers import ixds_xbrl_fixture as _ixds
 from tests.helpers import rich_xbrl_fixture as _rich
 from tests.helpers.arelle_cache_fetcher import ArelleCacheFetcher
@@ -540,6 +541,49 @@ def make_ixds_semantic_bundle(store: ObjectStore) -> FilingBundle:
         ],
         accession="0000000001-00-000003",
         primary="a.htm",
+    )
+
+
+def make_invalid_transform_bundle(store: ObjectStore) -> FilingBundle:
+    """Single-document IX: valid numeric + deliberately invalid transformation."""
+    inline_obj = store.put_bytes(_invalid_transform.INLINE)
+    report = IxdsReportInput(document_uris=(_invalid_transform.INLINE_URI,), target="default")
+    discovery = run_online_closure(
+        report,
+        accession_uri_map={
+            _invalid_transform.INLINE_URI: (inline_obj.sha256, "accession/invalid-transform.htm"),
+        },
+        store=store,
+        fetcher=ArelleCacheFetcher(
+            {_invalid_transform.SCHEMA_URI: _invalid_transform.SCHEMA}  # type: ignore[arg-type]
+        ),
+        max_file_bytes=5_000_000,
+        max_new_payload_bytes=50_000_000,
+    )
+    if (
+        not discovery.load_completed
+        or discovery.errors
+        or discovery.unresolved_documents
+        or discovery.network_attempts
+    ):
+        raise RuntimeError(
+            "invalid-transform fixture discovery failed: "
+            f"errors={discovery.errors!r} unresolved={discovery.unresolved_documents!r}"
+        )
+    return _bundle_from_discovery(
+        store=store,
+        report=report,
+        discovery=discovery,
+        accession_artifacts=[
+            BundleArtifact(
+                "accession/invalid-transform.htm",
+                ContentObject(inline_obj.sha256, inline_obj.byte_size),
+                "primary_document",
+                True,
+            ),
+        ],
+        accession="0000000001-00-000012",
+        primary="invalid-transform.htm",
     )
 
 

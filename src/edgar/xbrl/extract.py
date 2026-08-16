@@ -478,6 +478,16 @@ def _resolved_non_numeric(
     clark = _clark(value)
     if clark is not None:
         return clark, "qname", True
+    from edgar.xbrl.resolved_text import encode_list, encode_supported_resolved
+
+    if isinstance(value, list):
+        text = encode_list(value)
+        if text is None:
+            return None, None, False
+        return text, "text", True
+    text, supported = encode_supported_resolved(value)
+    if supported and text is not None:
+        return text, "text", True
     return None, None, False
 
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from edgar.metrics.registry import LoadedRegistry, load_registry, validate_registry
 from edgar.xbrl.arelle_env import arelle_version
+from edgar.xbrl.config import SEMANTIC_PROJECTION_VERSION
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_REGISTRY = _REPO_ROOT / "semantic-registry"
@@ -47,7 +48,7 @@ def build_test_mapping_rules(
                 "evidence": {
                     "accession_number": accession,
                     "bundle_fingerprint": bundle_fingerprint,
-                    "projection_version": "arelle-semantic-v1",
+                    "projection_version": SEMANTIC_PROJECTION_VERSION,
                     "arelle_version": arelle_version(),
                     "semantic_config_fingerprint": semantic_config_fingerprint,
                     "concept": {
@@ -76,7 +77,7 @@ def build_test_mapping_rules(
                 "evidence": {
                     "accession_number": accession,
                     "bundle_fingerprint": bundle_fingerprint,
-                    "projection_version": "arelle-semantic-v1",
+                    "projection_version": SEMANTIC_PROJECTION_VERSION,
                     "arelle_version": arelle_version(),
                     "semantic_config_fingerprint": semantic_config_fingerprint,
                     "concept": {
@@ -110,7 +111,7 @@ def build_test_mapping_rules(
                 "evidence": {
                     "accession_number": accession,
                     "bundle_fingerprint": bundle_fingerprint,
-                    "projection_version": "arelle-semantic-v1",
+                    "projection_version": SEMANTIC_PROJECTION_VERSION,
                     "arelle_version": arelle_version(),
                     "semantic_config_fingerprint": semantic_config_fingerprint,
                     "concept": {

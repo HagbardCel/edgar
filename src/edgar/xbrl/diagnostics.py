@@ -6,19 +6,26 @@ by default: a warning-or-worse diagnostic is compatible with a complete
 projection only when its message code is listed in
 :data:`COMPLETE_COMPATIBLE_DIAGNOSTICS` together with a written rationale.
 
-Admitting a code to that registry requires evidence that
+A warning-or-worse diagnostic may be complete-compatible only when:
 
-1. the diagnostic reports on *filed content*, not on the extraction process, and
-2. every structure the projection persists (concepts, relationships, contexts,
-   units, and fact occurrences with their values) survives the diagnostic
-   unchanged, verified against offline fixtures.
+1. it concerns *filed content* rather than a failure of extraction/replay; and
+2. the projection faithfully represents the affected filed structures and their
+   semantic validity state, without silently dropping or fabricating
+   information. Any loss of information the projection claims to preserve must
+   independently produce a fatal semantic issue.
 
-The registry starts empty on purpose. The Slice-0 spike registry
-(``scripts/spikes/spike_lib/arelle_errors.py``) is *not* inherited: its
-rationales were written for document/relationship closure evidence and
-explicitly disclaimed fact-value fidelity, which this projection does claim.
-Each code must be re-justified against the production projection before it is
-added here.
+Completeness does **not** mean every filed fact is valid. It means every
+relevant filed occurrence and its semantic validity state are faithfully
+represented. For an invalid Inline-XBRL transformation, the fact remains
+present with source provenance and raw filed content, ``value_status="invalid"``,
+and no fabricated resolved value. If that same occurrence also exposes an
+unsupported or lost structure (for example unavailable raw lexical content), a
+separate fatal semantic issue keeps the projection incomplete.
+
+The Slice-0 spike registry (``scripts/spikes/spike_lib/arelle_errors.py``) is
+*not* inherited: its rationales were written for document/relationship closure
+evidence and explicitly disclaimed fact-value fidelity. Each code must be
+re-justified against the production projection before it is added here.
 """
 
 from __future__ import annotations
@@ -28,7 +35,7 @@ from typing import Literal
 
 from edgar.xbrl.records import DiagnosticRecord
 
-DIAGNOSTIC_POLICY_VERSION = "diagnostic-policy-v1"
+DIAGNOSTIC_POLICY_VERSION = "diagnostic-policy-v2"
 
 # Placeholder code for a diagnostic the engine emitted without a message code.
 # An unstructured diagnostic can never be recognized, so it always blocks.
@@ -40,9 +47,21 @@ DiagnosticClassification = Literal["complete_compatible", "completeness_blocking
 # warning level or above must be justified by code.
 NON_BLOCKING_SEVERITIES: frozenset[str] = frozenset({"info"})
 
-# Message code -> rationale for why the diagnostic cannot hide a projection
-# defect. Empty by deliberate policy; see the module docstring.
-COMPLETE_COMPATIBLE_DIAGNOSTICS: Mapping[str, str] = {}
+_INVALID_TRANSFORMATION_RATIONALE = (
+    "Filed Inline-XBRL transformation failure: the affected fact occurrence is "
+    "retained with source provenance and raw lexical content, value_status="
+    "'invalid', and no fabricated resolved value. Completeness requires faithful "
+    "representation of validity state, not validity of every filed fact. Any "
+    "independent loss of claimed evidence (for example unavailable raw lexical "
+    "content) still produces a separate fatal semantic issue."
+)
+
+# Message code -> rationale for why the diagnostic is complete-compatible under
+# the faithful-representation doctrine above.
+COMPLETE_COMPATIBLE_DIAGNOSTICS: Mapping[str, str] = {
+    "ix11.10.1.2:invalidTransformation": _INVALID_TRANSFORMATION_RATIONALE,
+    "ix11.11.1.2:invalidTransformation": _INVALID_TRANSFORMATION_RATIONALE,
+}
 
 
 def registry_codes(
