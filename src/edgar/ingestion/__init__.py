@@ -9,12 +9,20 @@ from edgar.ingestion.report_input import (
     is_inline_xbrl,
     is_xbrl_instance,
 )
+from edgar.ingestion.source_extract import (
+    SourceExtractError,
+    SourceExtractResult,
+    SourceExtractService,
+)
 
 __all__ = [
     "AcquisitionResult",
     "AcquisitionService",
     "CatalogService",
     "PAYLOAD_HASH_SCHEMA",
+    "SourceExtractError",
+    "SourceExtractResult",
+    "SourceExtractService",
     "UnsupportedReportInput",
     "compute_payload_hash",
     "identify_report_input",
