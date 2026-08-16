@@ -2,10 +2,12 @@
 
 Reproducible, point-in-time-aware platform for SEC company filings.
 
-**Status:** Phase 1A–1D are implemented (`src/edgar/`): filesystem acquisition,
-catalog foundation, thin Arelle semantic projection (PR #6), offline
-document blocks / regulatory sections (PR #7), and Phase 1D acceptance (PR #10).
-Phase 2A (Git-only metric registry) is in progress.
+**Status:** Phase 1A–1D and Phase 2A are implemented (`src/edgar/`,
+`semantic-registry/`): filesystem acquisition, catalog foundation, thin Arelle
+semantic projection (PR #6), offline document blocks / regulatory sections
+(PR #7), Phase 1D acceptance (PR #10), and the Git-authoritative curated metric
+registry with reviewed real-corpus mappings (PR #11). Current activity is
+Phase 2B planning/preparation.
 
 Apache-2.0 covers this project's software and documentation. It does **not** automatically license third-party SEC filing content or taxonomies retrieved from EDGAR.
 

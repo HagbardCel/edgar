@@ -36,9 +36,14 @@ Do not use `filing_bundle_opaque_id` in authoritative evidence.
 
 ## Governance
 
-- `mapping-rules.json` starts empty until human-reviewed rules from the real corpus are added.
-- Only human-reviewed rules belong in `mapping-rules.json` — never synthetic integration-test decisions.
-- Workflow: propose candidate + evidence packet → human reviews filing/XBRL evidence → human records `reviewed_by` / `reviewed_at` → rule committed to Git.
+- `mapping-rules.json` contains only human-approved rules — never synthetic
+  integration-test decisions or provisional candidates.
+- Phase 2A close-out state: three reviewed real-corpus rules with relationship
+  types `equivalent`, `broader_than`, and `incompatible` (count is the close-out
+  ledger, not a permanent fixed size).
+- Provisional candidates remain outside the authoritative registry until approved.
+- Workflow: propose candidate + evidence packet → human reviews filing/XBRL
+  evidence → human records `reviewed_by` / `reviewed_at` → rule committed to Git.
 - Semantic changes to approved rules → new `rule_key` + `supersedes`.
 - Do not fabricate `reviewed_by`.
 
