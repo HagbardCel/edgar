@@ -136,7 +136,7 @@ class LoadOutcome:
     fetched_documents: dict[str, str] = field(default_factory=dict)
     diagnostics: list[str] = field(default_factory=list)
     diagnostic_records: list[dict[str, Any]] = field(default_factory=list)
-    semantic_payload: dict[str, Any] | None = None
+    extraction_payload: dict[str, Any] | None = None
     semantic_extraction_errors: list[str] = field(default_factory=list)
     engine_version: str = "unknown"
 
@@ -542,22 +542,35 @@ def _run_load(
             and getattr(model_xbrl, "modelDocument", None) is not None
         ):
             try:
-                from edgar.xbrl.extract import SemanticExtractionError, extract_semantic_projection
+                from edgar.domain.bundle import UriBinding
+                from edgar.xbrl.extract import SemanticExtractionError, extract_report_extraction
+                from edgar.xbrl.source_wire import report_extraction_to_dict
 
-                data = extract_semantic_projection(
+                uri_bindings = tuple(
+                    UriBinding(
+                        document_uri=b.document_uri,
+                        artifact_path=b.artifact_path,
+                        content_sha256=b.content_sha256,
+                        replay_aliases=b.replay_aliases,
+                    )
+                    for b in job.bindings
+                )
+                data = extract_report_extraction(
                     model_xbrl,
                     bound_inputs=bound,
                     primary_uris=frozenset(bound.documents),
+                    uri_bindings=uri_bindings,
+                    report_input=job.report_input,
                     engine_version=outcome.engine_version,
                 )
-                outcome.semantic_payload = data.to_dict()
-                outcome.diagnostic_records = [d.to_dict() for d in data.diagnostics]
+                outcome.extraction_payload = report_extraction_to_dict(data)
+                outcome.diagnostic_records = []
             except Exception as exc:  # noqa: BLE001 - structured failure for parent
                 from edgar.xbrl.extract import SemanticExtractionError
 
                 if isinstance(exc, SemanticExtractionError):
                     outcome.semantic_extraction_errors.append(str(exc))
-                    outcome.semantic_payload = {
+                    outcome.extraction_payload = {
                         "extraction_failed": True,
                         "issues": [issue.to_dict() for issue in exc.issues],
                     }
@@ -617,7 +630,7 @@ def run_job(job: WorkerJob, channel: WorkerChannel | None = None) -> dict[str, A
         "errors": errors,
     }
     if job.operation == "extract":
-        result["semantic_payload"] = outcome.semantic_payload
+        result["extraction_payload"] = outcome.extraction_payload
         result["semantic_extraction_errors"] = outcome.semantic_extraction_errors
     return result
 

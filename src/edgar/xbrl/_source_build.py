@@ -1,7 +1,7 @@
-"""Adapt Phase-1 ``SemanticProjectionData`` into source-layer ``ReportExtraction``.
+"""Build ``ReportExtraction`` from in-extractor Arelle record pieces.
 
-Reuses proven Arelle extraction records without projection identity. Provenance
-is remapped from document URI → FilingBundle ``logical_path``.
+URI → FilingBundle ``logical_path`` mapping happens here inside the extractor
+boundary. Provenance is populated before the worker payload is serialized.
 """
 
 from __future__ import annotations
@@ -13,12 +13,7 @@ from edgar.domain.bundle import UriBinding, XbrlReportInput
 from edgar.domain.report_key import report_input_payload
 from edgar.domain.report_key import report_key as compute_report_key
 from edgar.xbrl import records as phase1
-from edgar.xbrl.records import (
-    ExpandedQName,
-    SemanticIssueRecord,
-    SemanticProjectionData,
-    SourceLocator,
-)
+from edgar.xbrl.records import ExpandedQName, SemanticIssueRecord, SourceLocator
 from edgar.xbrl.source_records import (
     EXTRACTOR_VERSION,
     ConceptDeclarationRecord,
@@ -38,12 +33,11 @@ from edgar.xbrl.source_records import (
 )
 
 
-class SourceAdaptError(ValueError):
-    """Raised when Phase-1 records cannot be adapted into source DTOs."""
+class SourceBuildError(ValueError):
+    """Raised when extracted Arelle records cannot form a source DTO."""
 
 
 def uri_to_logical_path_map(bindings: Sequence[UriBinding]) -> dict[str, str]:
-    """Map canonical document URI (and replay aliases) → artifact logical_path."""
     mapping: dict[str, str] = {}
     for binding in bindings:
         mapping[binding.document_uri] = binding.artifact_path
@@ -61,7 +55,7 @@ def resolve_logical_path(
 ) -> str | None:
     path = uri_paths.get(document_uri)
     if path is None and required:
-        raise SourceAdaptError(
+        raise SourceBuildError(
             f"cannot resolve {what} document_uri to bundle logical_path: {document_uri!r}"
         )
     return path
@@ -80,7 +74,7 @@ def _optional_path_and_locator(
 ) -> tuple[str | None, ElementLocator | None]:
     if locator is None:
         if required:
-            raise SourceAdaptError(f"{what} requires a source locator")
+            raise SourceBuildError(f"{what} requires a source locator")
         return None, None
     path = resolve_logical_path(locator.document_uri, uri_paths, required=required, what=what)
     return path, _element_locator(locator)
@@ -92,7 +86,7 @@ def _clark(qname: ExpandedQName) -> str:
 
 def _require_namespaced(concept: ExpandedQName, *, what: str) -> ExpandedQName:
     if concept.namespace_uri is None or not concept.namespace_uri:
-        raise SourceAdaptError(f"{what} requires a non-empty namespace_uri: {concept!r}")
+        raise SourceBuildError(f"{what} requires a non-empty namespace_uri: {concept!r}")
     return concept
 
 
@@ -100,7 +94,7 @@ def _context_id_by_locator(contexts: Sequence[phase1.ContextRecord]) -> dict[Sou
     mapping: dict[SourceLocator, str] = {}
     for ctx in contexts:
         if ctx.source_locator in mapping:
-            raise SourceAdaptError(
+            raise SourceBuildError(
                 f"duplicate context source_locator for source_context_id {ctx.source_context_id!r}"
             )
         mapping[ctx.source_locator] = ctx.source_context_id
@@ -111,14 +105,14 @@ def _unit_id_by_locator(units: Sequence[phase1.UnitRecord]) -> dict[SourceLocato
     mapping: dict[SourceLocator, str] = {}
     for unit in units:
         if unit.source_locator in mapping:
-            raise SourceAdaptError(
+            raise SourceBuildError(
                 f"duplicate unit source_locator for source_unit_id {unit.source_unit_id!r}"
             )
         mapping[unit.source_locator] = unit.source_unit_id
     return mapping
 
 
-def _adapt_concepts(
+def _build_concepts(
     declarations: Sequence[phase1.ConceptDeclarationRecord],
 ) -> tuple[ConceptRecord, ...]:
     seen: set[tuple[str, str]] = set()
@@ -136,7 +130,7 @@ def _adapt_concepts(
     return tuple(concepts)
 
 
-def _adapt_declarations(
+def _build_declarations(
     declarations: Sequence[phase1.ConceptDeclarationRecord],
     uri_paths: Mapping[str, str],
 ) -> tuple[ConceptDeclarationRecord, ...]:
@@ -161,7 +155,8 @@ def _adapt_declarations(
     return tuple(out)
 
 
-def _adapt_labels(labels: Sequence[phase1.ConceptLabelRecord]) -> tuple[ConceptLabelRecord, ...]:
+def _build_labels(labels: Sequence[phase1.ConceptLabelRecord]) -> tuple[ConceptLabelRecord, ...]:
+    """Emit-order ``source_order`` (no post-sort)."""
     out: list[ConceptLabelRecord] = []
     for index, lab in enumerate(labels):
         role_uri = lab.resource_role_uri or lab.link_role_uri
@@ -177,7 +172,7 @@ def _adapt_labels(labels: Sequence[phase1.ConceptLabelRecord]) -> tuple[ConceptL
     return tuple(out)
 
 
-def _adapt_references(
+def _build_references(
     references: Sequence[phase1.ConceptReferenceRecord],
 ) -> tuple[ConceptReferenceRecord, ...]:
     out: list[ConceptReferenceRecord] = []
@@ -203,7 +198,7 @@ def _adapt_references(
     return tuple(out)
 
 
-def _adapt_contexts(
+def _build_contexts(
     contexts: Sequence[phase1.ContextRecord],
     uri_paths: Mapping[str, str],
 ) -> tuple[ContextRecord, ...]:
@@ -228,7 +223,7 @@ def _adapt_contexts(
     return tuple(out)
 
 
-def _adapt_dimensions(
+def _build_dimensions(
     dimensions: Sequence[phase1.ContextDimensionRecord],
     context_ids: Mapping[SourceLocator, str],
     uri_paths: Mapping[str, str],
@@ -237,7 +232,7 @@ def _adapt_dimensions(
     for dim in dimensions:
         source_context_id = context_ids.get(dim.context_locator)
         if source_context_id is None:
-            raise SourceAdaptError(
+            raise SourceBuildError(
                 "context dimension context_locator does not resolve to a source_context_id"
             )
         path, locator = _optional_path_and_locator(
@@ -268,7 +263,7 @@ def _adapt_dimensions(
     return tuple(out)
 
 
-def _adapt_units(
+def _build_units(
     units: Sequence[phase1.UnitRecord],
     uri_paths: Mapping[str, str],
 ) -> tuple[UnitRecord, ...]:
@@ -288,7 +283,7 @@ def _adapt_units(
     return tuple(out)
 
 
-def _adapt_measures(
+def _build_measures(
     measures: Sequence[phase1.UnitMeasureRecord],
     unit_ids: Mapping[SourceLocator, str],
 ) -> tuple[UnitMeasureRecord, ...]:
@@ -296,7 +291,7 @@ def _adapt_measures(
     for measure in measures:
         source_unit_id = unit_ids.get(measure.unit_locator)
         if source_unit_id is None:
-            raise SourceAdaptError("unit measure unit_locator does not resolve to a source_unit_id")
+            raise SourceBuildError("unit measure unit_locator does not resolve to a source_unit_id")
         out.append(
             UnitMeasureRecord(
                 source_unit_id=source_unit_id,
@@ -308,22 +303,23 @@ def _adapt_measures(
     return tuple(out)
 
 
-def _adapt_facts(
-    facts: Sequence[phase1.FactRecord],
+def _build_facts(
+    facts: Sequence[tuple[int, phase1.FactRecord]],
     context_ids: Mapping[SourceLocator, str],
     unit_ids: Mapping[SourceLocator, str],
     uri_paths: Mapping[str, str],
 ) -> tuple[FactRecord, ...]:
+    """Build facts using the authoritative iterator ordinal already assigned."""
     out: list[FactRecord] = []
-    for index, fact in enumerate(facts):
+    for source_order, fact in facts:
         source_context_id = context_ids.get(fact.context_locator)
         if source_context_id is None:
-            raise SourceAdaptError("fact context_locator does not resolve to a source_context_id")
+            raise SourceBuildError("fact context_locator does not resolve to a source_context_id")
         source_unit_id: str | None = None
         if fact.unit_locator is not None:
             source_unit_id = unit_ids.get(fact.unit_locator)
             if source_unit_id is None:
-                raise SourceAdaptError("fact unit_locator does not resolve to a source_unit_id")
+                raise SourceBuildError("fact unit_locator does not resolve to a source_unit_id")
         path, locator = _optional_path_and_locator(
             fact.source_locator, uri_paths, required=True, what="fact"
         )
@@ -346,7 +342,7 @@ def _adapt_facts(
         format_local = fact.format_qname.local_name if fact.format_qname else None
         out.append(
             FactRecord(
-                source_order=index,
+                source_order=source_order,
                 concept=_require_namespaced(fact.concept_qname, what="fact concept"),
                 source_context_id=source_context_id,
                 value_status=fact.value_status,
@@ -373,10 +369,11 @@ def _adapt_facts(
     return tuple(out)
 
 
-def _adapt_relationships(
+def _build_relationships(
     relationships: Sequence[phase1.RelationshipRecord],
     uri_paths: Mapping[str, str],
 ) -> tuple[RelationshipRecord, ...]:
+    """Emit-order ``source_order`` (caller must not sort before this)."""
     out: list[RelationshipRecord] = []
     for index, rel in enumerate(relationships):
         path, locator = _optional_path_and_locator(
@@ -409,7 +406,7 @@ def _adapt_relationships(
     return tuple(out)
 
 
-def _adapt_issues(
+def _build_issues(
     issues: Sequence[SemanticIssueRecord],
     uri_paths: Mapping[str, str],
 ) -> tuple[ExtractionIssueRecord, ...]:
@@ -435,42 +432,51 @@ def _adapt_issues(
     return tuple(out)
 
 
-def adapt_report_extraction(
-    data: SemanticProjectionData,
-    report_input: XbrlReportInput | Mapping[str, Any],
+def build_report_extraction(
     *,
+    report_input: XbrlReportInput | Mapping[str, Any],
     uri_bindings: Sequence[UriBinding],
-    arelle_version: str | None = None,
+    arelle_version: str,
     extractor_version: str = EXTRACTOR_VERSION,
+    concept_declarations: Sequence[phase1.ConceptDeclarationRecord],
+    concept_labels: Sequence[phase1.ConceptLabelRecord],
+    concept_references: Sequence[phase1.ConceptReferenceRecord],
+    contexts: Sequence[phase1.ContextRecord],
+    context_dimensions: Sequence[phase1.ContextDimensionRecord],
+    units: Sequence[phase1.UnitRecord],
+    unit_measures: Sequence[phase1.UnitMeasureRecord],
+    ordered_facts: Sequence[tuple[int, phase1.FactRecord]],
+    relationships: Sequence[phase1.RelationshipRecord],
+    issues: Sequence[SemanticIssueRecord],
 ) -> ReportExtraction:
-    """Convert one Phase-1 projection payload into a source ``ReportExtraction``."""
+    """Assemble native ``ReportExtraction`` with logical-path provenance."""
     uri_paths = uri_to_logical_path_map(uri_bindings)
     payload = report_input_payload(report_input)
     key = compute_report_key(report_input)
-    context_ids = _context_id_by_locator(data.contexts)
-    unit_ids = _unit_id_by_locator(data.units)
-    facts = _adapt_facts(data.facts, context_ids, unit_ids, uri_paths)
+    context_ids = _context_id_by_locator(contexts)
+    unit_ids = _unit_id_by_locator(units)
+    facts = _build_facts(ordered_facts, context_ids, unit_ids, uri_paths)
     arelle_item_fact_count = len(facts)
-    if arelle_item_fact_count != len(data.facts):
-        raise SourceAdaptError(
-            "arelle_item_fact_count diverged from Phase-1 fact count: "
-            f"{arelle_item_fact_count} != {len(data.facts)}"
+    if arelle_item_fact_count != len(ordered_facts):
+        raise SourceBuildError(
+            "arelle_item_fact_count diverged from ordered fact count: "
+            f"{arelle_item_fact_count} != {len(ordered_facts)}"
         )
     return ReportExtraction(
         report_input=payload,
         report_key=key,
         extractor_version=extractor_version,
-        arelle_version=arelle_version or data.engine_version,
+        arelle_version=arelle_version,
         arelle_item_fact_count=arelle_item_fact_count,
-        concepts=_adapt_concepts(data.concept_declarations),
-        declarations=_adapt_declarations(data.concept_declarations, uri_paths),
-        labels=_adapt_labels(data.concept_labels),
-        references=_adapt_references(data.concept_references),
-        contexts=_adapt_contexts(data.contexts, uri_paths),
-        dimensions=_adapt_dimensions(data.context_dimensions, context_ids, uri_paths),
-        units=_adapt_units(data.units, uri_paths),
-        measures=_adapt_measures(data.unit_measures, unit_ids),
+        concepts=_build_concepts(concept_declarations),
+        declarations=_build_declarations(concept_declarations, uri_paths),
+        labels=_build_labels(concept_labels),
+        references=_build_references(concept_references),
+        contexts=_build_contexts(contexts, uri_paths),
+        dimensions=_build_dimensions(context_dimensions, context_ids, uri_paths),
+        units=_build_units(units, uri_paths),
+        measures=_build_measures(unit_measures, unit_ids),
         facts=facts,
-        relationships=_adapt_relationships(data.relationships, uri_paths),
-        issues=_adapt_issues(data.issues, uri_paths),
+        relationships=_build_relationships(relationships, uri_paths),
+        issues=_build_issues(issues, uri_paths),
     )

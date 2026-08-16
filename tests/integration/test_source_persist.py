@@ -32,6 +32,7 @@ from edgar.storage.objects import ObjectStore
 from edgar.xbrl.records import ExpandedQName
 from edgar.xbrl.source_records import (
     ConceptRecord,
+    ContextDimensionRecord,
     ContextRecord,
     DocumentBlockRecord,
     ExtractionIssueRecord,
@@ -564,3 +565,57 @@ def test_failed_reextract_keeps_prior_blocks(engine: Engine, tmp_path: Path) -> 
     assert block_texts == ["Item 1. Business", "We sell widgets."]
     assert section_keys == {"item1"}
     assert facts == [("100", 0)]
+
+
+def test_persist_explicit_dimension_sql_null_typed_member(engine: Engine, tmp_path: Path) -> None:
+    """Explicit dimensions must bind SQL NULL for typed_member (not JSON null)."""
+    bundle = _make_bundle(tmp_path)
+    axis = ConceptRecord(namespace_uri=_NS, local_name="SegmentAxis")
+    member = ConceptRecord(namespace_uri=_NS, local_name="USMember")
+    revenue = ConceptRecord(namespace_uri=_NS, local_name="Revenue")
+    report = _minimal_report(
+        report_key="a" * 64,
+        concepts=(revenue, axis, member),
+        facts=(_fact(source_order=0, local="Revenue", value="100", numeric=Decimal("100")),),
+    )
+    report = ReportExtraction(
+        report_input=report.report_input,
+        report_key=report.report_key,
+        extractor_version=report.extractor_version,
+        arelle_version=report.arelle_version,
+        arelle_item_fact_count=report.arelle_item_fact_count,
+        concepts=report.concepts,
+        declarations=report.declarations,
+        labels=report.labels,
+        references=report.references,
+        contexts=report.contexts,
+        dimensions=(
+            ContextDimensionRecord(
+                source_context_id="c1",
+                dimension=_qname("SegmentAxis"),
+                context_element="segment",
+                member_kind="explicit",
+                member=_qname("USMember"),
+                typed_member=None,
+            ),
+        ),
+        units=report.units,
+        measures=report.measures,
+        facts=report.facts,
+        relationships=report.relationships,
+        issues=report.issues,
+    )
+    extraction = FilingExtraction(reports=(report,))
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=extraction)
+        row = conn.execute(
+            select(
+                src.source_context_dimension.c.member_kind,
+                src.source_context_dimension.c.explicit_member_concept_id,
+                src.source_context_dimension.c.typed_member,
+            )
+        ).one()
+    assert row[0] == "explicit"
+    assert row[1] is not None
+    assert row[2] is None

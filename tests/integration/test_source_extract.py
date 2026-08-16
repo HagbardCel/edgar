@@ -193,3 +193,172 @@ def test_document_parity_matches_parser_output(tmp_path: Path) -> None:
     assert [s.section_key for s in sections] == [s.section_key for s in expected_sections]
     assert [s.method for s in sections] == [s.method for s in expected_sections]
     assert [s.confidence_score for s in sections] == [s.confidence_score for s in expected_sections]
+
+
+def test_non_dimensional_fatal_leaves_prior_snapshot(engine: Engine, tmp_path: Path) -> None:
+    """Fatal re-extract must not replace a committed accession snapshot."""
+    from edgar.db.source import PersistExtractionError
+    from edgar.xbrl.semantic import SourceExtractWorkerError
+    from edgar.xbrl.source_records import ExtractionIssueRecord
+    from tests.helpers.xbrl_bundles import (
+        make_minimal_semantic_bundle,
+        make_non_dimensional_context_bundle,
+    )
+
+    store = ObjectStore(tmp_path)
+    good = make_minimal_semantic_bundle(store)
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, good)
+        extraction_a = extract_filing(good, store)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=extraction_a)
+        facts_before = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+        issues_before = int(
+            conn.execute(select(func.count()).select_from(src.source_extraction_issue)).scalar_one()
+        )
+
+    bad = make_non_dimensional_context_bundle(store)
+    # Same accession identity so a successful extract would replace A.
+    from edgar.domain.bundle import FilingBundle
+
+    bad_same_accession = FilingBundle(
+        filing=good.filing,
+        payload_hash=bad.payload_hash,
+        artifacts=bad.artifacts,
+        report_inputs=bad.report_inputs,
+        uri_bindings=bad.uri_bindings,
+    )
+    with pytest.raises(SourceExtractWorkerError):
+        extract_filing(bad_same_accession, store)
+
+    with engine.connect() as conn:
+        facts_after = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+        issues_after = int(
+            conn.execute(select(func.count()).select_from(src.source_extraction_issue)).scalar_one()
+        )
+    assert facts_after == facts_before
+    assert issues_after == issues_before
+
+    # Persist also refuses severity=fatal if a buggy DTO arrives.
+    fatal_dto = extract_filing(good, store)
+    fatal_issues = (
+        ExtractionIssueRecord(
+            component="xbrl",
+            code="SHOULD_NOT_PERSIST",
+            severity="fatal",
+            message="must not commit",
+        ),
+    )
+    from edgar.xbrl.source_records import FilingExtraction, ReportExtraction
+
+    bad_report = fatal_dto.reports[0]
+    poisoned = FilingExtraction(
+        reports=(
+            ReportExtraction(
+                report_input=bad_report.report_input,
+                report_key=bad_report.report_key,
+                extractor_version=bad_report.extractor_version,
+                arelle_version=bad_report.arelle_version,
+                arelle_item_fact_count=bad_report.arelle_item_fact_count,
+                concepts=bad_report.concepts,
+                declarations=bad_report.declarations,
+                labels=bad_report.labels,
+                references=bad_report.references,
+                contexts=bad_report.contexts,
+                dimensions=bad_report.dimensions,
+                units=bad_report.units,
+                measures=bad_report.measures,
+                facts=bad_report.facts,
+                relationships=bad_report.relationships,
+                issues=fatal_issues,
+            ),
+        ),
+        document_blocks=fatal_dto.document_blocks,
+        filing_sections=fatal_dto.filing_sections,
+        issues=(),
+    )
+    with engine.begin() as conn, pytest.raises(PersistExtractionError, match="fatal"):
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=poisoned)
+
+    with engine.connect() as conn:
+        assert (
+            int(conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one())
+            == facts_before
+        )
+
+
+def test_report2_fatal_leaves_prior_snapshot_unchanged(engine: Engine, tmp_path: Path) -> None:
+    """Report 1 OK + report 2 fatal must not replace a committed accession snapshot."""
+    from edgar.domain.bundle import BundleArtifact, ContentObject, FilingBundle, UriBinding
+    from edgar.ingestion.payload import compute_payload_hash
+    from edgar.xbrl.semantic import SourceExtractWorkerError
+    from tests.helpers.xbrl_bundles import (
+        INSTANCE_NON_DIM,
+        INSTANCE_URI,
+        make_minimal_semantic_bundle,
+    )
+
+    store = ObjectStore(tmp_path)
+    good = make_minimal_semantic_bundle(store)
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, good)
+        extraction_a = extract_filing(good, store)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=extraction_a)
+        facts_before = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+        reports_before = int(
+            conn.execute(select(func.count()).select_from(src.source_xbrl_report)).scalar_one()
+        )
+        blocks_before = int(
+            conn.execute(select(func.count()).select_from(src.source_document_block)).scalar_one()
+        )
+
+    uri_bad = "https://www.sec.gov/Archives/edgar/data/1/0000000001000011/bad.xml"
+    path_bad = "accession/bad.xml"
+    bad_obj = store.put_bytes(INSTANCE_NON_DIM)
+    artifacts = (
+        *good.artifacts,
+        BundleArtifact(
+            logical_path=path_bad,
+            content=ContentObject(sha256=bad_obj.sha256, byte_size=bad_obj.byte_size),
+            artifact_kind="attachment",
+            required=True,
+        ),
+    )
+    dual = FilingBundle(
+        filing=good.filing,
+        payload_hash=compute_payload_hash(artifacts),
+        artifacts=artifacts,
+        report_inputs=(
+            InstanceReportInput(document_uris=(INSTANCE_URI,)),
+            InstanceReportInput(document_uris=(uri_bad,)),
+        ),
+        uri_bindings=(
+            *good.uri_bindings,
+            UriBinding(uri_bad, path_bad, bad_obj.sha256),
+        ),
+    )
+    with pytest.raises(SourceExtractWorkerError):
+        extract_filing(dual, store)
+
+    with engine.connect() as conn:
+        assert (
+            int(conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one())
+            == facts_before
+        )
+        assert (
+            int(conn.execute(select(func.count()).select_from(src.source_xbrl_report)).scalar_one())
+            == reports_before
+        )
+        assert (
+            int(
+                conn.execute(
+                    select(func.count()).select_from(src.source_document_block)
+                ).scalar_one()
+            )
+            == blocks_before
+        )

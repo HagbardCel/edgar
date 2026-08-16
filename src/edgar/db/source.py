@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Connection, delete, func, select
+from sqlalchemy import Connection, delete, func, null, select
 from sqlalchemy.dialects.postgresql import insert
 
 from edgar.db import source_schema as src
@@ -235,6 +235,24 @@ def _assert_filing_metadata_compatible(
             f"filing {filing.accession} filing_date mismatch: "
             f"catalogued={catalogued_date} incoming={filing.filing_date}"
         )
+    if row["accepted_at"] != filing.accepted_at:
+        raise SourceCatalogConflict(
+            f"filing {filing.accession} accepted_at mismatch: "
+            f"catalogued={row['accepted_at']} incoming={filing.accepted_at}"
+        )
+    catalogued_period = row["report_period_end"]
+    if isinstance(catalogued_period, datetime):
+        catalogued_period = catalogued_period.date()
+    if catalogued_period != filing.report_period_end:
+        raise SourceCatalogConflict(
+            f"filing {filing.accession} report_period_end mismatch: "
+            f"catalogued={catalogued_period} incoming={filing.report_period_end}"
+        )
+    if row["primary_document"] != filing.primary_document:
+        raise SourceCatalogConflict(
+            f"filing {filing.accession} primary_document mismatch: "
+            f"catalogued={row['primary_document']} incoming={filing.primary_document}"
+        )
 
 
 def _assert_inventory_identical(
@@ -248,18 +266,39 @@ def _assert_inventory_identical(
                 src.source_document.c.relative_path,
                 src.source_document.c.sha256,
                 src.source_document.c.byte_size,
+                src.source_document.c.document_kind,
+                src.source_document.c.source_url,
+                src.source_document.c.is_primary,
             ).where(src.source_document.c.filing_id == filing_id)
         )
         .mappings()
         .all()
     )
-    existing = {(r["relative_path"], r["sha256"], int(r["byte_size"])) for r in rows}
-    incoming = {(i.relative_path, i.sha256, i.byte_size) for i in inventory}
-    if existing != incoming:
+    existing_identity = {(r["relative_path"], r["sha256"], int(r["byte_size"])) for r in rows}
+    incoming_identity = {(i.relative_path, i.sha256, i.byte_size) for i in inventory}
+    if existing_identity != incoming_identity:
         raise SourceCatalogConflict(
             f"document inventory mismatch for filing_id={filing_id}: "
-            f"catalogued={sorted(existing)!r} incoming={sorted(incoming)!r}"
+            f"catalogued={sorted(existing_identity)!r} incoming={sorted(incoming_identity)!r}"
         )
+    by_path = {r["relative_path"]: r for r in rows}
+    for item in inventory:
+        row = by_path[item.relative_path]
+        if row["document_kind"] != item.document_kind:
+            raise SourceCatalogConflict(
+                f"document_kind mismatch for {item.relative_path!r}: "
+                f"catalogued={row['document_kind']!r} incoming={item.document_kind!r}"
+            )
+        if row["source_url"] != item.source_url:
+            raise SourceCatalogConflict(
+                f"source_url mismatch for {item.relative_path!r}: "
+                f"catalogued={row['source_url']!r} incoming={item.source_url!r}"
+            )
+        if bool(row["is_primary"]) != item.is_primary:
+            raise SourceCatalogConflict(
+                f"is_primary mismatch for {item.relative_path!r}: "
+                f"catalogued={row['is_primary']!r} incoming={item.is_primary!r}"
+            )
 
 
 def resolve_document_id(
@@ -308,6 +347,20 @@ def persist_extraction(
     concepts (never GC), inserts report rows and dependents, then asserts
     per-report fact completeness against ``arelle_item_fact_count``.
     """
+    for report in extraction.reports:
+        for issue in report.issues:
+            if issue.severity == "fatal":
+                raise PersistExtractionError(
+                    f"refusing to persist fatal extraction issue {issue.code!r}; "
+                    "fatal attempts must not replace the snapshot"
+                )
+    for issue in extraction.issues:
+        if issue.severity == "fatal":
+            raise PersistExtractionError(
+                f"refusing to persist fatal filing issue {issue.code!r}; "
+                "fatal attempts must not replace the snapshot"
+            )
+
     locked = conn.execute(
         select(src.source_filing.c.id).where(src.source_filing.c.id == filing_id).with_for_update()
     ).scalar_one_or_none()
@@ -614,7 +667,9 @@ def _bulk_insert_dimensions(
             raise PersistExtractionError(
                 f"dimension references unknown source_context_id={dim.source_context_id!r}"
             )
-        typed_member = dict(dim.typed_member) if dim.typed_member is not None else None
+        typed_member: Any = null()
+        if dim.typed_member is not None:
+            typed_member = dict(dim.typed_member)
         rows.append(
             {
                 "context_id": context_id,
@@ -712,7 +767,7 @@ def _bulk_insert_facts(
             fact.source_document_relative_path,
             what=f"fact source_order={fact.source_order}",
         )
-        continuation: list[dict[str, Any]] | None = None
+        continuation: Any = null()
         if fact.continuation_provenance:
             continuation = [dict(item) for item in fact.continuation_provenance]
         rows.append(
@@ -765,7 +820,7 @@ def _bulk_insert_relationships(
             "weight": rel.weight,
             "preferred_label": rel.preferred_label,
             "target_role": rel.target_role,
-            "attributes": dict(rel.attributes) if rel.attributes is not None else None,
+            "attributes": (dict(rel.attributes) if rel.attributes is not None else null()),
         }
         for rel in relationships
     ]
@@ -927,9 +982,9 @@ def _optional_clark(qname: ExpandedQName | None) -> str | None:
     return qname.clark
 
 
-def _locator_json(locator: ElementLocator | None) -> dict[str, str] | None:
+def _locator_json(locator: ElementLocator | None) -> Any:
     if locator is None:
-        return None
+        return null()
     return locator.to_dict()
 
 

@@ -1,17 +1,13 @@
-"""Versioned Arelle extraction configuration and its content digest.
+"""Versioned Arelle extraction configuration (policy knobs only).
 
-The digest fingerprints interpretation-affecting policy knobs (extraction
-versions, supported arcrole registries, diagnostic policy, preservation
-policies). Engine version and wire-format version stay out of the digest.
-
-Used as provenance metadata on extracted semantic records; V2 ``source.*``
-persistence does not key identity on this fingerprint.
+Engine version and wire-format version stay out of this object. V2 ``source.*``
+persistence does not key identity on configuration fingerprints.
+``SemanticConfig`` contains no ``projection_version`` and no config-fingerprint
+identity field.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -21,11 +17,6 @@ from edgar.xbrl.diagnostics import (
     DIAGNOSTIC_POLICY_VERSION,
     registry_codes,
 )
-
-SEMANTIC_CONFIG_SCHEMA = "semantic-config-v1"
-
-#: Extraction semantics: bump when record meaning or membership changes.
-SEMANTIC_PROJECTION_VERSION = "arelle-semantic-v2"
 
 #: Retained lexical fact-value extraction semantics (ADR 0008 §6).
 FACT_LEXICAL_VERSION = "fact-lexical-v1"
@@ -45,7 +36,6 @@ FACT_FOOTNOTE_ARCROLE = "http://www.xbrl.org/2003/arcrole/fact-footnote"
 PRESENTATION_ARCROLES: frozenset[str] = frozenset({PRESENTATION_ARCROLE})
 CALCULATION_ARCROLES: frozenset[str] = frozenset({CALCULATION_ARCROLE})
 
-# XBRL 2.1 definition arcroles plus the XBRL Dimensions 1.0 registry.
 DEFINITION_ARCROLES: frozenset[str] = frozenset(
     {
         "http://www.xbrl.org/2003/arcrole/general-special",
@@ -61,16 +51,8 @@ DEFINITION_ARCROLES: frozenset[str] = frozenset(
     }
 )
 
-# Supported concept-resource relationship classes (ADR 0008 §8).
 RESOURCE_ARCROLES: frozenset[str] = frozenset({CONCEPT_LABEL_ARCROLE, CONCEPT_REFERENCE_ARCROLE})
-
-# Counted but neither projected nor failing: footnotes are a later phase and are
-# not concept-semantic evidence.
 EXCLUDED_ARCROLES: frozenset[str] = frozenset({FACT_FOOTNOTE_ARCROLE})
-
-# Generic labels/references (XBRL Generic Links 1.0). Not supported in Phase 1;
-# encountering them fails semantic completeness explicitly rather than dropping
-# silently (ADR 0007 deferral).
 DEFERRED_ARCROLES: frozenset[str] = frozenset(
     {
         "http://xbrl.org/arcrole/2008/element-label",
@@ -85,9 +67,8 @@ def _sorted_tuple(values: Iterable[str]) -> tuple[str, ...]:
 
 @dataclass(frozen=True)
 class SemanticConfig:
-    """Every interpretation-affecting knob of one semantic projection run."""
+    """Interpretation-affecting policy knobs for one Arelle source extraction."""
 
-    projection_version: str
     fact_lexical_version: str
     element_locator_version: str
     xml_fragment_version: str
@@ -106,7 +87,6 @@ class SemanticConfig:
 
     def __post_init__(self) -> None:
         for name in (
-            "projection_version",
             "fact_lexical_version",
             "element_locator_version",
             "xml_fragment_version",
@@ -127,14 +107,12 @@ class SemanticConfig:
         ):
             values: tuple[str, ...] = getattr(self, name)
             if list(values) != sorted(values):
-                raise ValueError(f"{name} must be sorted for a stable fingerprint")
+                raise ValueError(f"{name} must be sorted for stable policy")
             if len(set(values)) != len(values):
                 raise ValueError(f"{name} contains duplicates")
 
     def to_dict(self) -> dict[str, Any]:
-        """Fingerprint-bearing projection of the configuration."""
         return {
-            "projection_version": self.projection_version,
             "fact_lexical_version": self.fact_lexical_version,
             "element_locator_version": self.element_locator_version,
             "xml_fragment_version": self.xml_fragment_version,
@@ -157,7 +135,6 @@ class SemanticConfig:
 
 def build_semantic_config(
     *,
-    projection_version: str = SEMANTIC_PROJECTION_VERSION,
     fact_lexical_version: str = FACT_LEXICAL_VERSION,
     element_locator_version: str = ELEMENT_LOCATOR_VERSION,
     xml_fragment_version: str = XML_FRAGMENT_VERSION,
@@ -174,19 +151,13 @@ def build_semantic_config(
     non_dimensional_context_policy: str = "incomplete",
     item_facts_only: bool = True,
 ) -> SemanticConfig:
-    """Build the active semantic configuration; defaults are the Phase 1 policy.
-
-    Overrides exist for tests and for explicitly versioned policy changes. Any
-    override changes the fingerprint and therefore produces a new projection
-    identity rather than silently reinterpreting an existing one.
-    """
+    """Build extraction policy; defaults are the Phase 1/2B source policy."""
     diagnostics = (
         registry_codes(COMPLETE_COMPATIBLE_DIAGNOSTICS)
         if complete_compatible_diagnostics is None
         else _sorted_tuple(complete_compatible_diagnostics)
     )
     return SemanticConfig(
-        projection_version=projection_version,
         fact_lexical_version=fact_lexical_version,
         element_locator_version=element_locator_version,
         xml_fragment_version=xml_fragment_version,
@@ -203,20 +174,3 @@ def build_semantic_config(
         non_dimensional_context_policy=non_dimensional_context_policy,
         item_facts_only=item_facts_only,
     )
-
-
-def semantic_config_fingerprint_bytes(config: SemanticConfig) -> bytes:
-    """Exact UTF-8 bytes hashed for the semantic configuration fingerprint."""
-    envelope = {"config": config.to_dict(), "schema": SEMANTIC_CONFIG_SCHEMA}
-    return json.dumps(
-        envelope,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-
-
-def semantic_config_fingerprint(config: SemanticConfig) -> str:
-    """SHA-256 hex digest of the canonical configuration JSON."""
-    return hashlib.sha256(semantic_config_fingerprint_bytes(config)).hexdigest()

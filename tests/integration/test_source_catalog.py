@@ -121,6 +121,44 @@ def test_catalog_source_filing_idempotent(engine: Engine, tmp_path: Path) -> Non
     assert first.document_count == 1
 
 
+def test_catalog_rejects_form_mismatch(engine: Engine, tmp_path: Path) -> None:
+    bundle = _make_bundle(tmp_path)
+    with engine.begin() as conn:
+        catalog_source_filing(conn, bundle)
+
+    from dataclasses import replace
+
+    changed = FilingBundle(
+        filing=replace(bundle.filing, form_type="10-Q"),
+        payload_hash=bundle.payload_hash,
+        artifacts=bundle.artifacts,
+        report_inputs=bundle.report_inputs,
+        uri_bindings=bundle.uri_bindings,
+    )
+    with engine.begin() as conn, pytest.raises(SourceCatalogConflict, match="form mismatch"):
+        catalog_source_filing(conn, changed)
+
+
+def test_catalog_rejects_document_kind_mismatch(engine: Engine, tmp_path: Path) -> None:
+    bundle = _make_bundle(tmp_path)
+    with engine.begin() as conn:
+        catalog_source_filing(conn, bundle)
+
+    from dataclasses import replace
+
+    art = bundle.artifacts[0]
+    changed_art = replace(art, artifact_kind="attachment")
+    changed = FilingBundle(
+        filing=bundle.filing,
+        payload_hash=bundle.payload_hash,
+        artifacts=(changed_art,),
+        report_inputs=bundle.report_inputs,
+        uri_bindings=bundle.uri_bindings,
+    )
+    with engine.begin() as conn, pytest.raises(SourceCatalogConflict, match="document_kind"):
+        catalog_source_filing(conn, changed)
+
+
 def test_catalog_rejects_sha256_change(engine: Engine, tmp_path: Path) -> None:
     bundle = _make_bundle(tmp_path, payload=b"original")
     with engine.begin() as conn:

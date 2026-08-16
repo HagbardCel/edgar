@@ -72,7 +72,8 @@ Phase 2A is complete. Continue to maintain these invariants:
 Phase 2B is complete. Continue to maintain:
 
 - PostgreSQL live surface is `source.*` only (Alembic `0001_source_v2`)
-- Live path: immutable FilingBundle → `filings catalog|extract` → `source.*`
+- Live path: immutable FilingBundle → `filings catalog|extract` → native
+  `ReportExtraction` → `source.*`
 - No Phase-1 projection/attempt tables, dual-writes, or projection CLI commands
 - Mapping explain remounted on `source.*` only
 - Phase-1 DBs must be recreated (no in-place upgrade from deleted 0001–0004)

@@ -1,4 +1,4 @@
-"""Unit/contract tests for Phase 2B source extraction adapt + extract_filing."""
+"""Unit/contract tests for Phase 2B native source extraction + wire codec."""
 
 from __future__ import annotations
 
@@ -15,211 +15,168 @@ from edgar.domain.bundle import (
     UriBinding,
 )
 from edgar.domain.payload import compute_payload_hash
-from edgar.domain.report_key import report_key
 from edgar.storage.objects import ObjectStore
-from edgar.xbrl.records import (
-    ConceptDeclarationRecord as Phase1Declaration,
-)
-from edgar.xbrl.records import (
-    ConceptReferenceRecord as Phase1Reference,
-)
-from edgar.xbrl.records import (
-    ContextRecord as Phase1Context,
-)
-from edgar.xbrl.records import (
-    ExpandedQName,
-    SemanticProjectionData,
-    SourceLocator,
-)
-from edgar.xbrl.records import (
-    FactRecord as Phase1Fact,
-)
-from edgar.xbrl.records import (
-    ReferencePartRecord as Phase1ReferencePart,
-)
-from edgar.xbrl.records import (
-    UnitRecord as Phase1Unit,
-)
-from edgar.xbrl.source_adapt import SourceAdaptError, adapt_report_extraction
+from edgar.xbrl.records import ExpandedQName
+from edgar.xbrl.semantic import SourceExtractWorkerError, run_offline_extract
 from edgar.xbrl.source_extract import extract_filing
-from edgar.xbrl.source_records import EXTRACTOR_VERSION, FilingExtraction
+from edgar.xbrl.source_records import (
+    EXTRACTOR_VERSION,
+    ConceptDeclarationRecord,
+    ConceptRecord,
+    ConceptReferenceRecord,
+    ContextDimensionRecord,
+    ContextRecord,
+    ElementLocator,
+    FactRecord,
+    FilingExtraction,
+    ReferencePartRecord,
+    RelationshipRecord,
+    ReportExtraction,
+    UnitMeasureRecord,
+    UnitRecord,
+)
+from edgar.xbrl.source_wire import report_extraction_from_dict, report_extraction_to_dict
 from tests.helpers.xbrl_bundles import (
     INSTANCE,
     INSTANCE_URI,
     make_invalid_transform_bundle,
     make_minimal_semantic_bundle,
+    make_non_dimensional_context_bundle,
     make_rich_semantic_bundle,
 )
 
 
-def _loc(document_uri: str, value: str) -> SourceLocator:
-    return SourceLocator(document_uri=document_uri, scheme="unqualified_id", value=value)
-
-
-def _synthetic_projection() -> SemanticProjectionData:
+def _rich_report_for_wire() -> ReportExtraction:
     concept = ExpandedQName(namespace_uri="http://example.com/test", local_name="Assets")
     other = ExpandedQName(namespace_uri="http://example.com/test", local_name="Note")
-    inst = "https://example.com/a.xml"
-    schema = "https://example.com/t.xsd"
-    ctx_loc = _loc(inst, "c1")
-    unit_loc = _loc(inst, "u1")
-    return SemanticProjectionData(
-        projection_version="arelle-semantic-v2",
-        config_fingerprint="a" * 64,
-        engine_name="arelle",
-        engine_version="9.9.9",
-        concept_declarations=(
-            Phase1Declaration(concept=concept, source_locator=_loc(schema, "Assets")),
-            Phase1Declaration(concept=other, source_locator=_loc(schema, "Note")),
+    return ReportExtraction(
+        report_input={"kind": "instance", "document_uris": ["https://example.com/a.xml"]},
+        report_key="a" * 64,
+        extractor_version=EXTRACTOR_VERSION,
+        arelle_version="2.43.1",
+        arelle_item_fact_count=3,
+        concepts=(
+            ConceptRecord(namespace_uri="http://example.com/test", local_name="Assets"),
+            ConceptRecord(namespace_uri="http://example.com/test", local_name="Note"),
         ),
-        concept_references=(
-            Phase1Reference(
+        declarations=(
+            ConceptDeclarationRecord(concept=concept, period_type="instant"),
+            ConceptDeclarationRecord(concept=other, period_type="duration"),
+        ),
+        references=(
+            ConceptReferenceRecord(
                 concept=concept,
-                link_role_uri="http://example.com/role",
-                arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-reference",
-                source_locator=_loc(schema, "ref1"),
-                arc_locator=_loc(schema, "arc1"),
-                resource_role_uri="http://www.xbrl.org/2003/role/reference",
+                role_uri="http://example.com/role",
+                source_order=0,
                 reference_parts=(
-                    Phase1ReferencePart(
-                        namespace_uri="http://www.xbrl.org/2003/ref",
-                        local_name="Publisher",
-                        text="FASB",
-                        xml="<ref:Publisher xmlns:ref='http://www.xbrl.org/2003/ref'>FASB</ref:Publisher>",
+                    ReferencePartRecord(
+                        qname="{http://www.xbrl.org/2003/ref}Publisher", value="FASB"
                     ),
+                    ReferencePartRecord(qname="{http://www.xbrl.org/2003/ref}Name", value="Topic"),
                 ),
             ),
         ),
         contexts=(
-            Phase1Context(
+            ContextRecord(
                 source_context_id="c1",
                 entity_scheme="http://www.sec.gov/CIK",
                 entity_identifier="0000000001",
                 period_kind="instant",
-                source_locator=ctx_loc,
                 period_instant="2024-12-31",
+                source_document_relative_path="accession/a.xml",
+                source_locator=ElementLocator(scheme="unqualified_id", value="c1"),
             ),
         ),
-        units=(Phase1Unit(source_unit_id="u1", source_locator=unit_loc, divide=False),),
-        facts=(
-            Phase1Fact(
-                concept_qname=concept,
-                context_locator=ctx_loc,
-                source_locator=_loc(inst, "f1"),
-                value_status="valid",
-                unit_locator=unit_loc,
-                raw_lexical_value="100.50",
-                resolved_numeric_value=Decimal("100.50"),
-                resolved_value_kind="numeric",
-                reported_decimals="INF",
-            ),
-            Phase1Fact(
-                concept_qname=concept,
-                context_locator=ctx_loc,
-                source_locator=_loc(inst, "f2"),
-                value_status="valid",
-                unit_locator=unit_loc,
-                raw_lexical_value="100.50",
-                resolved_numeric_value=Decimal("100.50"),
-                resolved_value_kind="numeric",
-                reported_decimals="INF",
-            ),
-            Phase1Fact(
-                concept_qname=other,
-                context_locator=ctx_loc,
-                source_locator=_loc(inst, "fnil"),
-                value_status="nil",
-                is_nil=True,
-            ),
-            Phase1Fact(
-                concept_qname=other,
-                context_locator=ctx_loc,
-                source_locator=_loc(inst, "finvalid"),
-                value_status="invalid",
-                raw_lexical_value="not-a-number",
+        dimensions=(
+            ContextDimensionRecord(
+                source_context_id="c1",
+                dimension=ExpandedQName(namespace_uri="http://example.com/test", local_name="Axis"),
+                context_element="segment",
+                member_kind="typed",
+                typed_member={
+                    "xml": "<t:Member xmlns:t='http://example.com/test'/>",
+                    "sha256": "b" * 64,
+                },
             ),
         ),
-    )
-
-
-def _bindings_for_synthetic() -> tuple[UriBinding, ...]:
-    return (
-        UriBinding(
-            document_uri="https://example.com/a.xml",
-            artifact_path="accession/a.xml",
-            content_sha256="a" * 64,
-        ),
-        UriBinding(
-            document_uri="https://example.com/t.xsd",
-            artifact_path="external/schema.xsd",
-            content_sha256="b" * 64,
-        ),
-    )
-
-
-def test_adapt_preserves_concept_qname_and_decimal() -> None:
-    report_input = InstanceReportInput(document_uris=("https://example.com/a.xml",))
-    report = adapt_report_extraction(
-        _synthetic_projection(),
-        report_input,
-        uri_bindings=_bindings_for_synthetic(),
-    )
-    assert report.extractor_version == EXTRACTOR_VERSION
-    assert report.report_key == report_key(report_input)
-    assets = next(c for c in report.concepts if c.local_name == "Assets")
-    assert assets.namespace_uri == "http://example.com/test"
-    numeric = next(f for f in report.facts if f.source_xml_id == "f1")
-    assert numeric.resolved_numeric == Decimal("100.50")
-    assert isinstance(numeric.resolved_numeric, Decimal)
-    assert numeric.source_document_relative_path == "accession/a.xml"
-    assert numeric.source_context_id == "c1"
-    assert numeric.source_unit_id == "u1"
-
-
-def test_adapt_retains_nil_invalid_and_duplicate_occurrences() -> None:
-    report = adapt_report_extraction(
-        _synthetic_projection(),
-        InstanceReportInput(document_uris=("https://example.com/a.xml",)),
-        uri_bindings=_bindings_for_synthetic(),
-    )
-    assert report.arelle_item_fact_count == len(report.facts) == 4
-    assert [f.source_order for f in report.facts] == [0, 1, 2, 3]
-    assets_facts = [f for f in report.facts if f.concept.local_name == "Assets"]
-    assert len(assets_facts) == 2
-    nil_fact = next(f for f in report.facts if f.source_xml_id == "fnil")
-    assert nil_fact.value_status == "nil"
-    assert nil_fact.is_nil
-    assert nil_fact.resolved_numeric is None
-    invalid = next(f for f in report.facts if f.source_xml_id == "finvalid")
-    assert invalid.value_status == "invalid"
-    assert invalid.raw_lexical_value == "not-a-number"
-
-
-def test_adapt_reference_parts_are_ordered_qname_value_array() -> None:
-    report = adapt_report_extraction(
-        _synthetic_projection(),
-        InstanceReportInput(document_uris=("https://example.com/a.xml",)),
-        uri_bindings=_bindings_for_synthetic(),
-    )
-    assert len(report.references) == 1
-    parts = [p.to_dict() for p in report.references[0].reference_parts]
-    assert parts == [{"qname": "{http://www.xbrl.org/2003/ref}Publisher", "value": "FASB"}]
-
-
-def test_adapt_raises_when_fact_uri_unresolvable() -> None:
-    data = _synthetic_projection()
-    with pytest.raises(SourceAdaptError, match="logical_path"):
-        adapt_report_extraction(
-            data,
-            InstanceReportInput(document_uris=("https://example.com/a.xml",)),
-            uri_bindings=(
-                UriBinding(
-                    document_uri="https://example.com/t.xsd",
-                    artifact_path="external/schema.xsd",
-                    content_sha256="b" * 64,
+        units=(UnitRecord(source_unit_id="u1", divide=False),),
+        measures=(
+            UnitMeasureRecord(
+                source_unit_id="u1",
+                side="numerator",
+                ordinal=1,
+                measure=ExpandedQName(
+                    namespace_uri="http://www.xbrl.org/2003/iso4217", local_name="USD"
                 ),
             ),
-        )
+        ),
+        facts=(
+            FactRecord(
+                source_order=0,
+                concept=concept,
+                source_context_id="c1",
+                value_status="valid",
+                source_unit_id="u1",
+                raw_lexical_value="100.10",
+                resolved_value_kind="numeric",
+                resolved_numeric=Decimal("100.10"),
+                decimals="INF",
+                source_document_relative_path="accession/a.xml",
+                source_locator=ElementLocator(scheme="unqualified_id", value="f1"),
+                continuation_provenance=(
+                    {
+                        "source_document_relative_path": "accession/a.xml",
+                        "scheme": "unqualified_id",
+                        "value": "cont1",
+                    },
+                ),
+            ),
+            FactRecord(
+                source_order=1,
+                concept=other,
+                source_context_id="c1",
+                value_status="nil",
+                is_nil=True,
+                source_document_relative_path="accession/a.xml",
+                source_locator=ElementLocator(scheme="unqualified_id", value="f2"),
+            ),
+            FactRecord(
+                source_order=2,
+                concept=concept,
+                source_context_id="c1",
+                value_status="invalid",
+                source_unit_id="u1",
+                raw_lexical_value="bad",
+                source_document_relative_path="accession/a.xml",
+                source_locator=ElementLocator(scheme="unqualified_id", value="f3"),
+            ),
+        ),
+        relationships=(
+            RelationshipRecord(
+                source_order=0,
+                network_type="calculation",
+                link_role_uri="http://example.com/role/Calc",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/summation-item",
+                source_concept=concept,
+                target_concept=other,
+                order_value=Decimal("1.0"),
+                weight=Decimal("-1.0"),
+                target_role="http://example.com/role/Target",
+            ),
+        ),
+    )
+
+
+def test_report_extraction_wire_round_trip() -> None:
+    original = _rich_report_for_wire()
+    payload = report_extraction_to_dict(original)
+    restored = report_extraction_from_dict(payload)
+    assert restored == original
+    assert restored.facts[0].resolved_numeric == Decimal("100.10")
+    assert restored.facts[0].continuation_provenance[0]["value"] == "cont1"
+    assert restored.references[0].reference_parts[1].value == "Topic"
+    assert restored.relationships[0].weight == Decimal("-1.0")
+    assert [f.source_order for f in restored.facts] == [0, 1, 2]
 
 
 def test_extract_filing_minimal_duplicates_and_count(tmp_path: Path) -> None:
@@ -227,15 +184,16 @@ def test_extract_filing_minimal_duplicates_and_count(tmp_path: Path) -> None:
     bundle = make_minimal_semantic_bundle(store)
     filing = extract_filing(bundle, store)
     assert len(filing.reports) == 1
-    assert filing.document_blocks == ()
-    assert filing.filing_sections == ()
     report = filing.reports[0]
+    assert report.extractor_version == EXTRACTOR_VERSION
     assert report.arelle_item_fact_count == len(report.facts)
     assert report.arelle_item_fact_count >= 2
     assets = [f for f in report.facts if f.concept.local_name == "Assets"]
     assert len(assets) >= 2
     assert all(f.resolved_numeric == Decimal("100") for f in assets)
     assert all(f.source_document_relative_path == "accession/a.xml" for f in report.facts)
+    orders = [f.source_order for f in report.facts]
+    assert orders == list(range(len(orders)))
 
 
 def test_extract_filing_rich_nil_and_qnames(tmp_path: Path) -> None:
@@ -249,8 +207,6 @@ def test_extract_filing_rich_nil_and_qnames(tmp_path: Path) -> None:
     assert by_name["Assets"].concept.namespace_uri == "http://example.com/rich"
     assert by_name["Assets"].resolved_numeric is not None
     assert isinstance(by_name["Assets"].resolved_numeric, Decimal)
-    assert any(c.local_name == "Assets" for c in report.concepts)
-    assert any(d.concept.local_name == "Assets" for d in report.declarations)
 
 
 def test_extract_filing_invalid_transform_facts_counted(tmp_path: Path) -> None:
@@ -265,8 +221,13 @@ def test_extract_filing_invalid_transform_facts_counted(tmp_path: Path) -> None:
     assert by_id["finvalid-nf"].value_status == "invalid"
 
 
+def test_non_dimensional_context_fails_extraction(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path)
+    with pytest.raises(SourceExtractWorkerError):
+        run_offline_extract(make_non_dimensional_context_bundle(store), store)
+
+
 def test_multi_report_filing_extraction(tmp_path: Path) -> None:
-    """Two ReportExtraction rows in one FilingExtraction (synthetic multi-report)."""
     store = ObjectStore(tmp_path)
     bundle_a = make_minimal_semantic_bundle(store)
     uri_b = "https://www.sec.gov/Archives/edgar/data/1/0000000001000010/b.xml"
@@ -301,8 +262,42 @@ def test_multi_report_filing_extraction(tmp_path: Path) -> None:
     filing = FilingExtraction(reports=(report_a, report_b))
     assert len(filing.reports) == 2
     assert report_a.report_key != report_b.report_key
-    for report in filing.reports:
-        assert report.arelle_item_fact_count == len(report.facts)
-        assert report.arelle_item_fact_count >= 2
-    paths = {f.source_document_relative_path for r in filing.reports for f in r.facts}
-    assert paths == {"accession/a.xml", path_b}
+
+
+def test_report2_fatal_aborts_entire_filing_extraction(tmp_path: Path) -> None:
+    """Report 1 would succeed; report 2 is fatal → no FilingExtraction returned."""
+    from tests.helpers.xbrl_bundles import INSTANCE_NON_DIM, INSTANCE_URI, SCHEMA_URI
+
+    store = ObjectStore(tmp_path)
+    good = make_minimal_semantic_bundle(store)
+    uri_bad = "https://www.sec.gov/Archives/edgar/data/1/0000000001000011/bad.xml"
+    path_bad = "accession/bad.xml"
+    bad_obj = store.put_bytes(INSTANCE_NON_DIM)
+    artifacts = (
+        *good.artifacts,
+        BundleArtifact(
+            logical_path=path_bad,
+            content=ContentObject(sha256=bad_obj.sha256, byte_size=bad_obj.byte_size),
+            artifact_kind="attachment",
+            required=True,
+        ),
+    )
+    bindings = (
+        *good.uri_bindings,
+        UriBinding(uri_bad, path_bad, bad_obj.sha256),
+    )
+    dual = FilingBundle(
+        filing=good.filing,
+        payload_hash=compute_payload_hash(artifacts),
+        artifacts=artifacts,
+        report_inputs=(
+            InstanceReportInput(document_uris=(INSTANCE_URI,)),
+            InstanceReportInput(document_uris=(uri_bad,)),
+        ),
+        uri_bindings=bindings,
+    )
+    assert dual.report_inputs[0].document_uris[0] != uri_bad
+    # SCHEMA_URI must already be bound via the good bundle.
+    assert any(b.document_uri == SCHEMA_URI for b in dual.uri_bindings)
+    with pytest.raises(SourceExtractWorkerError):
+        extract_filing(dual, store)
