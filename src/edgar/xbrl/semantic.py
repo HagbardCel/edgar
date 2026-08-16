@@ -1,6 +1,6 @@
-"""Parent-side offline Arelle semantic projection adapter (ADR 0008 / 0009).
+"""Parent-side offline Arelle extraction adapter (ADR 0009 / 0011).
 
-Runs one isolated offline worker job with ``operation=semantic_projection``.
+Runs one isolated offline worker job with ``operation=extract``.
 The same load produces closure/replay evidence and plain semantic records.
 """
 
@@ -10,7 +10,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-from edgar.domain.bundle import FilingBundle
+from edgar.domain.bundle import FilingBundle, XbrlReportInput
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.closure import DEFAULT_WORKER_TIMEOUT_SECONDS, run_worker_process
 from edgar.xbrl.extract import semantic_status
@@ -56,15 +56,22 @@ def run_offline_semantic_projection(
     bundle: FilingBundle,
     store: ObjectStore,
     *,
+    report_input: XbrlReportInput | dict[str, Any] | None = None,
     python_executable: str = sys.executable,
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
 ) -> SemanticWorkerResult:
-    """Load the primary report offline and return validated semantic records."""
-    report_input = bundle.report_inputs[0]
+    """Load one report offline and return validated semantic records.
+
+    Defaults to ``bundle.report_inputs[0]``. Pass ``report_input`` to select a
+    specific report when the bundle carries more than one.
+    """
+    selected: XbrlReportInput | dict[str, Any]
+    selected = report_input if report_input is not None else bundle.report_inputs[0]
+    report_payload = dict(selected) if isinstance(selected, dict) else selected.to_dict()
     job = {
         "mode": "offline",
-        "operation": "semantic_projection",
-        "report_input": report_input.to_dict(),
+        "operation": "extract",
+        "report_input": report_payload,
         "object_store_root": str(store.data_root),
         "uri_bindings": [binding.to_dict() for binding in bundle.uri_bindings],
     }

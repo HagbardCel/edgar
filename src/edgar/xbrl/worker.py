@@ -54,7 +54,7 @@ IXDS_PLUGIN = "inlineXbrlDocumentSet"
 IXDS_ARELLE_DEFAULT_TARGET = "(default)"
 
 WorkerMode = Literal["online", "offline"]
-WorkerOperation = Literal["load", "semantic_projection"]
+WorkerOperation = Literal["load", "extract"]
 
 _DIAGNOSTIC_LEVELS = frozenset({"WARNING", "ERROR", "CRITICAL"})
 
@@ -101,10 +101,10 @@ class WorkerJob:
         if mode not in ("online", "offline"):
             raise ValueError(f"unknown worker mode: {mode!r}")
         operation = data.get("operation", "load")
-        if operation not in ("load", "semantic_projection"):
+        if operation not in ("load", "extract"):
             raise ValueError(f"unknown worker operation: {operation!r}")
-        if operation == "semantic_projection" and mode != "offline":
-            raise ValueError("semantic_projection requires mode=offline")
+        if operation == "extract" and mode != "offline":
+            raise ValueError("extract requires mode=offline")
         bindings = [WorkerBinding.from_dict(b) for b in data.get("uri_bindings") or ()]
         for uri, entry in (data.get("uri_objects") or {}).items():
             bindings.append(
@@ -536,7 +536,7 @@ def _run_load(
         outcome.fetched_documents = dict(resolver.fetched)
         outcome.diagnostics.extend(_log_diagnostics(cntlr))
         if (
-            job.operation == "semantic_projection"
+            job.operation == "extract"
             and outcome.load_completed
             and model_xbrl is not None
             and getattr(model_xbrl, "modelDocument", None) is not None
@@ -616,7 +616,7 @@ def run_job(job: WorkerJob, channel: WorkerChannel | None = None) -> dict[str, A
         "diagnostic_records": outcome.diagnostic_records,
         "errors": errors,
     }
-    if job.operation == "semantic_projection":
+    if job.operation == "extract":
         result["semantic_payload"] = outcome.semantic_payload
         result["semantic_extraction_errors"] = outcome.semantic_extraction_errors
     return result

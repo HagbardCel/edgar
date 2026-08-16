@@ -311,8 +311,8 @@ class FilingBundle:
     def __post_init__(self) -> None:
         if self.schema_version != BUNDLE_SCHEMA_VERSION:
             raise ValueError(f"unsupported schema_version: {self.schema_version}")
-        if len(self.report_inputs) != 1:
-            raise ValueError("Phase 1 FilingBundle requires exactly one primary report input")
+        if not self.report_inputs:
+            raise ValueError("FilingBundle requires at least one report input")
         paths = [a.logical_path for a in self.artifacts]
         if len(paths) != len(set(paths)):
             raise ValueError("duplicate artifact logical_path")

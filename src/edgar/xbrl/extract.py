@@ -1791,12 +1791,11 @@ def _issue_sort_key(issue: SemanticIssueRecord) -> tuple[str, str, str, str]:
 
 
 def semantic_status(data: SemanticProjectionData) -> SemanticStatus:
-    """Semantic completeness of a record set (``semantic_projection`` status).
+    """Semantic completeness of an extracted Arelle record set.
 
-    A projection is complete only when no issue refuses completeness and every
-    engine diagnostic is classified as complete-compatible (ADR 0008 §10). The
-    record set itself carries no status field: status belongs to the persisted
-    ``semantic_projection`` row assembled by the calling service.
+    Complete only when no issue refuses completeness and every engine
+    diagnostic is classified as complete-compatible (ADR 0008 §10 / ADR 0011).
+    Status is provenance on the extraction payload, not a separate DB identity row.
     """
     if any(issue.severity == "fatal" for issue in data.issues):
         return "incomplete"

@@ -1,22 +1,11 @@
-"""Versioned semantic-projection configuration and its identity fingerprint.
+"""Versioned Arelle extraction configuration and its content digest.
 
-`semantic_projection` identity is ``filing_bundle`` + ``xbrl_report_input`` +
-projection version + engine (Arelle) version + semantic configuration
-fingerprint (ADR 0008 §2). This module owns the last two of those inputs that
-are ours: the version constants and the deterministic fingerprint over every
-interpretation-affecting policy knob.
+The digest fingerprints interpretation-affecting policy knobs (extraction
+versions, supported arcrole registries, diagnostic policy, preservation
+policies). Engine version and wire-format version stay out of the digest.
 
-What belongs in the fingerprint: anything that can change the *meaning* or the
-*membership* of persisted records — extraction versions, the supported arcrole
-registries, the diagnostic policy version, and the preservation policies.
-
-What must stay out: the engine version (a separate identity component), the
-records wire-format version (:data:`edgar.xbrl.records.RECORDS_SCHEMA_VERSION`,
-a serialization detail), and all operational metadata such as paths, workspace
-locations, timings, and attempt identifiers.
-
-Changing any fingerprinted value yields a *new* projection that coexists with
-the old one rather than mutating it.
+Used as provenance metadata on extracted semantic records; V2 ``source.*``
+persistence does not key identity on this fingerprint.
 """
 
 from __future__ import annotations
@@ -35,7 +24,7 @@ from edgar.xbrl.diagnostics import (
 
 SEMANTIC_CONFIG_SCHEMA = "semantic-config-v1"
 
-#: Projection semantics: bump when persisted record meaning or membership changes.
+#: Extraction semantics: bump when record meaning or membership changes.
 SEMANTIC_PROJECTION_VERSION = "arelle-semantic-v2"
 
 #: Retained lexical fact-value extraction semantics (ADR 0008 §6).
