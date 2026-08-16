@@ -1,0 +1,70 @@
+{
+  "families": [
+    {
+      "code": "revenue",
+      "name": "Revenue",
+      "description": "Operating revenue measures",
+      "parent_code": null
+    },
+    {
+      "code": "profit",
+      "name": "Profit and income",
+      "description": "Income statement profit lines",
+      "parent_code": null
+    },
+    {
+      "code": "eps",
+      "name": "Earnings per share",
+      "description": "Per-share earnings",
+      "parent_code": "profit"
+    },
+    {
+      "code": "cash_flow",
+      "name": "Cash flow",
+      "description": "Cash flow statement measures",
+      "parent_code": null
+    },
+    {
+      "code": "capex",
+      "name": "Capital expenditure",
+      "description": "Cash capex measures",
+      "parent_code": "cash_flow"
+    },
+    {
+      "code": "cash",
+      "name": "Cash",
+      "description": "Cash and equivalents",
+      "parent_code": null
+    },
+    {
+      "code": "debt",
+      "name": "Debt",
+      "description": "Debt components",
+      "parent_code": null
+    },
+    {
+      "code": "equity",
+      "name": "Equity",
+      "description": "Stockholders equity",
+      "parent_code": null
+    },
+    {
+      "code": "shares",
+      "name": "Shares",
+      "description": "Share count measures",
+      "parent_code": null
+    },
+    {
+      "code": "operating_expense",
+      "name": "Operating expense",
+      "description": "Operating expense lines",
+      "parent_code": null
+    },
+    {
+      "code": "capital_allocation",
+      "name": "Capital allocation",
+      "description": "Dividends and repurchases",
+      "parent_code": null
+    }
+  ]
+}

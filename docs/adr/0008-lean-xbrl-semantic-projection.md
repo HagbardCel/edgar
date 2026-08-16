@@ -35,7 +35,7 @@ Phase 1 uses a **thin Arelle semantic projection**:
 
 9. **Units.** Source unit id, binding + locator, numerator / denominator measures as expanded QNames.
 
-10. **Fail-closed diagnostics.** Unrecognized Arelle diagnostics prevent clean / complete status without mandatory filing discard. Incoherent materialization may leave no projection.
+10. **Fail-closed diagnostics.** Unrecognized Arelle diagnostics prevent clean / complete status without mandatory filing discard. A diagnostic may be complete-compatible only when it concerns filed content and the projection faithfully represents affected structures and their semantic validity state (including invalid facts as invalid); any loss of claimed evidence must independently produce a fatal semantic issue. Incoherent materialization may leave no projection.
 
 11. **Provenance and bundle.** Prefer `source_bundle_uri_binding_id` + locator. A FilingBundle comprises payload, report inputs, and URI bindings; `payload_hash` alone (or filing + policy + `payload_hash`) is incomplete bundle identity. No new permanent production `bundle_hash`. No Slice-0 wire formats as production APIs.
 

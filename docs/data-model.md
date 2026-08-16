@@ -17,6 +17,8 @@ Related:
 
 Both offline branches of a FilingBundle appear below: Arelle semantic projection and document parsing.
 
+**Phase 2 boundary:** Phase 2A curated metric definitions and mapping rules are Git-authoritative and are intentionally outside this Phase-1 PostgreSQL persistence model; see [ADR 0010](adr/0010-curated-semantic-registry.md).
+
 ---
 
 ## 1. Catalog identity
@@ -344,7 +346,7 @@ Dimension and explicit-member references are projection-scoped **declarations**.
 
 ### Segment / scenario policy
 
-Phase 1B (`arelle-semantic-v1`) selects **incomplete** over preservation: non-dimensional `<segment>` / `<scenario>` content yields `UNSUPPORTED_NON_DIMENSIONAL_CONTEXT_CONTENT` and `status=incomplete`. It is never silently dropped and is not persisted as XML in this PR. A later policy version may introduce `preserve-v1`.
+Phase 1B onward selects **incomplete** over preservation for non-dimensional context content: non-dimensional `<segment>` / `<scenario>` content yields `UNSUPPORTED_NON_DIMENSIONAL_CONTEXT_CONTENT` and `status=incomplete`. It is never silently dropped and is not persisted as XML. A later policy version may introduce `preserve-v1`. The active projection version is `arelle-semantic-v2` (resolved-value representation expanded; diagnostic-policy-v2 admits faithful invalidTransformation representation).
 
 ### `xbrl_unit`
 
@@ -393,7 +395,40 @@ kind ∈ text|boolean|date|datetime|time|qname
                                      → text NOT NULL AND numeric IS NULL
 ```
 
-`raw_lexical_value` is the adapter's retained lexical / source-level fact value, preserving the distinction from Arelle's resolved typed value. Its exact extraction semantics must be documented and versioned by the projection implementation. Immutable source bytes + locator remain authoritative and are **not** substituted by the lexical column. Numeric resolved values retain exact decimal semantics (Python `Decimal` / PostgreSQL `NUMERIC`). `resolved_value_type` remains the concept/item type QName and is distinct from `resolved_value_kind`.
+`raw_lexical_value` is the adapter's retained lexical / source-level fact value, preserving the distinction from Arelle's resolved typed value. Its exact extraction semantics must be documented and versioned by the projection implementation (`fact-lexical-v1`). Immutable source bytes + locator remain authoritative and are **not** substituted by the lexical column. Numeric resolved values retain exact decimal semantics (Python `Decimal` / PostgreSQL `NUMERIC`). `resolved_value_type` remains the concept/item type QName and is distinct from `resolved_value_kind`.
+
+Under `arelle-semantic-v2`, the following Arelle resolved runtime families are represented as `resolved_value_kind=text` via state-preserving encoders (never via `str(value)` when that would leak filed `sourceValue`):
+
+```text
+gYear
+  fields: year + tzinfo
+  text: zero-padded year (5 digits when negative) + timezone suffix
+        timezone from utcoffset: Z / ±HH:MM / empty when absent
+
+gMonthDay
+  fields: month + day + tzinfo
+  text: --MM-DD + timezone suffix (same timezone rules)
+  note: not an XSD value-space equality key; distinct structural/timezone
+        states may serialize differently even when Arelle considers them equal
+
+IsoDuration
+  fields: years, months, tdelta.{days,seconds,microseconds}
+  NEVER str(IsoDuration) / sourceValue
+  text: compact JSON with sort_keys=True, separators=(",", ":"),
+        ensure_ascii=False, allow_nan=False
+  example:
+    {"days":3,"microseconds":500000,"months":"2","seconds":14706,"years":"1"}
+  years/months: exact Decimal strings (never float)
+  days/seconds/microseconds: integers
+
+list
+  ordered compact JSON array
+  QName members → Clark {namespace}local (prefix-independent)
+  None or any unsupported member type → whole value unsupported
+    → UNSUPPORTED_RESOLVED_VALUE (fatal incompleteness)
+```
+
+`resolved_text_value` serializes represented Arelle runtime state. It is not a substitute for `raw_lexical_value` and is not a canonical XSD value-space key.
 
 Also preserve interpretation-relevant filed attributes where applicable: transformation `format` QName, `xml:lang`, scale / sign, decimals / precision, nil, Inline XBRL continuation / escape semantics.
 

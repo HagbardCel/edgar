@@ -27,13 +27,21 @@ def test_config_fingerprint_deterministic() -> None:
     a = build_semantic_config()
     b = build_semantic_config()
     assert semantic_config_fingerprint(a) == semantic_config_fingerprint(b)
-    assert SEMANTIC_PROJECTION_VERSION == "arelle-semantic-v1"
+    assert SEMANTIC_PROJECTION_VERSION == "arelle-semantic-v2"
 
 
-def test_complete_compatible_registry_starts_empty() -> None:
-    assert dict(COMPLETE_COMPATIBLE_DIAGNOSTICS) == {}
-    diag = DiagnosticRecord(severity="warning", code="ix11.10.1.2:invalidTransformation")
-    assert classify_diagnostic(diag) == "completeness_blocking"
+def test_invalid_transformation_is_complete_compatible() -> None:
+    assert "ix11.10.1.2:invalidTransformation" in COMPLETE_COMPATIBLE_DIAGNOSTICS
+    assert "ix11.11.1.2:invalidTransformation" in COMPLETE_COMPATIBLE_DIAGNOSTICS
+    for code in (
+        "ix11.10.1.2:invalidTransformation",
+        "ix11.11.1.2:invalidTransformation",
+    ):
+        diag = DiagnosticRecord(severity="warning", code=code)
+        assert classify_diagnostic(diag) == "complete_compatible"
+        assert "faithfully" in COMPLETE_COMPATIBLE_DIAGNOSTICS[code].lower() or (
+            "invalid" in COMPLETE_COMPATIBLE_DIAGNOSTICS[code].lower()
+        )
 
 
 def test_expanded_qname_prefix_independent() -> None:

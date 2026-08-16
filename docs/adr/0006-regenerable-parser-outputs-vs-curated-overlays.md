@@ -13,7 +13,7 @@ Treat three classes of data differently:
 
 1. **Authoritative and immutable** — downloaded SEC artifacts, per-filing manifests, artifact hashes.
 2. **Regenerable** — HTML blocks, sections, XBRL rows, parser quality issues, candidate mappings, derived metrics, research datasets, offline catalogs.
-3. **Curated source data** — human mapping/review decisions: stored transactionally, backed up, exported to version-controlled YAML/JSON or append-only decision files, pinned by policy releases.
+3. **Curated source data** — human mapping/review decisions: Git-authoritative JSON under `semantic-registry/` (see [ADR 0010](0010-curated-semantic-registry.md)), reviewed via Git and backed up like other source artifacts. PostgreSQL holds filing/XBRL evidence and later observations only.
 
 Phase 2 should normally proceed without re-downloading filings and with sufficient parsed evidence for initial mapping. All parsed evidence remains fully regenerable from the immutable source bundle.
 

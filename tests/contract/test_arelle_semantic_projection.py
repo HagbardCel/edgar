@@ -18,7 +18,6 @@ from edgar.xbrl.extract import (
 from edgar.xbrl.records import (
     ConceptDeclarationRecord,
     ContextRecord,
-    DiagnosticRecord,
     ExpandedQName,
     FactRecord,
     RelationshipRecord,
@@ -36,6 +35,7 @@ from tests.helpers.xbrl_bundles import (
     make_alias_schema_bundle,
     make_decimals_omitted_bundle,
     make_dimensional_default_bundle,
+    make_invalid_transform_bundle,
     make_ixds_semantic_bundle,
     make_minimal_semantic_bundle,
     make_non_dimensional_context_bundle,
@@ -94,9 +94,52 @@ def test_unit_measure_expanded_qname_order(tmp_path: Path) -> None:
     assert numerators[1].measure.namespace_uri == "http://example.com/b"
 
 
-def test_slice0_transformation_not_auto_complete_compatible() -> None:
-    diag = DiagnosticRecord(severity="warning", code="ix11.10.1.2:invalidTransformation")
-    assert classify_diagnostic(diag) == "completeness_blocking"
+def test_invalid_transformation_facts_are_faithfully_represented(tmp_path: Path) -> None:
+    """invalidTransformation is complete-compatible when invalid facts stay invalid."""
+    store = ObjectStore(tmp_path)
+    result = run_offline_semantic_projection(make_invalid_transform_bundle(store), store)
+    assert result.replay.replay_faithful
+    assert result.status == "complete"
+    assert result.data.projection_version == "arelle-semantic-v2"
+
+    codes = {d.code for d in result.data.diagnostics}
+    assert "ix11.10.1.2:invalidTransformation" in codes
+    assert "ix11.11.1.2:invalidTransformation" in codes
+    for diag in result.data.diagnostics:
+        if diag.code.endswith(":invalidTransformation"):
+            assert classify_diagnostic(diag) == "complete_compatible"
+
+    by_id = {
+        fact.source_locator.value: fact
+        for fact in result.data.facts
+        if fact.source_locator.scheme == "unqualified_id"
+    }
+    valid = by_id["fvalid"]
+    invalid_nf = by_id["finvalid-nf"]
+    invalid = by_id["finvalid"]
+
+    assert valid.value_status == "valid"
+    assert valid.resolved_value_kind == "numeric"
+    assert valid.resolved_numeric_value == Decimal("1234.56")
+    assert valid.resolved_text_value is None
+
+    assert invalid_nf.concept_qname.local_name == "Liabilities"
+    assert invalid_nf.context_locator == valid.context_locator
+    assert invalid_nf.unit_locator == valid.unit_locator
+    assert invalid_nf.raw_lexical_value == "987.65"
+    assert invalid_nf.value_status == "invalid"
+    assert invalid_nf.resolved_value_kind is None
+    assert invalid_nf.resolved_numeric_value is None
+    assert invalid_nf.resolved_text_value is None
+    assert invalid_nf.source_locator.value == "finvalid-nf"
+
+    assert invalid.value_status == "invalid"
+    assert invalid.raw_lexical_value == "January 1, 2024"
+    assert invalid.resolved_value_kind is None
+    assert invalid.resolved_numeric_value is None
+    assert invalid.resolved_text_value is None
+    assert invalid.concept_qname.local_name == "Note"
+    assert invalid.source_locator.value == "finvalid"
 
 
 def test_default_dimension_not_materialized(tmp_path: Path) -> None:

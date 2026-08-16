@@ -36,7 +36,7 @@ from edgar.xbrl.diagnostics import (
 SEMANTIC_CONFIG_SCHEMA = "semantic-config-v1"
 
 #: Projection semantics: bump when persisted record meaning or membership changes.
-SEMANTIC_PROJECTION_VERSION = "arelle-semantic-v1"
+SEMANTIC_PROJECTION_VERSION = "arelle-semantic-v2"
 
 #: Retained lexical fact-value extraction semantics (ADR 0008 §6).
 FACT_LEXICAL_VERSION = "fact-lexical-v1"
@@ -126,9 +126,7 @@ class SemanticConfig:
             if not getattr(self, name):
                 raise ValueError(f"{name} is required")
         if self.non_dimensional_context_policy != "incomplete":
-            raise ValueError(
-                "non_dimensional_context_policy must be 'incomplete' under arelle-semantic-v1"
-            )
+            raise ValueError("non_dimensional_context_policy must be 'incomplete'")
         for name in (
             "complete_compatible_diagnostics",
             "presentation_arcroles",

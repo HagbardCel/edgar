@@ -1,0 +1,410 @@
+{
+  "rules": [
+    {
+      "rule_key": "map-us-gaap-cash-and-cash-equivalents-equivalent",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "CashAndCashEquivalentsAtCarryingValue"
+      },
+      "target_metric_code": "cash_and_cash_equivalents",
+      "target_definition_version": 1,
+      "relationship_type": "equivalent",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Standard US-GAAP CashAndCashEquivalentsAtCarryingValue is the canonical cash-and-cash-equivalents balance-sheet total. Instant monetary debit concept with labels \"Cash and Cash Equivalents, at Carrying Value\" / \"Cash and cash equivalents\"; appears under current assets; calculation structure distinguishes it from the broader cash-plus-restricted-cash total. Global scope is justified by standard-taxonomy semantics.",
+      "evidence_snapshot": {
+        "summary": "Standard US-GAAP CashAndCashEquivalentsAtCarryingValue is the canonical cash-and-cash-equivalents balance-sheet total. Instant monetary debit concept with labels \"Cash and Cash Equivalents, at Carrying Value\" / \"Cash and cash equivalents\"; appears under current assets; calculation structure distinguishes it from the broader cash-plus-restricted-cash total. Global scope is justified by standard-taxonomy semantics.",
+        "period_type": "instant",
+        "balance": "debit",
+        "type_qname": {
+          "namespace_uri": "http://www.xbrl.org/2003/instance",
+          "local_name": "monetaryItemType"
+        },
+        "labels": [
+          {
+            "language": "en-US",
+            "text": "Cash and Cash Equivalents, at Carrying Value",
+            "link_role_uri": "http://www.xbrl.org/2003/role/link",
+            "resource_role_uri": "http://www.xbrl.org/2003/role/label"
+          },
+          {
+            "language": "en-US",
+            "text": "Cash and cash equivalents",
+            "link_role_uri": "http://www.xbrl.org/2003/role/link",
+            "resource_role_uri": "http://www.xbrl.org/2003/role/terseLabel"
+          }
+        ],
+        "undimensioned_facts": [
+          {
+            "raw_lexical_value": "1,379",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "1379000000",
+            "value_status": "valid",
+            "period_kind": "instant",
+            "instant_date": "2021-12-31",
+            "start_date": null,
+            "end_date": null,
+            "entity_identifier": "0001065088"
+          },
+          {
+            "raw_lexical_value": "2,154",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "2154000000",
+            "value_status": "valid",
+            "period_kind": "instant",
+            "instant_date": "2022-12-31",
+            "start_date": null,
+            "end_date": null,
+            "entity_identifier": "0001065088"
+          },
+          {
+            "raw_lexical_value": "2,154",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "2154000000",
+            "value_status": "valid",
+            "period_kind": "instant",
+            "instant_date": "2022-12-31",
+            "start_date": null,
+            "end_date": null,
+            "entity_identifier": "0001065088"
+          },
+          {
+            "raw_lexical_value": "1,985",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "1985000000",
+            "value_status": "valid",
+            "period_kind": "instant",
+            "instant_date": "2023-12-31",
+            "start_date": null,
+            "end_date": null,
+            "entity_identifier": "0001065088"
+          },
+          {
+            "raw_lexical_value": "1,985",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "1985000000",
+            "value_status": "valid",
+            "period_kind": "instant",
+            "instant_date": "2023-12-31",
+            "start_date": null,
+            "end_date": null,
+            "entity_identifier": "0001065088"
+          }
+        ],
+        "calculation_neighborhood": [
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.ebay.com/role/CONSOLIDATEDBALANCESHEET",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "AssetsCurrent",
+            "target_local": "CashAndCashEquivalentsAtCarryingValue",
+            "weight": "1.0"
+          },
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.ebay.com/role/CONSOLIDATEDSTATEMENTOFCASHFLOWS",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+            "target_local": "CashAndCashEquivalentsAtCarryingValue",
+            "weight": "1.0"
+          }
+        ],
+        "report_period_end": "2023-12-31",
+        "decision_basis": "Approved by Fabian at 2026-08-16T09:23:00Z after provisional packet review. Evidence pin remains the Phase-1D corpus projection cited in evidence."
+      },
+      "evidence": {
+        "accession_number": "0001065088-24-000036",
+        "bundle_fingerprint": "b304a452e418c581c8a5c36932e1b58c9f319d6e78b2ae4fd63ec64752621e11",
+        "projection_version": "arelle-semantic-v2",
+        "arelle_version": "2.43.1",
+        "semantic_config_fingerprint": "30b493f7ad1d61df0b9d592d4c918e024cfea3055993293e72e6cacad400e43f",
+        "concept": {
+          "namespace_uri": "http://fasb.org/us-gaap/2023",
+          "local_name": "CashAndCashEquivalentsAtCarryingValue"
+        }
+      },
+      "reviewed_by": "Fabian",
+      "reviewed_at": "2026-08-16T09:23:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_key": "map-us-gaap-cash-restricted-combined-broader-than",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2023",
+        "local_name": "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"
+      },
+      "target_metric_code": "cash_and_cash_equivalents",
+      "target_definition_version": 1,
+      "relationship_type": "broader_than",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "Standard US-GAAP combined cash, cash equivalents and restricted cash is broader than cash_and_cash_equivalents: eBay's calculation network explicitly includes ordinary cash and cash equivalents plus restricted-cash components and CustomerAccounts. It therefore must not publish as an equivalent cash-and-cash-equivalents observation.",
+      "evidence_snapshot": {
+        "summary": "Standard US-GAAP combined cash, cash equivalents and restricted cash is broader than cash_and_cash_equivalents: eBay's calculation network explicitly includes ordinary cash and cash equivalents plus restricted-cash components and CustomerAccounts. It therefore must not publish as an equivalent cash-and-cash-equivalents observation.",
+        "period_type": "instant",
+        "balance": "debit",
+        "type_qname": {
+          "namespace_uri": "http://www.xbrl.org/2003/instance",
+          "local_name": "monetaryItemType"
+        },
+        "labels": [
+          {
+            "language": "en-US",
+            "text": "Cash, Cash Equivalents, Restricted Cash, and Restricted Cash Equivalents",
+            "link_role_uri": "http://www.xbrl.org/2003/role/link",
+            "resource_role_uri": "http://www.xbrl.org/2003/role/label"
+          },
+          {
+            "language": "en-US",
+            "text": "Cash, cash equivalents and restricted cash",
+            "link_role_uri": "http://www.xbrl.org/2003/role/link",
+            "resource_role_uri": "http://www.xbrl.org/2003/role/totalLabel"
+          }
+        ],
+        "undimensioned_facts": [
+          {
+            "raw_lexical_value": "1,406",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "1406000000",
+            "value_status": "valid",
+            "period_kind": "instant",
+            "instant_date": "2021-12-31",
+            "start_date": null,
+            "end_date": null,
+            "entity_identifier": "0001065088"
+          },
+          {
+            "raw_lexical_value": "2,272",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "2272000000",
+            "value_status": "valid",
+            "period_kind": "instant",
+            "instant_date": "2022-12-31",
+            "start_date": null,
+            "end_date": null,
+            "entity_identifier": "0001065088"
+          },
+          {
+            "raw_lexical_value": "2,493",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "2493000000",
+            "value_status": "valid",
+            "period_kind": "instant",
+            "instant_date": "2023-12-31",
+            "start_date": null,
+            "end_date": null,
+            "entity_identifier": "0001065088"
+          }
+        ],
+        "calculation_neighborhood": [
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.ebay.com/role/CONSOLIDATEDSTATEMENTOFCASHFLOWS",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+            "target_local": "CashAndCashEquivalentsAtCarryingValue",
+            "weight": "1.0"
+          },
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.ebay.com/role/CONSOLIDATEDSTATEMENTOFCASHFLOWS",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+            "target_local": "RestrictedCashCurrent",
+            "weight": "1.0"
+          },
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.ebay.com/role/CONSOLIDATEDSTATEMENTOFCASHFLOWS",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+            "target_local": "RestrictedCashNoncurrent",
+            "weight": "1.0"
+          },
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.ebay.com/role/CONSOLIDATEDSTATEMENTOFCASHFLOWS",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+            "target_local": "CustomerAccounts",
+            "weight": "1.0"
+          }
+        ],
+        "report_period_end": "2023-12-31",
+        "decision_basis": "Approved by Fabian at 2026-08-16T09:23:00Z after provisional packet review. Evidence pin remains the Phase-1D corpus projection cited in evidence."
+      },
+      "evidence": {
+        "accession_number": "0001065088-24-000036",
+        "bundle_fingerprint": "b304a452e418c581c8a5c36932e1b58c9f319d6e78b2ae4fd63ec64752621e11",
+        "projection_version": "arelle-semantic-v2",
+        "arelle_version": "2.43.1",
+        "semantic_config_fingerprint": "30b493f7ad1d61df0b9d592d4c918e024cfea3055993293e72e6cacad400e43f",
+        "concept": {
+          "namespace_uri": "http://fasb.org/us-gaap/2023",
+          "local_name": "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"
+        }
+      },
+      "reviewed_by": "Fabian",
+      "reviewed_at": "2026-08-16T09:23:00Z",
+      "supersedes": null
+    },
+    {
+      "rule_key": "map-us-gaap-interest-income-expense-net-incompatible-operating-revenue",
+      "source_concept": {
+        "namespace_uri": "http://fasb.org/us-gaap/2024",
+        "local_name": "InterestIncomeExpenseNet"
+      },
+      "target_metric_code": "operating_company_revenue",
+      "target_definition_version": 1,
+      "relationship_type": "incompatible",
+      "scope_kind": "global",
+      "scope": {
+        "kind": "global"
+      },
+      "confidence_tier": "high",
+      "rationale": "InterestIncomeExpenseNet is net interest income (interest income minus interest expense), a banking/financing construct that is not economically equivalent to operating_company_revenue (ordinary non-financial operating company product/service revenue; excludes banking net revenue). Retained as a global incompatible decision to prevent repeated unsafe proposals.",
+      "evidence_snapshot": {
+        "summary": "InterestIncomeExpenseNet is net interest income (interest income minus interest expense), a banking/financing construct that is not economically equivalent to operating_company_revenue (ordinary non-financial operating company product/service revenue; excludes banking net revenue). Retained as a global incompatible decision to prevent repeated unsafe proposals.",
+        "period_type": "duration",
+        "balance": "credit",
+        "type_qname": {
+          "namespace_uri": "http://www.xbrl.org/2003/instance",
+          "local_name": "monetaryItemType"
+        },
+        "labels": [
+          {
+            "language": "en-US",
+            "text": "Interest Income (Expense), Operating",
+            "link_role_uri": "http://www.xbrl.org/2003/role/link",
+            "resource_role_uri": "http://www.xbrl.org/2003/role/label"
+          },
+          {
+            "language": "en-US",
+            "text": "Net interest income",
+            "link_role_uri": "http://www.xbrl.org/2003/role/link",
+            "resource_role_uri": "http://www.xbrl.org/2003/role/terseLabel"
+          },
+          {
+            "language": "en-US",
+            "text": "Net interest income",
+            "link_role_uri": "http://www.xbrl.org/2003/role/link",
+            "resource_role_uri": "http://www.xbrl.org/2003/role/totalLabel"
+          }
+        ],
+        "undimensioned_facts": [
+          {
+            "raw_lexical_value": "21,779",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "21779000000",
+            "value_status": "valid",
+            "period_kind": "duration",
+            "instant_date": null,
+            "start_date": "2023-04-01",
+            "end_date": "2023-06-30",
+            "entity_identifier": "0000019617"
+          },
+          {
+            "raw_lexical_value": "42,490",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "42490000000",
+            "value_status": "valid",
+            "period_kind": "duration",
+            "instant_date": null,
+            "start_date": "2023-01-01",
+            "end_date": "2023-06-30",
+            "entity_identifier": "0000019617"
+          },
+          {
+            "raw_lexical_value": "21,779",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "21779000000",
+            "value_status": "valid",
+            "period_kind": "duration",
+            "instant_date": null,
+            "start_date": "2023-04-01",
+            "end_date": "2023-06-30",
+            "entity_identifier": "0000019617"
+          },
+          {
+            "raw_lexical_value": "42,490",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "42490000000",
+            "value_status": "valid",
+            "period_kind": "duration",
+            "instant_date": null,
+            "start_date": "2023-01-01",
+            "end_date": "2023-06-30",
+            "entity_identifier": "0000019617"
+          },
+          {
+            "raw_lexical_value": "21,779",
+            "resolved_value_kind": "numeric",
+            "resolved_numeric": "21779000000",
+            "value_status": "valid",
+            "period_kind": "duration",
+            "instant_date": null,
+            "start_date": "2023-04-01",
+            "end_date": "2023-06-30",
+            "entity_identifier": "0000019617"
+          }
+        ],
+        "calculation_neighborhood": [
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.jpmorganchase.com/role/ConsolidatedStatementsofIncomeUnaudited",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "InterestIncomeExpenseNet",
+            "target_local": "InterestExpenseOperating",
+            "weight": "-1.0"
+          },
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.jpmorganchase.com/role/ConsolidatedStatementsofIncomeUnaudited",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "InterestIncomeExpenseNet",
+            "target_local": "InterestIncomeOperating",
+            "weight": "1.0"
+          },
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.jpmorganchase.com/role/ConsolidatedStatementsofIncomeUnaudited",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "RevenuesNetOfInterestExpense",
+            "target_local": "InterestIncomeExpenseNet",
+            "weight": "1.0"
+          },
+          {
+            "network_type": "calculation",
+            "link_role_uri": "http://www.jpmorganchase.com/role/InterestIncomeandInterestExpenseDetails",
+            "arcrole_uri": "http://www.xbrl.org/2003/arcrole/summation-item",
+            "source_local": "InterestIncomeExpenseAfterProvisionForLoanLoss",
+            "target_local": "InterestIncomeExpenseNet",
+            "weight": "1.0"
+          }
+        ],
+        "report_period_end": "2024-06-30",
+        "decision_basis": "Approved by Fabian at 2026-08-16T09:23:00Z after provisional packet review. Evidence pin remains the Phase-1D corpus projection cited in evidence."
+      },
+      "evidence": {
+        "accession_number": "0000019617-24-000453",
+        "bundle_fingerprint": "4a90806f4414e164276d5b9d95e53cca2c117b4ed9dd2a88228a3ef4f489007a",
+        "projection_version": "arelle-semantic-v2",
+        "arelle_version": "2.43.1",
+        "semantic_config_fingerprint": "30b493f7ad1d61df0b9d592d4c918e024cfea3055993293e72e6cacad400e43f",
+        "concept": {
+          "namespace_uri": "http://fasb.org/us-gaap/2024",
+          "local_name": "InterestIncomeExpenseNet"
+        }
+      },
+      "reviewed_by": "Fabian",
+      "reviewed_at": "2026-08-16T09:23:00Z",
+      "supersedes": null
+    }
+  ]
+}

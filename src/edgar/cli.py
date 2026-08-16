@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import typer
 from alembic import command
@@ -15,9 +15,11 @@ from edgar.config import Settings
 from edgar.db.check import DatabaseRevisionMismatch, require_database_at_head
 from edgar.db.document import list_document_sections
 from edgar.db.engine import create_db_engine
+from edgar.db.mapping_evidence import MappingEvidenceError
 from edgar.db.semantic import list_network_relationships
 from edgar.ingestion.acquisition import AcquisitionService
 from edgar.ingestion.catalog import CatalogService
+from edgar.metrics.service import MetricRegistryService
 from edgar.parsing.config import DOCUMENT_PROJECTION_VERSION
 from edgar.projection.document import (
     DocumentPreflightError,
@@ -31,10 +33,14 @@ filings_app = typer.Typer(help="Filing acquisition and catalog workflows.")
 db_app = typer.Typer(help="PostgreSQL catalog database workflows.")
 xbrl_app = typer.Typer(help="XBRL semantic projection workflows.")
 documents_app = typer.Typer(help="Document block and regulatory section workflows.")
+metrics_app = typer.Typer(help="Metric ontology registry workflows (Git-authoritative).")
+mappings_app = typer.Typer(help="Curated XBRL concept mapping audit workflows.")
 app.add_typer(filings_app, name="filings")
 app.add_typer(db_app, name="db")
 app.add_typer(xbrl_app, name="xbrl")
 app.add_typer(documents_app, name="documents")
+app.add_typer(metrics_app, name="metrics")
+app.add_typer(mappings_app, name="mappings")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
@@ -49,6 +55,15 @@ def _alembic_config(database_url: str) -> Config:
     cfg = Config(str(_ALEMBIC_INI))
     cfg.attributes["database_url"] = database_url
     return cfg
+
+
+def _metric_service(registry_dir: Path | None = None) -> MetricRegistryService:
+    return MetricRegistryService(Settings(), registry_dir=registry_dir)
+
+
+def _metric_cli_error(exc: Exception) -> None:
+    typer.echo(str(exc), err=True)
+    raise typer.Exit(code=1) from exc
 
 
 @db_app.command("check")
@@ -314,6 +329,160 @@ def documents_sections(
                 f"[{row['start_block_ordinal']}, {row['end_block_ordinal_exclusive']}) "
                 f"confidence={row['confidence_score']}"
             )
+
+
+@metrics_app.command("list")
+def metrics_list(
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """List metric definitions from the Git registry."""
+    service = _metric_service(registry_dir)
+    registry = service.load_git_registry()
+    rows = sorted(registry.definitions, key=lambda d: (d.metric_code, d.definition_version))
+    payload = {
+        "registry_hash": registry.registry_hash,
+        "metrics": [
+            {
+                "metric_code": r.metric_code,
+                "definition_version": r.definition_version,
+                "name": r.name,
+                "family_code": r.family_code,
+                "period_type": r.period_type,
+                "dimension_policy": r.dimension_policy,
+            }
+            for r in rows
+        ],
+        "count": len(rows),
+    }
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"metrics={len(rows)} registry_hash={registry.registry_hash}")
+        for row in rows:
+            typer.echo(f"  {row.metric_code}@{row.definition_version} ({row.name})")
+
+
+@metrics_app.command("show")
+def metrics_show(
+    metric_code: Annotated[str, typer.Argument(help="Metric code")],
+    version: Annotated[
+        int | None,
+        typer.Option("--version", help="Definition version (required if multiple exist)"),
+    ] = None,
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show one metric definition contract."""
+    service = _metric_service(registry_dir)
+    registry = service.load_git_registry()
+    try:
+        rows = service.get_metric(metric_code, definition_version=version, registry=registry)
+    except ValueError as exc:
+        _metric_cli_error(exc)
+    if not rows:
+        typer.echo(f"unknown metric: {metric_code}", err=True)
+        raise typer.Exit(code=1)
+    payload = {
+        "registry_hash": registry.registry_hash,
+        "definitions": [r.model_dump(mode="json") for r in rows],
+        "count": len(rows),
+    }
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        for row in rows:
+            typer.echo(f"{row.metric_code}@{row.definition_version}: {row.economic_definition}")
+
+
+@mappings_app.command("list")
+def mappings_list(
+    metric: Annotated[str | None, typer.Option("--metric")] = None,
+    concept: Annotated[str | None, typer.Option("--concept", help="local_name filter")] = None,
+    cik: Annotated[str | None, typer.Option("--cik")] = None,
+    relationship: Annotated[str | None, typer.Option("--relationship")] = None,
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """List curated mapping rules from Git."""
+    service = _metric_service(registry_dir)
+    registry = service.load_git_registry()
+    rows = service.list_mappings(
+        metric_code=metric,
+        concept_local_name=concept,
+        cik=cik,
+        relationship_type=relationship,
+        registry=registry,
+    )
+    payload = {
+        "registry_hash": registry.registry_hash,
+        "rules": [
+            {
+                "rule_key": r.rule.rule_key,
+                "state": r.state,
+                "source_concept": r.rule.source_concept.model_dump(),
+                "target_metric_code": r.rule.target_metric_code,
+                "target_definition_version": r.rule.target_definition_version,
+                "relationship_type": r.rule.relationship_type,
+                "scope_kind": r.rule.scope_kind,
+            }
+            for r in rows
+        ],
+        "count": len(rows),
+    }
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"mappings={len(rows)} registry_hash={registry.registry_hash}")
+        for row in rows:
+            q = row.rule.source_concept
+            typer.echo(
+                f"  {row.rule.rule_key} [{row.state}] "
+                f"{q.local_name} -> {row.rule.target_metric_code}@"
+                f"{row.rule.target_definition_version} "
+                f"({row.rule.relationship_type})"
+            )
+
+
+@mappings_app.command("explain")
+def mappings_explain(
+    rule_key: Annotated[str, typer.Argument(help="Mapping rule key")],
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Explain one mapping rule with pinned projection evidence enrichment."""
+    try:
+        payload = cast(dict[str, Any], _metric_service(registry_dir).explain_mapping(rule_key))
+    except KeyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except MappingEvidenceError as exc:
+        _metric_cli_error(exc)
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        typer.echo(f"rule {rule_key} state={payload['state']}")
+        typer.echo(f"relationship={payload['relationship_type']}")
+        enrichment = payload.get("pinned_evidence_enrichment")
+        if enrichment is not None:
+            typer.echo(f"pinned projection facts={len(enrichment.get('fact_occurrences', []))}")
+
+
+@mappings_app.command("export")
+def mappings_export(
+    fmt: Annotated[str, typer.Option("--format", help="json | markdown")] = "json",
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+) -> None:
+    """Export mapping audit ledger from Git (DB-free)."""
+    service = _metric_service(registry_dir)
+    if fmt == "json":
+        payload = service.export_mappings_audit()
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    elif fmt == "markdown":
+        typer.echo(service.export_mappings_audit_markdown())
+    else:
+        typer.echo(f"unsupported format: {fmt}", err=True)
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

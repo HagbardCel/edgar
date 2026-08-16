@@ -238,7 +238,8 @@ def _parse_filed_date(value: str | None, *, field: str) -> date | None:
         return None
     if "T" in value:
         raise SemanticProjectionConflict(
-            f"context {field} is dateTime and cannot be stored under arelle-semantic-v1: {value!r}"
+            f"context {field} is dateTime and cannot be stored under the active "
+            f"semantic projection policy: {value!r}"
         )
     return date.fromisoformat(value)
 

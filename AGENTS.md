@@ -6,9 +6,12 @@ Build a reproducible, point-in-time-aware platform for SEC company filings.
 
 The system preserves immutable filing evidence; parses deterministic document structure and XBRL semantics; creates versioned canonical metrics; joins filings to historical securities and market outcomes; and supports reproducible quantitative and textual research.
 
-The current implementation phase is **Phase 1D: Acceptance & Hardening**.
+**Phase 2A is complete.** Current activity is **Phase 2B planning/preparation**.
+Do not implement Phase 2B applicability or candidate-selection behavior until the
+Phase 2B plan is frozen. Phase 2A registry invariants remain in force.
 
-Phase 1 foundations remain in force. See `docs/phase-1-plan.md`.
+Phase 1 foundations remain in force. See `docs/phase-2-plan.md` (completed
+Phase 2A contract) and [ADR 0010](docs/adr/0010-curated-semantic-registry.md).
 
 Optimize for:
 
@@ -29,7 +32,7 @@ Do not optimize for breadth or ingestion speed before the relevant phase gate is
 Before changing code:
 
 1. Read this file.
-2. Read `docs/phase-1-plan.md`.
+2. Read `docs/phase-2-plan.md` (completed Phase 2A contract) and `docs/phase-1-plan.md`.
 3. Read `docs/project-roadmap.md`.
 4. Read `docs/architecture.md` and `docs/fixture-policy.md`.
 5. Read `docs/data-model.md`.
@@ -37,7 +40,9 @@ Before changing code:
 7. Read relevant ADRs under `docs/adr/`.
 8. Inspect nearest tests and interfaces.
 9. Check the git diff before editing.
-10. Keep the change within the active phase unless the task explicitly changes scope.
+10. Keep the change within completed Phase 2A invariants / Phase 2B planning
+    boundaries unless the task explicitly changes scope. Do not implement
+    Phase 2B until its plan is frozen.
 
 Priority when requirements conflict:
 
@@ -49,6 +54,28 @@ Priority when requirements conflict:
 6. convenience
 
 Never infer success from plausible code. Run the relevant checks.
+
+---
+
+## Phase 2A invariants
+
+Phase 2A is complete. Continue to maintain these invariants (Phase 1 foundations
+remain in force):
+
+- Git-authoritative `semantic-registry/` (families, 20 v1 metric definitions, curated mapping rules)
+- `definition_version` economic semantics and whole-registry `registry_hash`
+- deterministic `bundle_fingerprint` evidence identity in `src/edgar/domain/bundle.py`
+- `ProjectionConceptEvidence` only for v1 mapping evidence
+- `edgar metrics list|show` and `edgar mappings list|export|explain` (explain = pinned evidence only)
+- immutable mapping history via Git/policy (supersession graph)
+
+Do not add without an explicit frozen Phase 2B (or later) plan:
+
+- PostgreSQL registry tables, sync, revision log, or format-version migration framework
+- scope-based applicability in explain (Phase 2B)
+- `metric_observation` or canonical fact acceptance (Phase 2C)
+- automated mapping candidates or precedence among current rules
+- LLM auto-approval of mappings
 
 ---
 
