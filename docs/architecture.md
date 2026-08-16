@@ -43,10 +43,9 @@ The **immutable FilingBundle** is the offline boundary; PostgreSQL holds
 
 ```text
 SEC → Acquisition → Immutable FilingBundle (filesystem)
-         └─ offline ─┬─ Arelle worker (operation=extract) ─┐
-                     └─ Document parser ───────────────────┤
-                                      ↓
-                         source.* catalog + extraction
+         └─ offline ─┬─ Arelle worker (operation=extract → ReportExtraction)
+                     ├─ document blocks/sections
+                     └─ atomic persist_extraction → source.*
                                       ↓
                     metrics/mappings (Git registry; explain on source.*)
 ```

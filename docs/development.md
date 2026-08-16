@@ -41,6 +41,7 @@ EDGAR_TEST_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar_te
   uv run pytest -q -m "database and not network"
 uv run pytest -q -m "not network and not database"
 uv run ruff check .
+make corpus-acceptance   # six-accession local corpus; alias: phase1-corpus-acceptance
 ```
 
 Integration fixtures call `reset_test_database` so a stale Phase-1 stamp cannot
@@ -50,4 +51,6 @@ poison `upgrade head`.
 
 - No dual-write to Phase-1 projection tables.
 - No `scripts/spikes/` imports from production `src/`.
-- Offline extract uses the isolated Arelle worker (`operation=extract`).
+- Offline extract uses the isolated Arelle worker (`operation=extract`) and a
+  native lossless `ReportExtraction` wire (`extraction_payload`).
+- Fatality is fail-closed; persist refuses `severity="fatal"` issues.

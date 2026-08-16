@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from edgar.config import Settings
@@ -24,6 +24,11 @@ from edgar.corpus_acceptance import (
     CorpusSourceFiling,
     SourceCanonicalSnapshot,
     coverage_unmet_issues,
+    evaluate_corpus_role_probes,
+    evaluate_taxonomy_transition_probe,
+    layer_a_completeness_issues,
+    load_corpus_probes,
+    report_count_matrix,
     resolve_published_bundle,
     source_canonical_snapshot,
     validate_corpus_bundle_identity,
@@ -36,6 +41,7 @@ from edgar.storage.objects import ObjectStore
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CORPUS_PATH = _REPO_ROOT / "fixtures" / "corpus.toml"
+_PROBES_PATH = _REPO_ROOT / "fixtures" / "acceptance" / "corpus_probes.json"
 
 
 @dataclass
@@ -47,6 +53,9 @@ class PassResult:
     fact_count: int | None
     block_count: int | None
     section_count: int | None
+    report_probes: list[dict[str, Any]] = field(default_factory=list)
+    report_matrices: list[dict[str, Any]] = field(default_factory=list)
+    layer_a_ok: bool = False
 
 
 @dataclass
@@ -91,9 +100,13 @@ def _empty_report(settings: Settings) -> dict[str, Any]:
             "class_a_met": False,
         },
         "acceptance_gates": {
-            "A_real_corpus": {},
-            "B_committed_tests": "make phase1-acceptance (unit + contract + integration)",
-            "C_informational": ["continuation_provenance", "real_corpus_awkward_html"],
+            "A_internal_source_completeness": (
+                "arelle_item_fact_count == len(facts) == persisted source.fact"
+            ),
+            "B_reextraction_idempotency": "first V2 snapshot counts/probes == second",
+            "C_cutover_preservation": str(_PROBES_PATH),
+            "committed_tests": "make phase1-acceptance (unit + contract + integration)",
+            "informational": ["continuation_provenance", "real_corpus_awkward_html"],
         },
     }
 
@@ -102,6 +115,7 @@ def _run_pipeline_pass(
     *,
     bundle_dir: Path,
     extract: SourceExtractService,
+    engine: Engine,
     source: str,
 ) -> tuple[PassResult | None, list[AcceptanceIssue]]:
     issues: list[AcceptanceIssue] = []
@@ -128,6 +142,17 @@ def _run_pipeline_pass(
         )
         return None, issues
 
+    report_probes = [asdict(p) for p in result.report_probes]
+    with engine.connect() as conn:
+        matrices = report_count_matrix(conn, result.filing_id)
+    layer_a = layer_a_completeness_issues(
+        report_probes=report_probes,
+        report_matrices=matrices,
+        source=source,
+    )
+    if layer_a:
+        return None, layer_a
+
     return (
         PassResult(
             catalog_reused=result.catalog_reused,
@@ -137,6 +162,9 @@ def _run_pipeline_pass(
             fact_count=result.persist.fact_count,
             block_count=result.persist.block_count,
             section_count=result.persist.section_count,
+            report_probes=report_probes,
+            report_matrices=matrices,
+            layer_a_ok=True,
         ),
         [],
     )
@@ -238,11 +266,23 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
     store = ObjectStore(data_root)
     repo = BundleRepository(data_root, store)
     engine = create_engine(settings.require_database_url(), future=True)
-    extract = SourceExtractService(settings, engine=engine, bundles=repo)
+    extract = SourceExtractService(
+        settings,
+        engine=engine,
+        bundles=repo,
+        timeout_seconds=1800.0,
+    )
+    probes = load_corpus_probes(_PROBES_PATH)
 
     statuses: list[FilingRunStatus] = []
     source_filings: list[CorpusSourceFiling] = []
     source_snapshots: dict[str, dict[str, Any]] = {}
+    role_to_filing_id: dict[str, int] = {}
+    layer_summaries: dict[str, Any] = {
+        "A_internal_source_completeness": {},
+        "B_reextraction_idempotency": {},
+        "C_cutover_preservation": {"fixture_probes": probes.get("fixture_probes", [])},
+    }
 
     for filing in manifest.filings:
         status = FilingRunStatus(
@@ -290,6 +330,7 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
         first, first_issues = _run_pipeline_pass(
             bundle_dir=bundle_dir,
             extract=extract,
+            engine=engine,
             source=source,
         )
         if first_issues:
@@ -304,6 +345,11 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
         status.cataloged = True
         status.extracted = True
         status.fact_count = first.fact_count
+        layer_summaries["A_internal_source_completeness"][filing.accession] = {
+            "ok": first.layer_a_ok,
+            "report_probes": first.report_probes,
+            "report_matrices": first.report_matrices,
+        }
 
         with engine.connect() as conn:
             first_snapshot_obj = source_canonical_snapshot(conn, first.filing_id)
@@ -312,10 +358,22 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
                 first_snapshot_obj.extraction.concept_declaration_count
             )
             first.concept_declaration_count = status.concept_declaration_count
+            probe_issues = evaluate_corpus_role_probes(
+                conn,
+                filing_id=first.filing_id,
+                role=filing.role,
+                probes=probes,
+                source=source,
+            )
+        if probe_issues:
+            status.issues.extend(probe_issues)
+            statuses.append(status)
+            continue
 
         second, second_issues = _run_pipeline_pass(
             bundle_dir=bundle_dir,
             extract=extract,
+            engine=engine,
             source=source,
         )
         if second_issues:
@@ -335,12 +393,31 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
             snapshots_match=first_snapshot == second_snapshot,
             source=source,
         )
+        if first.report_probes != second.report_probes:
+            idempotency_issues.append(
+                AcceptanceIssue(
+                    component="idempotency",
+                    code="LAYER_B_REPORT_PROBES_CHANGED",
+                    message="report completeness probes changed between passes",
+                    source=source,
+                )
+            )
         if idempotency_issues:
             status.issues.extend(idempotency_issues)
             statuses.append(status)
             continue
 
         status.idempotent = True
+        layer_summaries["B_reextraction_idempotency"][filing.accession] = {
+            "ok": True,
+            "first_snapshot": first_snapshot,
+            "second_snapshot": second_snapshot,
+        }
+        layer_summaries["C_cutover_preservation"][filing.accession] = {
+            "ok": True,
+            "role": filing.role,
+            "report_matrices": second.report_matrices,
+        }
         source_filings.append(
             CorpusSourceFiling(
                 role=filing.role,
@@ -352,18 +429,35 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
                 filing_id=second.filing_id,
             )
         )
+        role_to_filing_id[filing.role] = second.filing_id
         source_snapshots[filing.accession] = second_snapshot
         statuses.append(status)
 
     report = _empty_report(settings)
     report["filings"] = [_filing_report(status) for status in statuses]
 
+    with engine.connect() as conn:
+        taxonomy_issues = evaluate_taxonomy_transition_probe(
+            conn,
+            role_to_filing_id=role_to_filing_id,
+            probes=probes,
+            source=str(_PROBES_PATH),
+        )
+    if taxonomy_issues:
+        report["issues"].extend(taxonomy_issues)
+        layer_summaries["C_cutover_preservation"]["taxonomy_transition"] = {
+            "ok": False,
+            "issues": [_issue_dict(i) for i in taxonomy_issues],
+        }
+    else:
+        layer_summaries["C_cutover_preservation"]["taxonomy_transition"] = {"ok": True}
+
     coverage: dict[str, Any] = {
         "source_snapshots": source_snapshots,
+        "comparison_layers": layer_summaries,
         "note": (
-            "Phase 2B Commit 5: acceptance counts source.* facts/contexts/"
-            "relationships/blocks/sections. Projection-table coverage queries "
-            "are deferred."
+            "Phase 2B follow-up: three comparison layers — A internal completeness, "
+            "B re-extraction idempotency, C committed cutover probes."
         ),
     }
     class_a: dict[str, Any] = {

@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "description": "Layer-C cutover probes for real-corpus acceptance. Structural minima and fixture pointers; not a full DB dump.",
+  "fixture_probes": [
+    {
+      "id": "ixds_multi_document",
+      "test": "tests/contract/test_arelle_semantic_projection.py::test_ixds_multi_document_facts",
+      "covers": ["ixds_provenance", "document_uri_order"]
+    },
+    {
+      "id": "continuation_provenance",
+      "test": "tests/unit/test_source_extract_adapt.py::test_report_extraction_wire_round_trip",
+      "covers": ["continuation_provenance", "typed_dimension", "relationship_weight_order"]
+    },
+    {
+      "id": "dimensional_default",
+      "test": "tests/contract/test_arelle_semantic_projection.py::test_dimensional_defaults_not_invented",
+      "covers": ["explicit_dimensions"]
+    },
+    {
+      "id": "invalid_transform_counted",
+      "test": "tests/unit/test_source_extract_adapt.py::test_extract_filing_invalid_transform_facts_counted",
+      "covers": ["representable_unresolved_facts"]
+    },
+    {
+      "id": "non_dimensional_fatal",
+      "test": "tests/contract/test_arelle_semantic_projection.py::test_non_dimensional_context_fails",
+      "covers": ["fail_closed_fatality"]
+    },
+    {
+      "id": "fact_iterator_ordinal",
+      "test": "tests/contract/test_arelle_semantic_projection.py::test_fact_source_order_matches_iterator_not_locator_sort",
+      "covers": ["iterator_ordinal_source_order"]
+    }
+  ],
+  "corpus_roles": {
+    "prior_ebay_10k": {
+      "min_fact_count": 1,
+      "require_extension_concepts": true,
+      "require_presentation_relationships": true,
+      "require_calculation_relationships": true,
+      "require_definition_relationships": true,
+      "require_explicit_dimensions": true,
+      "require_fact_document_hash_link": true
+    },
+    "base_10k": {
+      "min_fact_count": 1,
+      "require_extension_concepts": true,
+      "require_presentation_relationships": true,
+      "require_calculation_relationships": true,
+      "require_definition_relationships": true,
+      "require_explicit_dimensions": true,
+      "require_fact_document_hash_link": true
+    },
+    "amendment_10ka": {
+      "min_fact_count": 1,
+      "require_presentation_relationships": true,
+      "require_fact_document_hash_link": true
+    },
+    "second_10k": {
+      "min_fact_count": 1,
+      "require_extension_concepts": true,
+      "require_presentation_relationships": true,
+      "require_calculation_relationships": true,
+      "require_definition_relationships": true,
+      "require_explicit_dimensions": true,
+      "require_fact_document_hash_link": true
+    },
+    "first_10q": {
+      "min_fact_count": 1,
+      "require_extension_concepts": true,
+      "require_presentation_relationships": true,
+      "require_explicit_dimensions": true,
+      "require_fact_document_hash_link": true
+    },
+    "second_10q": {
+      "min_fact_count": 1,
+      "require_extension_concepts": true,
+      "require_presentation_relationships": true,
+      "require_fact_document_hash_link": true
+    }
+  },
+  "taxonomy_transition": {
+    "roles": ["prior_ebay_10k", "base_10k"],
+    "require_distinct_us_gaap_years": true
+  }
+}
