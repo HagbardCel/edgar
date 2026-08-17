@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,27 +16,47 @@ from edgar.db.registry import (
     delete_canonical_metrics,
     fetch_canonical_metric,
     fetch_canonical_metrics,
+    fetch_chain,
+    fetch_concept_by_id,
     fetch_concept_by_qname,
+    fetch_concepts_by_ids,
     fetch_current_assertions,
+    fetch_dimensions_for_contexts,
+    fetch_facts_for_concept,
     fetch_issuer,
     fetch_mapping_assertion,
+    fetch_measures_for_units,
     insert_canonical_metric,
     insert_mapping_assertion,
+    list_current_assertions,
     lock_source_concept,
     referenced_metric_keys,
     successor_id,
     update_canonical_metric,
 )
 from edgar.registry.hashing import definition_hash
-from edgar.registry.interval import scopes_overlap
+from edgar.registry.interval import interval_contains, scopes_overlap
 from edgar.registry.loader import LoadedCanonicalRegistry, load_canonical_registry
 from edgar.registry.mapping import (
     CLAIM_FIELDS,
     MappingAssertionCreate,
     MappingAssertionRevision,
     MappingEvidenceItem,
+    parse_clark_qname,
 )
 from edgar.registry.models import CanonicalMetric, RegistryValidationError
+from edgar.registry.views import (
+    DEFAULT_SHOW_FACT_LIMIT,
+    AffectedFactSummary,
+    DimensionMemberView,
+    MappingAssertionView,
+    MappingFactView,
+    MappingReport,
+    MappingScopeView,
+    SourceConceptView,
+    TargetMetricView,
+    UnitMeasureView,
+)
 
 
 class RegistryError(RuntimeError):
@@ -374,6 +395,335 @@ class RegistryService:
             }
         )
         return insert_mapping_assertion(conn, payload)
+
+    def get_mapping(self, assertion_id: int, *, include_facts: bool = False) -> MappingReport:
+        engine = self._require_engine()
+        with engine.connect() as conn:
+            return self._get_mapping(conn, assertion_id, include_facts=include_facts)
+
+    def list_mappings(
+        self,
+        *,
+        status: str | None = None,
+        relation: str | None = None,
+        metric_key: str | None = None,
+        issuer_cik: str | None = None,
+        concept: str | None = None,
+    ) -> list[MappingAssertionView]:
+        engine = self._require_engine()
+        with engine.connect() as conn:
+            return self._list_mappings(
+                conn,
+                status=status,
+                relation=relation,
+                metric_key=metric_key,
+                issuer_cik=issuer_cik,
+                concept=concept,
+            )
+
+    def mapping_history(self, assertion_id: int) -> list[MappingAssertionView]:
+        engine = self._require_engine()
+        with engine.connect() as conn:
+            chain = fetch_chain(conn, assertion_id)
+            if not chain:
+                raise MappingDecisionError(f"mapping assertion {assertion_id} not found")
+            return self._views_for_rows(conn, chain)
+
+    def affected_facts(self, assertion_id: int) -> list[MappingFactView]:
+        engine = self._require_engine()
+        with engine.connect() as conn:
+            row = fetch_mapping_assertion(conn, assertion_id)
+            if row is None:
+                raise MappingDecisionError(f"mapping assertion {assertion_id} not found")
+            return self._affected_facts(conn, row)
+
+    def _get_mapping(
+        self, conn: Connection, assertion_id: int, *, include_facts: bool
+    ) -> MappingReport:
+        row = fetch_mapping_assertion(conn, assertion_id)
+        if row is None:
+            raise MappingDecisionError(f"mapping assertion {assertion_id} not found")
+        chain = fetch_chain(conn, assertion_id)
+        history = self._views_for_rows(conn, chain)
+        named = next(view for view in history if view.id == assertion_id)
+        concept_row = fetch_concept_by_id(conn, row["source_concept_id"])
+        if concept_row is None:
+            raise MappingDecisionError(
+                f"source concept {row['source_concept_id']} not found for assertion {assertion_id}"
+            )
+        yaml_registry = self.load_yaml()
+        metric = yaml_registry.get(str(row["target_metric_key"]))
+        if metric is None:
+            raise MappingDecisionError(f"unknown canonical metric: {row['target_metric_key']}")
+        mirror = fetch_canonical_metric(conn, metric.key)
+        yaml_hash = definition_hash(metric)
+        facts = self._affected_facts(conn, row)
+        limit = None if include_facts else DEFAULT_SHOW_FACT_LIMIT
+        shown = facts if limit is None else facts[:limit]
+        accessions = {item.accession for item in facts}
+        issuers = {item.issuer_cik for item in facts}
+        return MappingReport(
+            mapping=named,
+            is_current=named.is_current,
+            current_revision_id=history[-1].id,
+            source_concept=_concept_view(concept_row),
+            target_metric=_target_metric_view(metric, yaml_hash),
+            yaml_definition_hash=yaml_hash,
+            definition_changed=str(row["target_definition_hash"]) != yaml_hash,
+            mirror_out_of_sync=(
+                mirror is None or row_mirror_payload(mirror) != mirror_payload(metric)
+            ),
+            scope=named.scope,
+            rationale=named.rationale,
+            evidence=named.evidence,
+            history=tuple(history),
+            affected_fact_summary=AffectedFactSummary(
+                count=len(facts),
+                shown=len(shown),
+                truncated=len(shown) < len(facts),
+                accession_count=len(accessions),
+                issuer_count=len(issuers),
+            ),
+            affected_facts=tuple(shown),
+        )
+
+    def _list_mappings(
+        self,
+        conn: Connection,
+        *,
+        status: str | None,
+        relation: str | None,
+        metric_key: str | None,
+        issuer_cik: str | None,
+        concept: str | None,
+    ) -> list[MappingAssertionView]:
+        concept_id = None
+        if concept is not None:
+            try:
+                namespace_uri, local_name = parse_clark_qname(concept)
+            except ValueError as exc:
+                raise MappingDecisionError(str(exc)) from exc
+            found = fetch_concept_by_qname(conn, namespace_uri, local_name)
+            if found is None:
+                return []
+            concept_id = found["id"]
+        rows = list_current_assertions(
+            conn,
+            status=status,
+            relation=relation,
+            metric_key=metric_key,
+            issuer_cik=issuer_cik,
+            concept_id=concept_id,
+        )
+        views = self._views_for_rows(conn, rows)
+        return sorted(views, key=_assertion_sort_key)
+
+    def _views_for_rows(
+        self, conn: Connection, rows: list[dict[str, Any]]
+    ) -> list[MappingAssertionView]:
+        concept_ids = [row["source_concept_id"] for row in rows]
+        concepts = fetch_concepts_by_ids(conn, concept_ids)
+        current_ids = {item["id"] for item in fetch_current_assertions(conn)}
+        views: list[MappingAssertionView] = []
+        for row in rows:
+            concept = concepts.get(row["source_concept_id"])
+            if concept is None:
+                raise MappingDecisionError(
+                    f"source concept {row['source_concept_id']} not found for assertion {row['id']}"
+                )
+            views.append(_assertion_view(row, concept, is_current=row["id"] in current_ids))
+        return views
+
+    def _affected_facts(self, conn: Connection, assertion: dict[str, Any]) -> list[MappingFactView]:
+        issuer_cik = assertion["issuer_cik"] if assertion["scope_kind"] == "issuer" else None
+        rows = fetch_facts_for_concept(
+            conn,
+            concept_id=assertion["source_concept_id"],
+            issuer_cik=issuer_cik,
+        )
+        matching = [
+            row
+            for row in rows
+            if interval_contains(
+                valid_from=_as_date(assertion["valid_from"]),
+                valid_to=_as_date(assertion["valid_to"]),
+                report_period_end=_as_date(row["report_period_end"]),
+            )
+        ]
+        context_ids = [int(row["context_id"]) for row in matching]
+        unit_ids = [int(row["unit_id"]) for row in matching if row["unit_id"] is not None]
+        dimensions = fetch_dimensions_for_contexts(conn, context_ids)
+        measures = fetch_measures_for_units(conn, unit_ids)
+        facts = [
+            _fact_view(
+                row,
+                dimensions=dimensions.get(int(row["context_id"]), []),
+                measures=(
+                    measures.get(int(row["unit_id"]), []) if row["unit_id"] is not None else []
+                ),
+            )
+            for row in matching
+        ]
+        return sorted(facts, key=_fact_sort_key)
+
+
+def _clark(namespace_uri: str | None, local_name: str) -> str:
+    if namespace_uri:
+        return f"{{{namespace_uri}}}{local_name}"
+    return local_name
+
+
+def _as_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value))
+
+
+def _locator_sort_key(locator: Any) -> str:
+    if locator is None:
+        return ""
+    return json.dumps(locator, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _assertion_sort_key(view: MappingAssertionView) -> tuple[str, str, str, str, str, str, int]:
+    ns, local = parse_clark_qname(view.source_concept)
+    return (
+        ns,
+        local,
+        view.scope.kind,
+        view.scope.issuer_cik or "",
+        view.target_metric_key,
+        view.relation,
+        view.id,
+    )
+
+
+def _fact_sort_key(
+    fact: MappingFactView,
+) -> tuple[str, bool, date, str, str, int]:
+    period = fact.report_period_end
+    return (
+        fact.accession,
+        period is None,
+        period or date.min,
+        fact.source_document or "",
+        _locator_sort_key(fact.source_locator),
+        fact.fact_id,
+    )
+
+
+def _concept_view(row: dict[str, Any]) -> SourceConceptView:
+    namespace_uri = str(row["namespace_uri"])
+    local_name = str(row["local_name"])
+    return SourceConceptView(
+        id=row["id"],
+        namespace_uri=namespace_uri,
+        local_name=local_name,
+        clark_qname=_clark(namespace_uri, local_name),
+    )
+
+
+def _target_metric_view(metric: CanonicalMetric, yaml_hash: str) -> TargetMetricView:
+    return TargetMetricView(
+        key=metric.key,
+        name=metric.name,
+        kind=metric.kind,
+        statement=metric.statement,
+        period_type=metric.period_type,
+        value_kind=metric.value_kind,
+        unit_dimension=metric.unit_dimension,
+        definition=metric.definition,
+        includes=metric.includes,
+        excludes=metric.excludes,
+        definition_hash=yaml_hash,
+    )
+
+
+def _scope_view(row: dict[str, Any]) -> MappingScopeView:
+    return MappingScopeView(
+        kind=row["scope_kind"],
+        issuer_cik=row["issuer_cik"],
+        valid_from=_as_date(row["valid_from"]),
+        valid_to=_as_date(row["valid_to"]),
+    )
+
+
+def _assertion_view(
+    row: dict[str, Any], concept: dict[str, Any], *, is_current: bool
+) -> MappingAssertionView:
+    evidence_raw = row["evidence"] or []
+    evidence = tuple(MappingEvidenceItem.model_validate(item) for item in evidence_raw)
+    return MappingAssertionView(
+        id=int(row["id"]),
+        supersedes_id=None if row["supersedes_id"] is None else int(row["supersedes_id"]),
+        is_current=is_current,
+        source_concept_id=row["source_concept_id"],
+        source_concept=_clark(str(concept["namespace_uri"]), str(concept["local_name"])),
+        target_metric_key=str(row["target_metric_key"]),
+        target_definition_hash=str(row["target_definition_hash"]),
+        relation=row["relation"],
+        scope=_scope_view(row),
+        status=row["status"],
+        method=row["method"],
+        rationale=row["rationale"],
+        evidence=evidence,
+        created_at=row["created_at"],
+        created_by=str(row["created_by"]),
+    )
+
+
+def _dimension_view(row: dict[str, Any]) -> DimensionMemberView:
+    member: str | None = None
+    if row["member_local_name"] is not None:
+        member = _clark(row["member_namespace_uri"], str(row["member_local_name"]))
+    typed = row["typed_member"]
+    return DimensionMemberView(
+        dimension=_clark(str(row["dimension_namespace_uri"]), str(row["dimension_local_name"])),
+        member=member,
+        member_kind=str(row["member_kind"]),
+        context_element=str(row["context_element"]),
+        typed_member=dict(typed) if typed else None,
+    )
+
+
+def _measure_view(row: dict[str, Any]) -> UnitMeasureView:
+    return UnitMeasureView(
+        side=str(row["side"]),
+        ordinal=int(row["ordinal"]),
+        measure=_clark(row["measure_namespace_uri"], str(row["measure_local_name"])),
+    )
+
+
+def _fact_view(
+    row: dict[str, Any],
+    *,
+    dimensions: list[dict[str, Any]],
+    measures: list[dict[str, Any]],
+) -> MappingFactView:
+    locator = row["source_locator"]
+    return MappingFactView(
+        fact_id=int(row["fact_id"]),
+        accession=str(row["accession"]),
+        issuer_cik=str(row["issuer_cik"]),
+        report_period_end=_as_date(row["report_period_end"]),
+        period_kind=str(row["period_kind"]),
+        period_instant=row["instant_lexical"],
+        period_start=row["start_lexical"],
+        period_end=row["end_lexical"],
+        source_document=row["source_document"],
+        source_locator=dict(locator) if locator else None,
+        dimensions=tuple(_dimension_view(item) for item in dimensions),
+        unit_measures=tuple(_measure_view(item) for item in measures),
+        raw_lexical_value=row["raw_lexical_value"],
+        resolved_value_kind=row["resolved_value_kind"],
+        resolved_numeric=row["resolved_numeric"],
+        resolved_text=row["resolved_text"],
+        is_nil=bool(row["is_nil"]),
+    )
 
 
 def format_sync_result(result: CanonicalSyncResult) -> str:
