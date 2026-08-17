@@ -9,45 +9,57 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from edgar.cli import app
-from edgar.metrics.registry import EXPECTED_V1_METRICS
+from tests.unit.registry.test_canonical_metrics import EXPECTED_CANONICAL_METRIC_KEYS
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_REGISTRY_DIR = _REPO_ROOT / "semantic-registry"
+_LEGACY_REGISTRY_DIR = _REPO_ROOT / "semantic-registry"
 runner = CliRunner()
 
 
 def _empty_registry(tmp_path: Path) -> Path:
     dest = tmp_path / "empty-registry"
     dest.mkdir()
-    shutil.copy2(_REGISTRY_DIR / "metric-families.json", dest / "metric-families.json")
-    shutil.copy2(_REGISTRY_DIR / "metric-definitions.json", dest / "metric-definitions.json")
+    shutil.copy2(_LEGACY_REGISTRY_DIR / "metric-families.json", dest / "metric-families.json")
+    shutil.copy2(_LEGACY_REGISTRY_DIR / "metric-definitions.json", dest / "metric-definitions.json")
     (dest / "mapping-rules.json").write_text('{"rules": []}\n', encoding="utf-8")
     return dest
 
 
-def test_metrics_list_json_includes_registry_hash_and_v1_set() -> None:
+def test_registry_validate_prints_count_and_semantic_hash() -> None:
+    result = runner.invoke(app, ["registry", "validate"])
+    assert result.exit_code == 0, result.output
+    assert "metrics=39" in result.output
+    assert "semantic_registry_hash=" in result.output
+
+
+def test_metrics_list_json_includes_semantic_hash_and_canonical_keys() -> None:
     result = runner.invoke(app, ["metrics", "list", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["registry_hash"]
-    assert payload["count"] == 20
-    codes = {row["metric_code"] for row in payload["metrics"]}
-    assert codes == EXPECTED_V1_METRICS
+    assert payload["semantic_registry_hash"]
+    assert payload["count"] == 39
+    keys = {row["key"] for row in payload["metrics"]}
+    assert keys == EXPECTED_CANONICAL_METRIC_KEYS
 
 
 def test_metrics_show_json_includes_full_contract() -> None:
-    result = runner.invoke(
-        app,
-        ["metrics", "show", "operating_company_revenue", "--version", "1", "--json"],
-    )
+    result = runner.invoke(app, ["metrics", "show", "revenue", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["registry_hash"]
+    assert payload["semantic_registry_hash"]
     assert payload["count"] == 1
-    definition = payload["definitions"][0]
-    assert definition["metric_code"] == "operating_company_revenue"
-    assert definition["economic_definition"]
-    assert definition["constraints"]["inclusion_rules"]
+    definition = payload["metrics"][0]
+    assert definition["key"] == "revenue"
+    assert definition["definition"]
+    assert definition["includes"]
+    assert definition["excludes"]
+    assert definition["definition_hash"]
+
+
+def test_metrics_show_unknown_metric_exits_nonzero() -> None:
+    result = runner.invoke(app, ["metrics", "show", "not_a_metric"])
+    assert result.exit_code == 1
+    assert "unknown metric" in result.output
 
 
 def test_mappings_list_json_includes_registry_hash() -> None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, NoReturn, cast
 
 import typer
 from alembic import command
@@ -20,17 +20,26 @@ from edgar.ingestion.acquisition import AcquisitionService
 from edgar.ingestion.catalog import CatalogService
 from edgar.ingestion.source_extract import SourceExtractError, SourceExtractService
 from edgar.metrics.service import MetricRegistryService
+from edgar.registry.loader import (
+    LoadedCanonicalRegistry,
+    load_canonical_registry,
+    metric_list_payload,
+    metric_show_payload,
+)
+from edgar.registry.models import RegistryValidationError
 
 app = typer.Typer(name="edgar", help="SEC EDGAR filing acquisition and XBRL evidence platform.")
 filings_app = typer.Typer(help="Filing acquisition, catalog, and extract workflows.")
 db_app = typer.Typer(help="PostgreSQL source.* database workflows.")
 documents_app = typer.Typer(help="Document section inspection (source.*).")
-metrics_app = typer.Typer(help="Metric ontology registry workflows (Git-authoritative).")
+metrics_app = typer.Typer(help="Canonical metric registry workflows (Git-authoritative YAML).")
+registry_app = typer.Typer(help="Canonical metric YAML validation and database sync.")
 mappings_app = typer.Typer(help="Curated XBRL concept mapping audit workflows.")
 app.add_typer(filings_app, name="filings")
 app.add_typer(db_app, name="db")
 app.add_typer(documents_app, name="documents")
 app.add_typer(metrics_app, name="metrics")
+app.add_typer(registry_app, name="registry")
 app.add_typer(mappings_app, name="mappings")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -52,9 +61,16 @@ def _metric_service(registry_dir: Path | None = None) -> MetricRegistryService:
     return MetricRegistryService(Settings(), registry_dir=registry_dir)
 
 
-def _metric_cli_error(exc: Exception) -> None:
+def _metric_cli_error(exc: Exception) -> NoReturn:
     typer.echo(str(exc), err=True)
     raise typer.Exit(code=1) from exc
+
+
+def _load_canonical(registry_dir: Path | None) -> LoadedCanonicalRegistry:
+    try:
+        return load_canonical_registry(registry_dir)
+    except (OSError, RegistryValidationError) as exc:
+        _metric_cli_error(exc)
 
 
 @db_app.command("check")
@@ -226,68 +242,53 @@ def documents_sections(
             )
 
 
+@registry_app.command("validate")
+def registry_validate(
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+) -> None:
+    """Load and validate registry/metrics.yml (no database)."""
+    loaded = _load_canonical(registry_dir)
+    typer.echo(f"metrics={len(loaded.metrics)}")
+    typer.echo(f"semantic_registry_hash={loaded.semantic_registry_hash}")
+
+
 @metrics_app.command("list")
 def metrics_list(
     registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
-    """List metric definitions from the Git registry."""
-    service = _metric_service(registry_dir)
-    registry = service.load_git_registry()
-    rows = sorted(registry.definitions, key=lambda d: (d.metric_code, d.definition_version))
-    payload = {
-        "registry_hash": registry.registry_hash,
-        "metrics": [
-            {
-                "metric_code": r.metric_code,
-                "definition_version": r.definition_version,
-                "name": r.name,
-                "family_code": r.family_code,
-                "period_type": r.period_type,
-                "dimension_policy": r.dimension_policy,
-            }
-            for r in rows
-        ],
-        "count": len(rows),
-    }
+    """List canonical metric definitions from metrics.yml."""
+    loaded = _load_canonical(registry_dir)
+    payload = metric_list_payload(loaded)
     if as_json:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        typer.echo(f"metrics={len(rows)} registry_hash={registry.registry_hash}")
-        for row in rows:
-            typer.echo(f"  {row.metric_code}@{row.definition_version} ({row.name})")
+        return
+    typer.echo(
+        f"metrics={payload['count']} semantic_registry_hash={payload['semantic_registry_hash']}"
+    )
+    for row in payload["metrics"]:
+        typer.echo(f"  {row['key']} ({row['name']})")
 
 
 @metrics_app.command("show")
 def metrics_show(
-    metric_code: Annotated[str, typer.Argument(help="Metric code")],
-    version: Annotated[
-        int | None,
-        typer.Option("--version", help="Definition version (required if multiple exist)"),
-    ] = None,
+    metric_key: Annotated[str, typer.Argument(help="Canonical metric key")],
     registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
-    """Show one metric definition contract."""
-    service = _metric_service(registry_dir)
-    registry = service.load_git_registry()
-    try:
-        rows = service.get_metric(metric_code, definition_version=version, registry=registry)
-    except ValueError as exc:
-        _metric_cli_error(exc)
-    if not rows:
-        typer.echo(f"unknown metric: {metric_code}", err=True)
+    """Show one canonical metric definition contract."""
+    loaded = _load_canonical(registry_dir)
+    metric = loaded.get(metric_key)
+    if metric is None:
+        typer.echo(f"unknown metric: {metric_key}", err=True)
         raise typer.Exit(code=1)
-    payload = {
-        "registry_hash": registry.registry_hash,
-        "definitions": [r.model_dump(mode="json") for r in rows],
-        "count": len(rows),
-    }
+    payload = metric_show_payload(loaded, metric)
     if as_json:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        for row in rows:
-            typer.echo(f"{row.metric_code}@{row.definition_version}: {row.economic_definition}")
+        return
+    shown = payload["metrics"][0]
+    typer.echo(f"{shown['key']}: {shown['definition'].strip()}")
+    typer.echo(f"definition_hash={shown['definition_hash']}")
 
 
 @mappings_app.command("list")
