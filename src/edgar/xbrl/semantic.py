@@ -1,7 +1,7 @@
-"""Parent-side offline Arelle semantic projection adapter (ADR 0008 / 0009).
+"""Parent-side offline Arelle extraction adapter (ADR 0009 / 0011).
 
-Runs one isolated offline worker job with ``operation=semantic_projection``.
-The same load produces closure/replay evidence and plain semantic records.
+Runs one isolated offline worker job with ``operation=extract``.
+The same load produces closure/replay evidence and native ``ReportExtraction``.
 """
 
 from __future__ import annotations
@@ -10,16 +10,17 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-from edgar.domain.bundle import FilingBundle
+from edgar.domain.bundle import FilingBundle, XbrlReportInput
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.closure import DEFAULT_WORKER_TIMEOUT_SECONDS, run_worker_process
-from edgar.xbrl.extract import semantic_status
-from edgar.xbrl.records import SemanticIssueRecord, SemanticProjectionData
+from edgar.xbrl.records import SemanticIssueRecord
 from edgar.xbrl.replay_normalize import NormalizedReplayView, normalize_replay_for_bundle
+from edgar.xbrl.source_records import ReportExtraction
+from edgar.xbrl.source_wire import SourceWireError, report_extraction_from_dict
 
 
-class SemanticWorkerError(RuntimeError):
-    """Offline semantic worker failed before a coherent projection existed."""
+class SourceExtractWorkerError(RuntimeError):
+    """Offline source extraction worker failed before a coherent report existed."""
 
     def __init__(
         self,
@@ -35,10 +36,13 @@ class SemanticWorkerError(RuntimeError):
         self.arelle_version = arelle_version
 
 
+# Historical alias used by a few tests during remount.
+SemanticWorkerError = SourceExtractWorkerError
+
+
 @dataclass(frozen=True)
-class SemanticWorkerResult:
-    data: SemanticProjectionData
-    status: str  # complete | incomplete
+class OfflineExtractResult:
+    report: ReportExtraction
     replay: NormalizedReplayView
     arelle_version: str
     raw_result: dict[str, Any]
@@ -48,23 +52,30 @@ def _deny_fetch(uri: str) -> dict[str, Any]:
     return {
         "type": "fetch_error",
         "uri": uri,
-        "error": "offline semantic projection does not permit parent fetches",
+        "error": "offline source extraction does not permit parent fetches",
     }
 
 
-def run_offline_semantic_projection(
+def run_offline_extract(
     bundle: FilingBundle,
     store: ObjectStore,
     *,
+    report_input: XbrlReportInput | dict[str, Any] | None = None,
     python_executable: str = sys.executable,
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
-) -> SemanticWorkerResult:
-    """Load the primary report offline and return validated semantic records."""
-    report_input = bundle.report_inputs[0]
+) -> OfflineExtractResult:
+    """Load one report offline and return native ``ReportExtraction``.
+
+    Defaults to ``bundle.report_inputs[0]``. Pass ``report_input`` to select a
+    specific report when the bundle carries more than one.
+    """
+    selected: XbrlReportInput | dict[str, Any]
+    selected = report_input if report_input is not None else bundle.report_inputs[0]
+    report_payload = dict(selected) if isinstance(selected, dict) else selected.to_dict()
     job = {
         "mode": "offline",
-        "operation": "semantic_projection",
-        "report_input": report_input.to_dict(),
+        "operation": "extract",
+        "report_input": report_payload,
         "object_store_root": str(store.data_root),
         "uri_bindings": [binding.to_dict() for binding in bundle.uri_bindings],
     }
@@ -76,8 +87,8 @@ def run_offline_semantic_projection(
             timeout_seconds=timeout_seconds,
         )
     except Exception as exc:
-        raise SemanticWorkerError(
-            f"semantic worker process failed: {type(exc).__name__}: {exc}",
+        raise SourceExtractWorkerError(
+            f"source extraction worker process failed: {type(exc).__name__}: {exc}",
             replay=NormalizedReplayView(
                 load_completed=False,
                 network_attempts=(),
@@ -92,8 +103,10 @@ def run_offline_semantic_projection(
             issues=(
                 SemanticIssueRecord(
                     severity="fatal",
-                    code="SEMANTIC_WORKER_PROCESS_FAILED",
-                    message=(f"semantic worker process failed: {type(exc).__name__}: {exc}"),
+                    code="SOURCE_EXTRACT_WORKER_PROCESS_FAILED",
+                    message=(
+                        f"source extraction worker process failed: {type(exc).__name__}: {exc}"
+                    ),
                 ),
             ),
             arelle_version=None,
@@ -103,8 +116,8 @@ def run_offline_semantic_projection(
     arelle_version = str(result.get("engine_version") or "") or None
 
     if not replay.replay_faithful:
-        raise SemanticWorkerError(
-            "offline semantic projection is not replay-faithful",
+        raise SourceExtractWorkerError(
+            "offline source extraction is not replay-faithful",
             replay=replay,
             arelle_version=arelle_version,
             issues=(
@@ -124,7 +137,7 @@ def run_offline_semantic_projection(
         )
 
     extraction_errors = tuple(result.get("semantic_extraction_errors") or ())
-    payload = result.get("semantic_payload")
+    payload = result.get("extraction_payload")
     if extraction_errors or not isinstance(payload, dict) or payload.get("extraction_failed"):
         issues: list[SemanticIssueRecord] = []
         if isinstance(payload, dict) and payload.get("issues"):
@@ -134,22 +147,36 @@ def run_offline_semantic_projection(
             issues.append(
                 SemanticIssueRecord(
                     severity="fatal",
-                    code="SEMANTIC_EXTRACTION_FAILED",
-                    message="; ".join(extraction_errors) or "semantic payload missing",
+                    code="SOURCE_EXTRACTION_FAILED",
+                    message="; ".join(extraction_errors) or "extraction payload missing",
                 )
             )
-        raise SemanticWorkerError(
-            "semantic extraction failed",
+        raise SourceExtractWorkerError(
+            "source extraction failed",
             replay=replay,
             issues=tuple(issues),
             arelle_version=arelle_version,
         )
 
-    data = SemanticProjectionData.from_dict(payload)
-    return SemanticWorkerResult(
-        data=data,
-        status=semantic_status(data),
+    try:
+        report = report_extraction_from_dict(payload)
+    except SourceWireError as exc:
+        raise SourceExtractWorkerError(
+            f"invalid extraction_payload: {exc}",
+            replay=replay,
+            issues=(
+                SemanticIssueRecord(
+                    severity="fatal",
+                    code="SOURCE_EXTRACTION_PAYLOAD_INVALID",
+                    message=str(exc),
+                ),
+            ),
+            arelle_version=arelle_version,
+        ) from exc
+
+    return OfflineExtractResult(
+        report=report,
         replay=replay,
-        arelle_version=str(arelle_version or data.engine_version),
+        arelle_version=str(arelle_version or report.arelle_version),
         raw_result=dict(result),
     )

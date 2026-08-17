@@ -1,6 +1,6 @@
 EDGAR_TEST_DATABASE_URL ?= postgresql+psycopg://edgar:edgar@localhost:5432/edgar_test
 
-.PHONY: bootstrap db-up migrate lint typecheck test check phase1-acceptance phase1-corpus-acceptance
+.PHONY: bootstrap db-up migrate lint typecheck test check phase1-acceptance corpus-acceptance phase1-corpus-acceptance
 
 bootstrap:
 	uv sync --extra dev --locked
@@ -36,5 +36,8 @@ phase1-acceptance:
 	  uv run pytest -q -m "not network" \
 	    --junitxml=var/reports/phase1-acceptance.xml
 
-phase1-corpus-acceptance:
+corpus-acceptance:
 	uv run python scripts/phase1_corpus_acceptance.py
+
+# Alias retained for older scripts/docs.
+phase1-corpus-acceptance: corpus-acceptance

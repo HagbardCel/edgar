@@ -1,8 +1,8 @@
-"""Arelle ``ModelXbrl`` → :class:`SemanticProjectionData` extraction (ADR 0008).
+"""Arelle ``ModelXbrl`` → native ``ReportExtraction`` (ADR 0011).
 
 This module is the only place that reads Arelle in-memory objects. Everything it
-emits is a plain record from :mod:`edgar.xbrl.records`, so no engine object can
-cross the adapter boundary.
+emits is a plain source-layer record from :mod:`edgar.xbrl.source_records`, so no
+engine object can cross the adapter boundary.
 
 Interpretation rules this extraction commits to:
 
@@ -11,10 +11,12 @@ Interpretation rules this extraction commits to:
   their primary binding; the Arelle IXDS surrogate is never a source document
   because it has no bytes of its own. An unattributable document is incoherent.
 - **Periods.** Period fields keep the *filed lexical* value of ``xbrli:instant``
-  / ``startDate`` / ``endDate``. Coherence is checked against Arelle's
-  unadjusted ``instantDate`` / ``endDate``; the midnight-adjusted
-  ``instantDatetime`` / ``endDatetime`` values are never read, so no filed date
-  is silently shifted by a day. A period Arelle cannot represent is incoherent.
+  / ``startDate`` / ``endDate``. Arelle determines period kind and whether the
+  context is representable. ``instantDatetime`` / ``endDatetime`` may be used
+  only to establish that Arelle successfully represents a dateTime-valued
+  boundary; they are never copied into source fields or compared as though
+  their calendar date were the filed lexical date. A period Arelle cannot
+  represent is incoherent.
 - **Dimensions.** Only *filed* occurrences are read, from ``segDimValues`` /
   ``scenDimValues`` plus ``errorDimValues`` (duplicate or unresolvable filed
   occurrences). ``dimValue()``, ``dimMemberQname(includeDefaults=True)``, and
@@ -59,11 +61,12 @@ from typing import Any, Literal, cast
 
 import lxml.etree as etree
 
+from edgar.domain.bundle import UriBinding, XbrlReportInput
+from edgar.xbrl._source_build import SourceBuildError, build_report_extraction
 from edgar.xbrl.arelle_env import arelle_version
 from edgar.xbrl.config import (
     SemanticConfig,
     build_semantic_config,
-    semantic_config_fingerprint,
 )
 from edgar.xbrl.diagnostics import UNSTRUCTURED_CODE, classify_diagnostic
 from edgar.xbrl.locators import LocatorError, element_locator
@@ -90,14 +93,13 @@ from edgar.xbrl.records import (
     ResolvedValueKind,
     RoleDeclarationRecord,
     SemanticIssueRecord,
-    SemanticProjectionData,
     SourceLocator,
     UnitMeasureRecord,
     UnitRecord,
     ValueStatus,
 )
+from edgar.xbrl.source_records import EXTRACTOR_VERSION, ReportExtraction
 from edgar.xbrl.uri import UriIdentityError, normalize_uri
-from edgar.xbrl.validate_records import validate_semantic_projection_data
 
 ENGINE_NAME = "arelle"
 
@@ -159,7 +161,7 @@ ENDPOINT_FAMILY_MISMATCH = "ENDPOINT_FAMILY_MISMATCH"
 MISSING_NETWORK_ROLE = "MISSING_NETWORK_ROLE"
 UNAVAILABLE_ARC_OCCURRENCE = "UNAVAILABLE_ARC_OCCURRENCE"
 
-# --- Incompleteness codes: evidence is kept, completeness is refused. --------
+# --- Incompleteness codes: evidence is kept; severity depends on V2 allow-list. -
 UNSUPPORTED_TUPLE_FACT = "UNSUPPORTED_TUPLE_FACT"
 UNSUPPORTED_FRACTION_FACT = "UNSUPPORTED_FRACTION_FACT"
 UNRESOLVED_REQUIRED_UNIT = "UNRESOLVED_REQUIRED_UNIT"
@@ -182,6 +184,25 @@ UNSUPPORTED_CYCLES_ALLOWED = "UNSUPPORTED_CYCLES_ALLOWED"
 UNSUPPORTED_RESOURCE_CLASS = "UNSUPPORTED_RESOURCE_CLASS"
 UNPRESERVED_REFERENCE_PART = "UNPRESERVED_REFERENCE_PART"
 BLOCKING_ENGINE_DIAGNOSTIC = "BLOCKING_ENGINE_DIAGNOSTIC"
+
+# Fail-closed: former Phase-1 incomplete codes are fatal unless listed here.
+NONFATAL_ISSUE_CODES: frozenset[str] = frozenset(
+    {
+        DEFERRED_ARCROLE,
+        UNSUPPORTED_ARCROLE,
+        EXCLUDED_ARCROLE,
+        UNSUPPORTED_TUPLE_FACT,
+        UNSUPPORTED_FRACTION_FACT,
+        UNSUPPORTED_INLINE_SIGN,
+        INVALID_INLINE_SCALE,
+        UNRESOLVED_INLINE_FORMAT,
+        UNAVAILABLE_FACT_LEXICAL_VALUE,
+        INEXACT_NUMERIC_VALUE,
+        UNSUPPORTED_RESOLVED_VALUE,
+        UNRESOLVED_REQUIRED_UNIT,
+        UNEXPECTED_UNIT_REFERENCE,
+    }
+)
 
 _SUPPORTED_CONCEPT_NETWORKS = frozenset({"presentation", "calculation", "definition"})
 
@@ -304,8 +325,13 @@ class _Extraction:
         *,
         locator: SourceLocator | None = None,
         context: Mapping[str, Any] | None = None,
-        severity: IssueSeverity = "fatal",
+        severity: IssueSeverity | None = None,
     ) -> None:
+        if severity is None:
+            if code in NONFATAL_ISSUE_CODES:
+                severity = "info" if code == EXCLUDED_ARCROLE else "warning"
+            else:
+                severity = "fatal"
         self.issues.append(
             SemanticIssueRecord(
                 severity=severity,
@@ -658,11 +684,14 @@ def _period_fields(
         return "forever", None, None, None
     if instant is not None:
         lexical = _text_content(instant).strip()
-        # instantDate is the unadjusted filed date; instantDatetime is never read.
-        if not lexical or getattr(context, "instantDate", None) is None:
+        representable = (
+            getattr(context, "instantDate", None) is not None
+            or getattr(context, "instantDatetime", None) is not None
+        )
+        if not lexical or not representable:
             extraction.incoherent(
                 INCOHERENT_CONTEXT_PERIOD,
-                f"instant period is not representable as a date: {lexical!r}",
+                f"instant period is not representable: {lexical!r}",
                 locator=locator,
             )
             return None
@@ -676,19 +705,15 @@ def _period_fields(
         return None
     start_lexical = _text_content(start).strip()
     end_lexical = _text_content(end).strip()
-    start_value = getattr(context, "startDatetime", None)
-    if not start_lexical or not end_lexical or start_value is None:
+    start_representable = getattr(context, "startDatetime", None) is not None
+    end_representable = (
+        getattr(context, "endDate", None) is not None
+        or getattr(context, "endDatetime", None) is not None
+    )
+    if not start_lexical or not end_lexical or not start_representable or not end_representable:
         extraction.incoherent(
             INCOHERENT_CONTEXT_PERIOD,
             f"duration period is not representable: {start_lexical!r}..{end_lexical!r}",
-            locator=locator,
-        )
-        return None
-    # endDate is the unadjusted filed date; endDatetime is never read.
-    if getattr(context, "endDate", None) is None:
-        extraction.incoherent(
-            INCOHERENT_CONTEXT_PERIOD,
-            f"duration end is not representable as a date: {end_lexical!r}",
             locator=locator,
         )
         return None
@@ -1253,7 +1278,12 @@ def _fact_records(
     context_locators: Mapping[str, SourceLocator],
     unit_locators: Mapping[str, SourceLocator],
     extraction: _Extraction,
-) -> tuple[FactRecord, ...]:
+) -> tuple[tuple[int, FactRecord], ...]:
+    """Authoritative item occurrences: ``(source_order, FactRecord)`` in yield order.
+
+    Every yielded item produces exactly one record with that iterator ordinal, or
+    extraction fails. Records are never sorted after ordinal assignment.
+    """
     undefined = list(getattr(model_xbrl, "undefinedFacts", None) or ())
     if undefined:
         extraction.incoherent(
@@ -1261,17 +1291,23 @@ def _fact_records(
             f"{len(undefined)} reported element(s) have no concept declaration in the DTS",
             context={"count": len(undefined)},
         )
-    records: list[FactRecord] = []
-    for fact in _iter_item_facts(getattr(model_xbrl, "facts", None) or (), extraction):
+    records: list[tuple[int, FactRecord]] = []
+    for source_order, fact in enumerate(
+        _iter_item_facts(getattr(model_xbrl, "facts", None) or (), extraction)
+    ):
         record = _fact_record(
             fact,
             context_locators=context_locators,
             unit_locators=unit_locators,
             extraction=extraction,
         )
-        if record is not None:
-            records.append(record)
-    records.sort(key=lambda item: item.source_locator.sort_key())
+        if record is None:
+            extraction.incoherent(
+                UNRESOLVED_FACT_CONCEPT,
+                f"item fact at source_order={source_order} is unrepresentable",
+            )
+            continue
+        records.append((source_order, record))
     return tuple(records)
 
 
@@ -1661,37 +1697,7 @@ def _relationship_projection(
             if record is not None:
                 relationships.append(record)
 
-    relationships.sort(
-        key=lambda item: (
-            item.network_type,
-            item.link_role_uri,
-            item.arcrole_uri,
-            item.source_concept.sort_key(),
-            item.target_concept.sort_key(),
-            item.source_locator.sort_key(),
-        )
-    )
-    labels.sort(
-        key=lambda item: (
-            item.concept.sort_key(),
-            item.link_role_uri,
-            item.arcrole_uri,
-            item.resource_role_uri or "",
-            item.xml_lang or "",
-            item.source_locator.sort_key(),
-            item.arc_locator.sort_key(),
-        )
-    )
-    references.sort(
-        key=lambda item: (
-            item.concept.sort_key(),
-            item.link_role_uri,
-            item.arcrole_uri,
-            item.resource_role_uri or "",
-            item.source_locator.sort_key(),
-            item.arc_locator.sort_key(),
-        )
-    )
+    # Emit-order source_order is assigned in build_report_extraction; do not sort.
     return _RelationshipProjection(
         relationships=tuple(relationships), labels=tuple(labels), references=tuple(references)
     )
@@ -1790,47 +1796,25 @@ def _issue_sort_key(issue: SemanticIssueRecord) -> tuple[str, str, str, str]:
     )
 
 
-def semantic_status(data: SemanticProjectionData) -> SemanticStatus:
-    """Semantic completeness of a record set (``semantic_projection`` status).
-
-    A projection is complete only when no issue refuses completeness and every
-    engine diagnostic is classified as complete-compatible (ADR 0008 §10). The
-    record set itself carries no status field: status belongs to the persisted
-    ``semantic_projection`` row assembled by the calling service.
-    """
-    if any(issue.severity == "fatal" for issue in data.issues):
-        return "incomplete"
-    if any(
-        classify_diagnostic(diagnostic) == "completeness_blocking"
-        for diagnostic in data.diagnostics
-    ):
-        return "incomplete"
-    return "complete"
-
-
-def extract_semantic_projection(
+def extract_report_extraction(
     model_xbrl: Any,
     *,
     bound_inputs: Any,
     primary_uris: frozenset[str] | set[str],
+    uri_bindings: Sequence[UriBinding],
+    report_input: XbrlReportInput | Mapping[str, Any],
     config: SemanticConfig | None = None,
-    engine_name: str = ENGINE_NAME,
     engine_version: str | None = None,
-) -> SemanticProjectionData:
-    """Project one loaded Arelle report into immutable semantic records.
+    extractor_version: str = EXTRACTOR_VERSION,
+) -> ReportExtraction:
+    """Extract one loaded Arelle report into native ``ReportExtraction``.
 
-    ``bound_inputs`` is the worker's bound-input view (``aliases`` / ``digests``)
-    and ``primary_uris`` is the authoritative set of ``UriBinding.document_uri``
-    values for the report's FilingBundle. Every emitted locator is attributed to
-    one of those URIs.
+    URI → FilingBundle logical_path provenance is resolved inside this function.
+    Every authoritative item-fact occurrence either becomes one ``FactRecord``
+    with that iterator ordinal, or extraction fails.
 
-    Raises :class:`SemanticExtractionError` when the projection would be
-    incoherent (unattributable documents, unrepresentable contexts or filed
-    dimensions, facts without a resolvable concept, context, or unit row) or when
-    the assembled record set fails
-    :func:`~edgar.xbrl.validate_records.validate_semantic_projection_data`.
-    Recoverable defects are returned as ``fatal`` issues instead; see
-    :func:`semantic_status`.
+    Raises :class:`SemanticExtractionError` on incoherence, unrepresentable
+    facts, completeness-blocking diagnostics, or any fatal issue (fail-closed).
     """
     active_config = config if config is not None else build_semantic_config()
     extraction = _Extraction(
@@ -1840,11 +1824,9 @@ def extract_semantic_projection(
 
     concept_declarations = _concept_declarations(model_xbrl, extraction)
     declared = frozenset(declaration.concept for declaration in concept_declarations)
-    role_declarations = _role_declarations(model_xbrl, extraction)
-    arcrole_declarations = _arcrole_declarations(model_xbrl, extraction)
     contexts = _context_projection(model_xbrl, extraction)
     units = _unit_projection(model_xbrl, extraction)
-    facts = _fact_records(
+    ordered_facts = _fact_records(
         model_xbrl,
         context_locators=contexts.locators,
         unit_locators=units.locators,
@@ -1857,7 +1839,7 @@ def extract_semantic_projection(
             extraction.incomplete(
                 BLOCKING_ENGINE_DIAGNOSTIC,
                 f"engine diagnostic {diagnostic.code} is not classified as "
-                "compatible with a complete projection",
+                "compatible with a complete source extraction",
                 context={
                     "code": diagnostic.code,
                     "severity": diagnostic.severity,
@@ -1865,43 +1847,64 @@ def extract_semantic_projection(
                 },
             )
 
-    if extraction.errors:
+    issues = tuple(sorted(extraction.issues, key=_issue_sort_key))
+    if extraction.errors or any(issue.severity == "fatal" for issue in issues):
         raise SemanticExtractionError(
-            "semantic projection is incoherent: "
-            + "; ".join(f"{issue.code}: {issue.message}" for issue in extraction.errors),
-            issues=tuple(sorted(extraction.issues, key=_issue_sort_key)),
+            "source extraction failed: "
+            + "; ".join(
+                f"{issue.code}: {issue.message}" for issue in issues if issue.severity == "fatal"
+            ),
+            issues=issues,
         )
 
-    data = SemanticProjectionData(
-        projection_version=active_config.projection_version,
-        config_fingerprint=semantic_config_fingerprint(active_config),
-        engine_name=engine_name,
-        engine_version=engine_version if engine_version is not None else arelle_version(),
-        concept_declarations=concept_declarations,
-        concept_labels=networks.labels,
-        concept_references=networks.references,
-        role_declarations=role_declarations,
-        arcrole_declarations=arcrole_declarations,
-        contexts=contexts.contexts,
-        context_dimensions=contexts.dimensions,
-        units=units.units,
-        unit_measures=units.measures,
-        facts=facts,
-        relationships=networks.relationships,
-        diagnostics=diagnostics,
-        issues=tuple(sorted(extraction.issues, key=_issue_sort_key)),
-    )
-
-    validation_errors = validate_semantic_projection_data(data)
-    if validation_errors:
+    try:
+        report = build_report_extraction(
+            report_input=report_input,
+            uri_bindings=uri_bindings,
+            arelle_version=(engine_version if engine_version is not None else arelle_version()),
+            extractor_version=extractor_version,
+            concept_declarations=concept_declarations,
+            concept_labels=networks.labels,
+            concept_references=networks.references,
+            contexts=contexts.contexts,
+            context_dimensions=contexts.dimensions,
+            units=units.units,
+            unit_measures=units.measures,
+            ordered_facts=ordered_facts,
+            relationships=networks.relationships,
+            issues=issues,
+        )
+    except SourceBuildError as exc:
         invalid = SemanticIssueRecord(
             severity="fatal",
             code=RECORD_SET_INVALID,
-            message="; ".join(validation_errors),
-            context={"error_count": len(validation_errors)},
+            message=str(exc),
         )
         raise SemanticExtractionError(
-            f"semantic projection record set is invalid: {invalid.message}",
-            issues=(*data.issues, invalid),
+            f"source extraction record set is invalid: {exc}",
+            issues=(*issues, invalid),
+        ) from exc
+
+    if report.arelle_item_fact_count != len(report.facts):
+        raise SemanticExtractionError(
+            "arelle_item_fact_count must equal len(facts): "
+            f"{report.arelle_item_fact_count} != {len(report.facts)}",
+            issues=issues,
         )
-    return data
+    if any(issue.severity == "fatal" for issue in report.issues):
+        raise SemanticExtractionError(
+            "source extraction must not return fatal issues",
+            issues=tuple(
+                SemanticIssueRecord(
+                    severity=i.severity,
+                    code=i.code,
+                    message=i.message,
+                    context=dict(i.details),
+                )
+                for i in report.issues
+            ),
+        )
+    return report
+
+
+# Back-compat alias removed: live path uses extract_report_extraction only.

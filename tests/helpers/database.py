@@ -6,8 +6,9 @@ import os
 from pathlib import Path
 
 import pytest
+from alembic import command
 from alembic.config import Config
-from sqlalchemy import Connection, text
+from sqlalchemy import Connection, Engine, text
 from sqlalchemy.engine import make_url
 
 from edgar.db.schema import ALL_TABLES
@@ -40,7 +41,43 @@ def alembic_config(database_url: str) -> Config:
     return cfg
 
 
+def reset_test_database(engine: Engine, *, database_url: str | None = None) -> None:
+    """Drop source + public test objects, then ``alembic upgrade head``.
+
+    Phase-1 DBs stamped with the deleted 0001–0004 lineage cannot upgrade to
+    ``0001_source_v2``. Integration fixtures must recreate via this helper.
+    """
+    url = database_url or str(engine.url)
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA IF EXISTS source CASCADE"))
+        # Drop leftover Phase-1 public tables / alembic_version from prior baselines.
+        conn.execute(
+            text(
+                """
+                DO $$
+                DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN (
+                        SELECT tablename
+                        FROM pg_tables
+                        WHERE schemaname = 'public'
+                    ) LOOP
+                        EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
+                    END LOOP;
+                END $$;
+                """
+            )
+        )
+    command.upgrade(alembic_config(url), "head")
+
+
 def truncate_all_tables(conn: Connection) -> None:
-    """Truncate every catalog/semantic/document table owned by this schema."""
-    names = [table.name for table in ALL_TABLES]
-    conn.execute(text("TRUNCATE " + ", ".join(names) + " RESTART IDENTITY CASCADE"))
+    """Truncate every source.* table owned by the V2 schema."""
+    qualified: list[str] = []
+    for table in ALL_TABLES:
+        if table.schema:
+            qualified.append(f"{table.schema}.{table.name}")
+        else:
+            qualified.append(table.name)
+    conn.execute(text("TRUNCATE " + ", ".join(qualified) + " RESTART IDENTITY CASCADE"))

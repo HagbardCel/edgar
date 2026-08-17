@@ -54,7 +54,7 @@ IXDS_PLUGIN = "inlineXbrlDocumentSet"
 IXDS_ARELLE_DEFAULT_TARGET = "(default)"
 
 WorkerMode = Literal["online", "offline"]
-WorkerOperation = Literal["load", "semantic_projection"]
+WorkerOperation = Literal["load", "extract"]
 
 _DIAGNOSTIC_LEVELS = frozenset({"WARNING", "ERROR", "CRITICAL"})
 
@@ -101,10 +101,10 @@ class WorkerJob:
         if mode not in ("online", "offline"):
             raise ValueError(f"unknown worker mode: {mode!r}")
         operation = data.get("operation", "load")
-        if operation not in ("load", "semantic_projection"):
+        if operation not in ("load", "extract"):
             raise ValueError(f"unknown worker operation: {operation!r}")
-        if operation == "semantic_projection" and mode != "offline":
-            raise ValueError("semantic_projection requires mode=offline")
+        if operation == "extract" and mode != "offline":
+            raise ValueError("extract requires mode=offline")
         bindings = [WorkerBinding.from_dict(b) for b in data.get("uri_bindings") or ()]
         for uri, entry in (data.get("uri_objects") or {}).items():
             bindings.append(
@@ -136,7 +136,7 @@ class LoadOutcome:
     fetched_documents: dict[str, str] = field(default_factory=dict)
     diagnostics: list[str] = field(default_factory=list)
     diagnostic_records: list[dict[str, Any]] = field(default_factory=list)
-    semantic_payload: dict[str, Any] | None = None
+    extraction_payload: dict[str, Any] | None = None
     semantic_extraction_errors: list[str] = field(default_factory=list)
     engine_version: str = "unknown"
 
@@ -536,28 +536,41 @@ def _run_load(
         outcome.fetched_documents = dict(resolver.fetched)
         outcome.diagnostics.extend(_log_diagnostics(cntlr))
         if (
-            job.operation == "semantic_projection"
+            job.operation == "extract"
             and outcome.load_completed
             and model_xbrl is not None
             and getattr(model_xbrl, "modelDocument", None) is not None
         ):
             try:
-                from edgar.xbrl.extract import SemanticExtractionError, extract_semantic_projection
+                from edgar.domain.bundle import UriBinding
+                from edgar.xbrl.extract import SemanticExtractionError, extract_report_extraction
+                from edgar.xbrl.source_wire import report_extraction_to_dict
 
-                data = extract_semantic_projection(
+                uri_bindings = tuple(
+                    UriBinding(
+                        document_uri=b.document_uri,
+                        artifact_path=b.artifact_path,
+                        content_sha256=b.content_sha256,
+                        replay_aliases=b.replay_aliases,
+                    )
+                    for b in job.bindings
+                )
+                data = extract_report_extraction(
                     model_xbrl,
                     bound_inputs=bound,
                     primary_uris=frozenset(bound.documents),
+                    uri_bindings=uri_bindings,
+                    report_input=job.report_input,
                     engine_version=outcome.engine_version,
                 )
-                outcome.semantic_payload = data.to_dict()
-                outcome.diagnostic_records = [d.to_dict() for d in data.diagnostics]
+                outcome.extraction_payload = report_extraction_to_dict(data)
+                outcome.diagnostic_records = []
             except Exception as exc:  # noqa: BLE001 - structured failure for parent
                 from edgar.xbrl.extract import SemanticExtractionError
 
                 if isinstance(exc, SemanticExtractionError):
                     outcome.semantic_extraction_errors.append(str(exc))
-                    outcome.semantic_payload = {
+                    outcome.extraction_payload = {
                         "extraction_failed": True,
                         "issues": [issue.to_dict() for issue in exc.issues],
                     }
@@ -616,8 +629,8 @@ def run_job(job: WorkerJob, channel: WorkerChannel | None = None) -> dict[str, A
         "diagnostic_records": outcome.diagnostic_records,
         "errors": errors,
     }
-    if job.operation == "semantic_projection":
-        result["semantic_payload"] = outcome.semantic_payload
+    if job.operation == "extract":
+        result["extraction_payload"] = outcome.extraction_payload
         result["semantic_extraction_errors"] = outcome.semantic_extraction_errors
     return result
 

@@ -6,12 +6,13 @@ Build a reproducible, point-in-time-aware platform for SEC company filings.
 
 The system preserves immutable filing evidence; parses deterministic document structure and XBRL semantics; creates versioned canonical metrics; joins filings to historical securities and market outcomes; and supports reproducible quantitative and textual research.
 
-**Phase 2A is complete.** Current activity is **Phase 2B planning/preparation**.
-Do not implement Phase 2B applicability or candidate-selection behavior until the
-Phase 2B plan is frozen. Phase 2A registry invariants remain in force.
+**Phase 2A is complete.** **Phase 2B source cutover is complete** (V2
+`source.*` baseline). Do not implement applicability, candidate selection, or
+`metric_observation` until a frozen Phase 2C+ plan exists. Phase 2A registry
+invariants and Phase 2B source invariants remain in force.
 
-Phase 1 foundations remain in force. See `docs/phase-2-plan.md` (completed
-Phase 2A contract) and [ADR 0010](docs/adr/0010-curated-semantic-registry.md).
+See `docs/phase-2-plan.md`, [ADR 0010](docs/adr/0010-curated-semantic-registry.md),
+and [ADR 0011](docs/adr/0011-source-extraction.md).
 
 Optimize for:
 
@@ -32,17 +33,16 @@ Do not optimize for breadth or ingestion speed before the relevant phase gate is
 Before changing code:
 
 1. Read this file.
-2. Read `docs/phase-2-plan.md` (completed Phase 2A contract) and `docs/phase-1-plan.md`.
+2. Read `docs/phase-2-plan.md` and `docs/phase-1-plan.md`.
 3. Read `docs/project-roadmap.md`.
-4. Read `docs/architecture.md` and `docs/fixture-policy.md`.
-5. Read `docs/data-model.md`.
+4. Read `docs/architecture.md`, `docs/development.md`, and `docs/fixture-policy.md`.
+5. Read `docs/data-model.md` and `docs/data-quality.md`.
 6. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.
 7. Read relevant ADRs under `docs/adr/`.
 8. Inspect nearest tests and interfaces.
 9. Check the git diff before editing.
-10. Keep the change within completed Phase 2A invariants / Phase 2B planning
-    boundaries unless the task explicitly changes scope. Do not implement
-    Phase 2B until its plan is frozen.
+10. Keep the change within completed Phase 2A/2B invariants unless the task
+    explicitly changes scope. Do not implement Phase 2C+ until its plan is frozen.
 
 Priority when requirements conflict:
 
@@ -59,50 +59,53 @@ Never infer success from plausible code. Run the relevant checks.
 
 ## Phase 2A invariants
 
-Phase 2A is complete. Continue to maintain these invariants (Phase 1 foundations
-remain in force):
+Phase 2A is complete. Continue to maintain these invariants:
 
 - Git-authoritative `semantic-registry/` (families, 20 v1 metric definitions, curated mapping rules)
 - `definition_version` economic semantics and whole-registry `registry_hash`
-- deterministic `bundle_fingerprint` evidence identity in `src/edgar/domain/bundle.py`
-- `ProjectionConceptEvidence` only for v1 mapping evidence
-- `edgar metrics list|show` and `edgar mappings list|export|explain` (explain = pinned evidence only)
+- `SourceConceptEvidence` pin = accession + expanded QName (explain on `source.*`)
+- `edgar metrics list|show` and `edgar mappings list|export|explain` (explain = pinned source evidence only)
 - immutable mapping history via Git/policy (supersession graph)
 
-Do not add without an explicit frozen Phase 2B (or later) plan:
+## Phase 2B invariants (source cutover)
+
+Phase 2B is complete. Continue to maintain:
+
+- PostgreSQL live surface is `source.*` only (Alembic `0001_source_v2`)
+- Live path: immutable FilingBundle → `filings catalog|extract` → native
+  `ReportExtraction` → `source.*`
+- No Phase-1 projection/attempt tables, dual-writes, or projection CLI commands
+- Mapping explain remounted on `source.*` only
+- Phase-1 DBs must be recreated (no in-place upgrade from deleted 0001–0004)
+
+Do not add without an explicit frozen Phase 2C+ plan:
 
 - PostgreSQL registry tables, sync, revision log, or format-version migration framework
-- scope-based applicability in explain (Phase 2B)
-- `metric_observation` or canonical fact acceptance (Phase 2C)
+- scope-based applicability in explain
+- `metric_observation` or canonical fact acceptance
 - automated mapping candidates or precedence among current rules
 - LLM auto-approval of mappings
 
 ---
 
-## Active Phase 1 scope
+## Active foundations scope
 
 Implement and maintain:
 
 - SEC discovery for `10-K`, `10-K/A`, `10-Q`, `10-Q/A`
 - immutable raw filing retrieval and manifests
-- issuer, filing, document, and artifact metadata
-- semantic HTML blocks
-- regulatory filing sections
-- XBRL concepts and schema attributes
-- labels and references
-- role and arcrole definitions
-- presentation, calculation, and definition relationships
-- contexts, dimensions, units, and facts
-- parser versions and quality issues
-- local PostgreSQL
+- filesystem FilingBundle publish/load + offline replay
+- `source.*` catalog and extraction (XBRL + documents)
+- XBRL concepts, labels, references, relationships, contexts, units, facts
+- document blocks and regulatory sections
+- local PostgreSQL (`source` schema)
 - deterministic offline fixtures
-- CLI workflows
+- CLI workflows (`filings`, `documents sections`, `metrics`, `mappings`)
 - optional local-LLM development experiments
 
 Do not add without explicit scope change:
 
-- canonical metric mappings
-- derived financial metrics
+- derived financial metrics / observations
 - security-master or market data
 - research dataset generation
 - embeddings or vector databases
@@ -111,8 +114,6 @@ Do not add without explicit scope change:
 - cloud infrastructure
 - production LLM dependencies
 - additional filing forms
-
-Phase 1 must preserve all evidence needed for Phase 2 metric mapping. It must not perform that mapping prematurely.
 
 ---
 
@@ -144,10 +145,11 @@ Persist timezone-aware UTC timestamps and distinguish:
 - SEC acceptance timestamp
 - report-period end
 - retrieval time
-- projection-attempt start/finish time
+- extraction timestamps on `source.xbrl_report` / related rows
 - later `known_at` and `superseded_at` semantics
 
-Never substitute one timestamp for another. Projection materialization timestamps, if retained, are metadata only—never interpretation identity.
+Never substitute one timestamp for another. Extraction timestamps are metadata
+only—never interpretation identity.
 
 ### Numeric facts
 
@@ -165,7 +167,7 @@ Never substitute one timestamp for another. Projection materialization timestamp
 - Preserve all available labels, references, statement roles, and relationship networks.
 - Preserve issuer extension relationships exactly as filed.
 - Do not collapse broader, narrower, component, proxy, non-GAAP, or segment measures into one metric.
-- Do not infer canonical financial metrics during Phase 1.
+- Do not infer canonical financial metrics during foundation phases.
 - Do not remove apparently duplicate facts without preserving source occurrences or a documented equivalence relationship.
 - XBRL engine-specific objects must not escape the adapter boundary.
 - Production modules must not import from `scripts/spikes/`. Slice-0 serialization versions, promotion ceremony, occurrence/semantic hash frameworks, and evidence formats are historical verification mechanisms rather than production compatibility contracts. Reuse of an underlying idea requires an independent production abstraction.
@@ -181,17 +183,19 @@ Never substitute one timestamp for another. Projection materialization timestamp
 
 ### Versioning and provenance
 
-Every parsed or projected output must be traceable through the persisted model to:
+Every extracted output must be traceable through the persisted model to:
 
-- filing/accession
-- FilingBundle
-- the applicable `semantic_projection` or `document_projection`
+- filing/accession (`source.filing`)
+- FilingBundle (filesystem)
+- `source.xbrl_report` and/or `source.document` as applicable
 - source bundle artifact / URI binding and locator where applicable
-- projection/parser version
+- parser / Arelle version recorded on extraction rows
 
-Globally reusable identity records need not themselves own a projection when projection-scoped records provide that traceability.
+Shared `source.concept` identity is global; report-scoped declarations provide
+filing-local provenance.
 
-Operational acquisition and projection attempts are separate provenance. A projection must not acquire a single owning attempt merely for traceability.
+Operational acquisition is separate from extraction replace cycles. There is no
+projection-attempt owning identity in V2.
 
 A parser behavior change that alters persisted output requires a version change.
 

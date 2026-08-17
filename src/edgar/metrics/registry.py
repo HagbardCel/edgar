@@ -54,7 +54,6 @@ AggregationBehavior = Literal[
 FAMILIES_FILENAME = "metric-families.json"
 DEFINITIONS_FILENAME = "metric-definitions.json"
 RULES_FILENAME = "mapping-rules.json"
-_HEX64 = frozenset("0123456789abcdef")
 _V1_REJECTED_RELATIONSHIPS = frozenset({"derived_equivalent"})
 PENDING_REVIEW_SENTINEL = "__pending_review__"
 
@@ -283,16 +282,16 @@ class EvidenceSnapshot(RootModel[dict[str, Any]]):
         return self
 
 
-class ProjectionConceptEvidence(BaseModel):
-    """Pinned semantic projection evidence (v1 only evidence type)."""
+class SourceConceptEvidence(BaseModel):
+    """Pinned source.* evidence (accession + expanded QName only).
+
+    ``arelle_version`` is not part of resolution identity; optional display
+    metadata may appear on enriched report payloads, not on the pin.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     accession_number: str
-    bundle_fingerprint: str
-    projection_version: str
-    arelle_version: str
-    semantic_config_fingerprint: str
     concept: ExpandedQNameRecord
 
     @field_validator("accession_number")
@@ -302,18 +301,6 @@ class ProjectionConceptEvidence(BaseModel):
         if value != normalized:
             raise ValueError(f"accession must be canonical dashed form: {value!r}")
         return normalized
-
-    @field_validator("projection_version", "arelle_version")
-    @classmethod
-    def _nonblank(cls, value: str, info: ValidationInfo) -> str:
-        return _non_empty_str(value, str(info.field_name))
-
-    @field_validator("bundle_fingerprint", "semantic_config_fingerprint")
-    @classmethod
-    def _hex64(cls, value: str) -> str:
-        if len(value) != 64 or any(c not in _HEX64 for c in value):
-            raise ValueError(f"invalid fingerprint: {value!r}")
-        return value
 
 
 class SupersedesRef(BaseModel):
@@ -340,7 +327,7 @@ class MappingRuleRecord(BaseModel):
     confidence_tier: ConfidenceTier
     rationale: str
     evidence_snapshot: EvidenceSnapshot
-    evidence: ProjectionConceptEvidence
+    evidence: SourceConceptEvidence
     reviewed_by: str
     reviewed_at: datetime
     supersedes: SupersedesRef | None = None
