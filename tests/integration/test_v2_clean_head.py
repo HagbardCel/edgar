@@ -224,5 +224,8 @@ def test_v2_clean_head_source_schema_column_parity(engine: Engine) -> None:
 
     actual_columns = set(columns)
     assert actual_columns == expected_columns
-    assert expected_indexes <= indexes
-    assert expected_constraints <= constraints
+    assert None not in expected_indexes
+    assert all(name.startswith("ix_") for name in expected_indexes)
+    actual_application_indexes = {name for name in indexes if name.startswith("ix_")}
+    assert actual_application_indexes == expected_indexes
+    assert constraints == expected_constraints

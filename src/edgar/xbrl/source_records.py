@@ -26,7 +26,7 @@ from edgar.xbrl.records import (
     ValueStatus,
 )
 
-EXTRACTOR_VERSION = "source-extract-v2"
+EXTRACTOR_VERSION = "source-extract-v3"
 
 #: Wire schema for worker ``extraction_payload`` (not identity).
 SOURCE_RECORDS_SCHEMA_VERSION = 2
