@@ -397,9 +397,10 @@ class RegistryService:
         return insert_mapping_assertion(conn, payload)
 
     def get_mapping(self, assertion_id: int, *, include_facts: bool = False) -> MappingReport:
+        fact_limit = None if include_facts else DEFAULT_SHOW_FACT_LIMIT
         engine = self._require_engine()
         with engine.connect() as conn:
-            return self._get_mapping(conn, assertion_id, include_facts=include_facts)
+            return self._get_mapping(conn, assertion_id, fact_limit=fact_limit)
 
     def list_mappings(
         self,
@@ -437,8 +438,23 @@ class RegistryService:
                 raise MappingDecisionError(f"mapping assertion {assertion_id} not found")
             return self._affected_facts(conn, row)
 
+    def export_mappings(self, *, include_facts: bool = False) -> list[MappingReport]:
+        """Current revisions of every status, each with history. Facts optional."""
+        engine = self._require_engine()
+        fact_limit = None if include_facts else 0
+        with engine.connect() as conn:
+            views = self._list_mappings(
+                conn,
+                status=None,
+                relation=None,
+                metric_key=None,
+                issuer_cik=None,
+                concept=None,
+            )
+            return [self._get_mapping(conn, view.id, fact_limit=fact_limit) for view in views]
+
     def _get_mapping(
-        self, conn: Connection, assertion_id: int, *, include_facts: bool
+        self, conn: Connection, assertion_id: int, *, fact_limit: int | None
     ) -> MappingReport:
         row = fetch_mapping_assertion(conn, assertion_id)
         if row is None:
@@ -458,8 +474,7 @@ class RegistryService:
         mirror = fetch_canonical_metric(conn, metric.key)
         yaml_hash = definition_hash(metric)
         facts = self._affected_facts(conn, row)
-        limit = None if include_facts else DEFAULT_SHOW_FACT_LIMIT
-        shown = facts if limit is None else facts[:limit]
+        shown = facts if fact_limit is None else facts[:fact_limit]
         accessions = {item.accession for item in facts}
         issuers = {item.issuer_cik for item in facts}
         return MappingReport(

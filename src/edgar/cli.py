@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated, Any, NoReturn, cast
+from typing import Annotated, NoReturn
 
 import typer
 from alembic import command
@@ -14,17 +14,22 @@ from edgar import __version__
 from edgar.config import Settings
 from edgar.db.check import DatabaseRevisionMismatch, require_database_at_head
 from edgar.db.engine import create_db_engine
-from edgar.db.mapping_evidence import MappingEvidenceError
 from edgar.db.source import list_source_document_sections
+from edgar.domain.identifiers import validate_cik
 from edgar.ingestion.acquisition import AcquisitionService
 from edgar.ingestion.catalog import CatalogService
 from edgar.ingestion.source_extract import SourceExtractError, SourceExtractService
-from edgar.metrics.service import MetricRegistryService
+from edgar.registry.export import dump_json, dump_jsonl, dump_markdown
 from edgar.registry.loader import (
     LoadedCanonicalRegistry,
     load_canonical_registry,
     metric_list_payload,
     metric_show_payload,
+)
+from edgar.registry.mapping import (
+    MappingAssertionCreate,
+    MappingAssertionRevision,
+    MappingEvidenceItem,
 )
 from edgar.registry.models import RegistryValidationError
 from edgar.registry.service import (
@@ -33,6 +38,7 @@ from edgar.registry.service import (
     UnsafeMetricDeletionError,
     format_sync_result,
 )
+from edgar.registry.views import MappingReport
 
 app = typer.Typer(name="edgar", help="SEC EDGAR filing acquisition and XBRL evidence platform.")
 filings_app = typer.Typer(help="Filing acquisition, catalog, and extract workflows.")
@@ -40,7 +46,7 @@ db_app = typer.Typer(help="PostgreSQL source.* database workflows.")
 documents_app = typer.Typer(help="Document section inspection (source.*).")
 metrics_app = typer.Typer(help="Canonical metric registry workflows (Git-authoritative YAML).")
 registry_app = typer.Typer(help="Canonical metric YAML validation and database sync.")
-mappings_app = typer.Typer(help="Curated XBRL concept mapping audit workflows.")
+mappings_app = typer.Typer(help="Mapping decision ledger workflows (registry.mapping_assertion).")
 app.add_typer(filings_app, name="filings")
 app.add_typer(db_app, name="db")
 app.add_typer(documents_app, name="documents")
@@ -63,8 +69,8 @@ def _alembic_config(database_url: str) -> Config:
     return cfg
 
 
-def _metric_service(registry_dir: Path | None = None) -> MetricRegistryService:
-    return MetricRegistryService(Settings(), registry_dir=registry_dir)
+def _registry_service(registry_dir: Path | None = None) -> RegistryService:
+    return RegistryService(Settings(), registry_dir=registry_dir)
 
 
 def _metric_cli_error(exc: Exception) -> NoReturn:
@@ -77,6 +83,55 @@ def _load_canonical(registry_dir: Path | None) -> LoadedCanonicalRegistry:
         return load_canonical_registry(registry_dir)
     except (OSError, RegistryValidationError) as exc:
         _metric_cli_error(exc)
+
+
+def _read_text_file(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    return path.read_text(encoding="utf-8").strip()
+
+
+def _read_evidence(path: Path | None) -> tuple[MappingEvidenceItem, ...]:
+    if path is None:
+        return ()
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise ValueError("evidence file must contain a JSON array")
+    return tuple(MappingEvidenceItem.model_validate(item) for item in raw)
+
+
+def _format_mapping_report_text(report: MappingReport) -> str:
+    mapping = report.mapping
+    currency = (
+        "current" if report.is_current else f"superseded; current={report.current_revision_id}"
+    )
+    lines = [
+        f"mapping {mapping.id} {mapping.status} ({currency})",
+        f"concept={mapping.source_concept}",
+        f"metric={mapping.target_metric_key} relation={mapping.relation}",
+        f"scope={mapping.scope.kind}"
+        + (f" issuer={mapping.scope.issuer_cik}" if mapping.scope.issuer_cik else ""),
+        f"target_definition_hash={mapping.target_definition_hash}",
+        f"yaml_definition_hash={report.yaml_definition_hash}",
+        f"definition_changed={str(report.definition_changed).lower()}",
+        f"method={mapping.method} created_by={mapping.created_by}",
+    ]
+    if mapping.rationale:
+        lines.append(f"rationale={mapping.rationale}")
+    lines.append("history:")
+    for item in report.history:
+        lines.append(f"  {item.id} {item.status} {item.created_at.isoformat()} {item.created_by}")
+    summary = report.affected_fact_summary
+    lines.append(
+        f"affected_facts={summary.count} shown={summary.shown} truncated={summary.truncated}"
+    )
+    for fact in report.affected_facts:
+        period = fact.report_period_end.isoformat() if fact.report_period_end else "null"
+        lines.append(
+            f"  {fact.accession} period={period} "
+            f"document={fact.source_document or ''} fact_id={fact.fact_id}"
+        )
+    return "\n".join(lines)
 
 
 @db_app.command("check")
@@ -315,99 +370,179 @@ def metrics_show(
 
 @mappings_app.command("list")
 def mappings_list(
+    status: Annotated[str | None, typer.Option("--status")] = None,
+    relation: Annotated[str | None, typer.Option("--relation")] = None,
     metric: Annotated[str | None, typer.Option("--metric")] = None,
-    concept: Annotated[str | None, typer.Option("--concept", help="local_name filter")] = None,
-    cik: Annotated[str | None, typer.Option("--cik")] = None,
-    relationship: Annotated[str | None, typer.Option("--relationship")] = None,
+    issuer: Annotated[str | None, typer.Option("--issuer", help="Zero-padded CIK")] = None,
+    concept: Annotated[
+        str | None, typer.Option("--concept", help="Clark '{namespace-uri}LocalName'")
+    ] = None,
     registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
-    """List curated mapping rules from Git."""
-    service = _metric_service(registry_dir)
-    registry = service.load_git_registry()
-    rows = service.list_mappings(
-        metric_code=metric,
-        concept_local_name=concept,
-        cik=cik,
-        relationship_type=relationship,
-        registry=registry,
-    )
+    """List current mapping assertion revisions (all statuses by default)."""
+    issuer_cik = None
+    if issuer is not None:
+        try:
+            issuer_cik = validate_cik(issuer)
+        except ValueError as exc:
+            _metric_cli_error(exc)
+    try:
+        rows = _registry_service(registry_dir).list_mappings(
+            status=status,
+            relation=relation,
+            metric_key=metric,
+            issuer_cik=issuer_cik,
+            concept=concept,
+        )
+    except (ValueError, RegistryError) as exc:
+        _metric_cli_error(exc)
     payload = {
-        "registry_hash": registry.registry_hash,
-        "rules": [
-            {
-                "rule_key": r.rule.rule_key,
-                "state": r.state,
-                "source_concept": r.rule.source_concept.model_dump(),
-                "target_metric_code": r.rule.target_metric_code,
-                "target_definition_version": r.rule.target_definition_version,
-                "relationship_type": r.rule.relationship_type,
-                "scope_kind": r.rule.scope_kind,
-            }
-            for r in rows
-        ],
+        "assertions": [row.model_dump(mode="json") for row in rows],
         "count": len(rows),
     }
     if as_json:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        typer.echo(f"mappings={len(rows)} registry_hash={registry.registry_hash}")
-        for row in rows:
-            q = row.rule.source_concept
-            typer.echo(
-                f"  {row.rule.rule_key} [{row.state}] "
-                f"{q.local_name} -> {row.rule.target_metric_code}@"
-                f"{row.rule.target_definition_version} "
-                f"({row.rule.relationship_type})"
-            )
+        return
+    typer.echo(f"mappings={len(rows)}")
+    for row in rows:
+        typer.echo(
+            f"  {row.id} {row.status} {row.relation} {row.source_concept} -> "
+            f"{row.target_metric_key} ({row.scope.kind})"
+        )
 
 
-@mappings_app.command("explain")
-def mappings_explain(
-    rule_key: Annotated[str, typer.Argument(help="Mapping rule key")],
+@mappings_app.command("show")
+def mappings_show(
+    assertion_id: Annotated[int, typer.Argument(help="Mapping assertion revision id")],
+    include_facts: Annotated[bool, typer.Option("--include-facts")] = False,
+    fmt: Annotated[str, typer.Option("--format", help="text | json")] = "text",
     registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
-    as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
-    """Explain one mapping rule with pinned source.* evidence enrichment."""
+    """Show a named mapping revision plus its full assertion chain."""
     try:
-        payload = cast(dict[str, Any], _metric_service(registry_dir).explain_mapping(rule_key))
-    except KeyError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
-    except MappingEvidenceError as exc:
+        report = _registry_service(registry_dir).get_mapping(
+            assertion_id, include_facts=include_facts
+        )
+    except (ValueError, RegistryError) as exc:
         _metric_cli_error(exc)
-    if as_json:
-        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        typer.echo(f"rule {rule_key} state={payload['state']}")
-        typer.echo(f"relationship={payload['relationship_type']}")
-        enrichment = payload.get("pinned_evidence_enrichment")
-        if enrichment is not None:
-            reports = enrichment.get("reports") or []
-            typer.echo(f"pinned reports={len(reports)}")
-            for report in reports:
-                facts = len(report.get("fact_occurrences") or [])
-                typer.echo(
-                    f"  report_id={report.get('report_id')} "
-                    f"report_key={report.get('report_key')} facts={facts}"
-                )
+    if fmt == "json":
+        typer.echo(json.dumps(report.model_dump(mode="json"), indent=2, sort_keys=True))
+        return
+    if fmt != "text":
+        typer.echo(f"unsupported format: {fmt}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(_format_mapping_report_text(report))
+
+
+@mappings_app.command("propose")
+def mappings_propose(
+    concept: Annotated[str, typer.Option("--concept", help="Clark '{namespace-uri}LocalName'")],
+    metric: Annotated[str, typer.Option("--metric")],
+    relation: Annotated[str, typer.Option("--relation")],
+    method: Annotated[str, typer.Option("--method")],
+    created_by: Annotated[str, typer.Option("--created-by")],
+    issuer: Annotated[str | None, typer.Option("--issuer", help="Zero-padded CIK")] = None,
+    valid_from: Annotated[str | None, typer.Option("--valid-from")] = None,
+    valid_to: Annotated[str | None, typer.Option("--valid-to")] = None,
+    rationale_file: Annotated[Path | None, typer.Option("--rationale")] = None,
+    evidence_file: Annotated[Path | None, typer.Option("--evidence")] = None,
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+) -> None:
+    """Insert a candidate mapping assertion root."""
+    try:
+        evidence = _read_evidence(evidence_file)
+        issuer_cik = validate_cik(issuer) if issuer is not None else None
+        create = MappingAssertionCreate.model_validate(
+            {
+                "concept": concept,
+                "target_metric_key": metric,
+                "relation": relation,
+                "scope_kind": "issuer" if issuer_cik is not None else "global",
+                "issuer_cik": issuer_cik,
+                "valid_from": valid_from,
+                "valid_to": valid_to,
+                "method": method,
+                "rationale": _read_text_file(rationale_file),
+                "evidence": evidence,
+                "created_by": created_by,
+            }
+        )
+        assertion_id = _registry_service(registry_dir).propose_mapping(create)
+    except (OSError, ValueError, RegistryError) as exc:
+        _metric_cli_error(exc)
+    typer.echo(f"proposed mapping assertion {assertion_id}")
+
+
+@mappings_app.command("accept")
+def mappings_accept(
+    assertion_id: Annotated[int, typer.Argument(help="Current candidate assertion id")],
+    created_by: Annotated[str, typer.Option("--created-by")],
+    rationale_file: Annotated[Path | None, typer.Option("--rationale")] = None,
+    evidence_file: Annotated[Path | None, typer.Option("--evidence")] = None,
+    method: Annotated[str, typer.Option("--method")] = "human_review",
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+) -> None:
+    """Accept a current candidate by inserting an accepted successor."""
+    try:
+        revision = MappingAssertionRevision.model_validate(
+            {
+                "method": method,
+                "rationale": _read_text_file(rationale_file),
+                "evidence": _read_evidence(evidence_file),
+                "created_by": created_by,
+            }
+        )
+        accepted_id = _registry_service(registry_dir).accept_mapping(assertion_id, revision)
+    except (OSError, ValueError, RegistryError) as exc:
+        _metric_cli_error(exc)
+    typer.echo(f"accepted mapping assertion {accepted_id} (supersedes {assertion_id})")
+
+
+@mappings_app.command("reject")
+def mappings_reject(
+    assertion_id: Annotated[int, typer.Argument(help="Current candidate or accepted assertion id")],
+    reason: Annotated[str, typer.Option("--reason")],
+    created_by: Annotated[str, typer.Option("--created-by")],
+    method: Annotated[str, typer.Option("--method")] = "human_review",
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+) -> None:
+    """Reject a current candidate or revoke a current accepted assertion."""
+    try:
+        revision = MappingAssertionRevision.model_validate(
+            {
+                "method": method,
+                "rationale": reason,
+                "created_by": created_by,
+            }
+        )
+        rejected_id = _registry_service(registry_dir).reject_mapping(assertion_id, revision)
+    except (OSError, ValueError, RegistryError) as exc:
+        _metric_cli_error(exc)
+    typer.echo(f"rejected mapping assertion {rejected_id} (supersedes {assertion_id})")
 
 
 @mappings_app.command("export")
 def mappings_export(
-    fmt: Annotated[str, typer.Option("--format", help="json | markdown")] = "json",
+    fmt: Annotated[str, typer.Option("--format", help="json | jsonl | markdown")] = "json",
     registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
 ) -> None:
-    """Export mapping audit ledger from Git (DB-free)."""
-    service = _metric_service(registry_dir)
-    if fmt == "json":
-        payload = service.export_mappings_audit()
-        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
-    elif fmt == "markdown":
-        typer.echo(service.export_mappings_audit_markdown())
-    else:
+    """Export current mapping assertions, including candidate and rejected."""
+    if fmt not in {"json", "jsonl", "markdown"}:
         typer.echo(f"unsupported format: {fmt}", err=True)
         raise typer.Exit(code=1)
+    try:
+        reports = _registry_service(registry_dir).export_mappings()
+    except (ValueError, RegistryError) as exc:
+        _metric_cli_error(exc)
+    if fmt == "json":
+        typer.echo(dump_json(reports), nl=False)
+    elif fmt == "jsonl":
+        text = dump_jsonl(reports)
+        if text:
+            typer.echo(text, nl=False)
+    else:
+        typer.echo(dump_markdown(reports), nl=False)
 
 
 if __name__ == "__main__":
