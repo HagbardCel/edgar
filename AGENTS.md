@@ -6,12 +6,13 @@ Build a reproducible, point-in-time-aware platform for SEC company filings.
 
 The system preserves immutable filing evidence; parses deterministic document structure and XBRL semantics; creates versioned canonical metrics; joins filings to historical securities and market outcomes; and supports reproducible quantitative and textual research.
 
-**Phase 2A is complete.** **Phase 2B source cutover is complete** (V2
-`source.*` baseline). Do not implement applicability, candidate selection, or
-`metric_observation` until a frozen Phase 2C+ plan exists. Phase 2A registry
-invariants and Phase 2B source invariants remain in force.
+**Phase 2A is complete.** **Phase 2B source cutover is complete.** **Phase 2C
+canonical registry and mapping ledger is complete.** Do not implement
+applicability, candidate selection, or `metric_observation` until a frozen
+Phase 2D+ plan exists. Phase 2A/2B/2C invariants remain in force.
 
-See `docs/phase-2-plan.md`, [ADR 0010](docs/adr/0010-curated-semantic-registry.md),
+See `docs/phase-2-plan.md`, `docs/normalization.md`,
+[ADR 0010](docs/adr/0010-curated-semantic-registry.md),
 and [ADR 0011](docs/adr/0011-source-extraction.md).
 
 Optimize for:
@@ -35,14 +36,14 @@ Before changing code:
 1. Read this file.
 2. Read `docs/phase-2-plan.md` and `docs/phase-1-plan.md`.
 3. Read `docs/project-roadmap.md`.
-4. Read `docs/architecture.md`, `docs/development.md`, and `docs/fixture-policy.md`.
+4. Read `docs/architecture.md`, `docs/development.md`, `docs/normalization.md`, and `docs/fixture-policy.md`.
 5. Read `docs/data-model.md` and `docs/data-quality.md`.
 6. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.
 7. Read relevant ADRs under `docs/adr/`.
 8. Inspect nearest tests and interfaces.
 9. Check the git diff before editing.
-10. Keep the change within completed Phase 2A/2B invariants unless the task
-    explicitly changes scope. Do not implement Phase 2C+ until its plan is frozen.
+10. Keep the change within completed Phase 2A/2B/2C invariants unless the task
+    explicitly changes scope. Do not implement Phase 2D+ until its plan is frozen.
 
 Priority when requirements conflict:
 
@@ -57,15 +58,28 @@ Never infer success from plausible code. Run the relevant checks.
 
 ---
 
-## Phase 2A invariants
+## Phase 2A invariants (historical Git registry)
 
-Phase 2A is complete. Continue to maintain these invariants:
+Phase 2A is complete and **superseded as live mapping authority** by Phase 2C.
+Retain the historical tree under `semantic-registry/` as an archive only.
 
-- Git-authoritative `semantic-registry/` (families, 20 v1 metric definitions, curated mapping rules)
-- `definition_version` economic semantics and whole-registry `registry_hash`
-- `SourceConceptEvidence` pin = accession + expanded QName (explain on `source.*`)
-- `edgar metrics list|show` and `edgar mappings list|export|explain` (explain = pinned source evidence only)
-- immutable mapping history via Git/policy (supersession graph)
+- Historical Git JSON families / v1 metric definitions / mapping-rules
+- Historical `definition_version` + whole-registry `registry_hash`
+- Do not load `semantic-registry/` from production code
+
+## Phase 2C invariants (canonical registry and mapping ledger)
+
+Phase 2C is complete. Continue to maintain:
+
+- Git-authoritative `registry/metrics.yml` (reported metric contracts)
+- `definition_hash` (mapping-review hash) and semantic registry hash
+- PostgreSQL `registry.canonical_metric` as a YAML mirror (not definition authority)
+- Append-only `registry.mapping_assertion` ledger; claim identity includes
+  `target_definition_hash` and is copied, never rewritten
+- `propose`/`accept` require YAML == mirror on all mirrored fields
+- Accept requires candidate hash == current YAML hash; rejected is terminal
+- `edgar registry validate|sync`, `edgar metrics list|show`, `edgar mappings list|show|propose|accept|reject|export`
+- Live affected facts via `contains()`; no durable `source_fact_ids`
 
 ## Phase 2B invariants (source cutover)
 
@@ -75,16 +89,14 @@ Phase 2B is complete. Continue to maintain:
 - Live path: immutable FilingBundle → `filings catalog|extract` → native
   `ReportExtraction` → `source.*`
 - No Phase-1 projection/attempt tables, dual-writes, or projection CLI commands
-- Mapping explain remounted on `source.*` only
 - Phase-1 DBs must be recreated (no in-place upgrade from deleted 0001–0004)
 
-Do not add without an explicit frozen Phase 2C+ plan:
+Do not add without an explicit frozen Phase 2D+ plan:
 
-- PostgreSQL registry tables, sync, revision log, or format-version migration framework
-- scope-based applicability in explain
-- `metric_observation` or canonical fact acceptance
+- `semantic.*` / `metric_observation` or canonical fact acceptance
 - automated mapping candidates or precedence among current rules
 - LLM auto-approval of mappings
+- SQLMesh or observation-selection policy
 
 ---
 
@@ -98,9 +110,9 @@ Implement and maintain:
 - `source.*` catalog and extraction (XBRL + documents)
 - XBRL concepts, labels, references, relationships, contexts, units, facts
 - document blocks and regulatory sections
-- local PostgreSQL (`source` schema)
+- local PostgreSQL (`source` and `registry` schemas)
 - deterministic offline fixtures
-- CLI workflows (`filings`, `documents sections`, `metrics`, `mappings`)
+- CLI workflows (`filings`, `documents sections`, `metrics`, `registry`, `mappings`)
 - optional local-LLM development experiments
 
 Do not add without explicit scope change:
@@ -363,29 +375,16 @@ Rules:
 
 ## Metric semantics rules for later phases
 
-When Phase 2 begins:
+Phase 2C records mapping decisions; it does **not** implement observation
+selection. Later phases may add:
 
-- metric definitions are versioned measurement contracts
-- mappings are typed relationships, not simple aliases
-- allowed relationship types include:
-  - equivalent
-  - issuer-equivalent
-  - narrower-than
-  - broader-than
-  - component-of
-  - derived-equivalent
-  - presentation-alias
-  - proxy-for
-  - incompatible
-  - unresolved
-- default to keeping facts separate
-- scope mappings globally, by accounting regime, industry, issuer, period, or filing
-- retain mapping rule, evidence, confidence, review status, and policy version
+- additional relationship types beyond `exact|narrower|broader|related`
+- scope beyond global/issuer
 - separate direct, derived, and proxy observations
-- expose mapping uncertainty to research datasets
-- no LLM may auto-approve an ambiguous mapping
+- dataset exposure of mapping uncertainty
 
-Do not implement these tables or workflows during Phase 1 unless the user explicitly advances the project phase.
+No LLM may auto-approve an ambiguous mapping. Do not implement `semantic.*` or
+`metric_observation` until a frozen Phase 2D+ plan exists.
 
 ---
 

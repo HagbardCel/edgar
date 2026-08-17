@@ -37,16 +37,36 @@ Cut over live persistence from Phase-1 public projection/catalog tables to V2
 - Mapping explain remounted on `source.*` evidence pins
 - Phase-1 projection packages, attempt tables, and dual-write removed
 
-### Out of scope for Phase 2B (deferred to Phase 2C+)
+### Out of scope for Phase 2B (delivered in Phase 2C or later)
 
 Formerly sketched as “Phase 2B applicability”:
 
-- Scope-based applicability in explain
-- Candidate fact selection / overlapping-rule precedence
-- PostgreSQL registry materialization
-- `metric_observation` acceptance (Phase 2C)
+- PostgreSQL registry materialization (Phase 2C)
+- Scope-based applicability / overlapping-rule precedence (Phase 2D+)
+- `metric_observation` acceptance (Phase 2D+)
+
+## Phase 2C — complete (canonical registry and mapping ledger)
+
+Git-authoritative metric contracts plus an append-only mapping decision ledger:
+
+- `registry/metrics.yml` and `src/edgar/registry/`
+- Alembic `0002_registry`: `registry.canonical_metric`, `registry.mapping_assertion`
+- `edgar registry validate|sync`
+- `edgar mappings list|show|propose|accept|reject|export`
+- Live affected-fact enumeration; no observation selection
+
+Normative contract: [`docs/normalization.md`](normalization.md).
+Phase 2A `semantic-registry/` is a historical archive, not live authority.
+
+### Phase 2C exit gate — complete
+
+- YAML metric contracts validate without a database.
+- Propose/accept require YAML==mirror; claim identity includes definition hash.
+- Rejected is terminal; show displays the named revision.
+- Constructed-fixture E2E covers validate → sync → propose → accept → export.
 
 ## Next
 
-Phase 2C+ planning: observations, applicability, and research datasets — only
-after a frozen plan.
+Phase 2D+ planning: observations, applicability, and research datasets — only
+after a frozen plan. Phase 2C publication eligibility is frozen in
+[`docs/normalization.md`](normalization.md) and is not implemented here.

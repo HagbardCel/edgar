@@ -235,7 +235,11 @@ Research datasets must state which tiers they include.
 
 ## 9. Later-phase observation and candidate tables (not Phase 2A registry store)
 
-Phase 2A stores curated metric definitions and mapping rules in Git (`semantic-registry/`). The PostgreSQL designs below support later phases (candidates, observations, reviews) and are **not** the Phase 2A registry store.
+Phase 2A stores curated metric definitions and mapping rules in Git
+(`semantic-registry/`, now a historical archive). Phase 2C live authority is
+`registry/metrics.yml` plus `registry.mapping_assertion`. The PostgreSQL
+designs below support **later** observation/candidate phases and are **not**
+the Phase 2C ledger.
 
 ### `metric_family`
 
