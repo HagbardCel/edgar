@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -50,6 +49,35 @@ def fetch_canonical_metric(conn: Connection, key: str) -> dict[str, Any] | None:
         conn.execute(
             select(reg.registry_canonical_metric).where(reg.registry_canonical_metric.c.key == key)
         )
+        .mappings()
+        .first()
+    )
+    return dict(row) if row is not None else None
+
+
+def fetch_concept_by_qname(
+    conn: Connection, namespace_uri: str, local_name: str
+) -> dict[str, Any] | None:
+    from edgar.db import source_schema as src
+
+    row = (
+        conn.execute(
+            select(src.source_concept).where(
+                src.source_concept.c.namespace_uri == namespace_uri,
+                src.source_concept.c.local_name == local_name,
+            )
+        )
+        .mappings()
+        .first()
+    )
+    return dict(row) if row is not None else None
+
+
+def fetch_issuer(conn: Connection, cik: str) -> dict[str, Any] | None:
+    from edgar.db import source_schema as src
+
+    row = (
+        conn.execute(select(src.source_issuer).where(src.source_issuer.c.cik == cik))
         .mappings()
         .first()
     )
@@ -165,9 +193,3 @@ def list_current_assertions(
             continue
         filtered.append(row)
     return filtered
-
-
-def now_utc() -> datetime:
-    from datetime import UTC
-
-    return datetime.now(UTC)
