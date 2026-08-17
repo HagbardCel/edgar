@@ -27,6 +27,12 @@ from edgar.registry.loader import (
     metric_show_payload,
 )
 from edgar.registry.models import RegistryValidationError
+from edgar.registry.service import (
+    RegistryError,
+    RegistryService,
+    UnsafeMetricDeletionError,
+    format_sync_result,
+)
 
 app = typer.Typer(name="edgar", help="SEC EDGAR filing acquisition and XBRL evidence platform.")
 filings_app = typer.Typer(help="Filing acquisition, catalog, and extract workflows.")
@@ -250,6 +256,22 @@ def registry_validate(
     loaded = _load_canonical(registry_dir)
     typer.echo(f"metrics={len(loaded.metrics)}")
     typer.echo(f"semantic_registry_hash={loaded.semantic_registry_hash}")
+
+
+@registry_app.command("sync")
+def registry_sync(
+    registry_dir: Annotated[Path | None, typer.Option("--registry-dir")] = None,
+) -> None:
+    """Synchronize registry.canonical_metric from metrics.yml."""
+    settings = Settings()
+    service = RegistryService(settings, registry_dir=registry_dir)
+    try:
+        result = service.sync_canonical_metrics()
+    except UnsafeMetricDeletionError as exc:
+        _metric_cli_error(exc)
+    except RegistryError as exc:
+        _metric_cli_error(exc)
+    typer.echo(format_sync_result(result))
 
 
 @metrics_app.command("list")
