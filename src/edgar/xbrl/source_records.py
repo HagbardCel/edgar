@@ -29,7 +29,7 @@ from edgar.xbrl.records import (
 EXTRACTOR_VERSION = "source-extract-v2"
 
 #: Wire schema for worker ``extraction_payload`` (not identity).
-SOURCE_RECORDS_SCHEMA_VERSION = 1
+SOURCE_RECORDS_SCHEMA_VERSION = 2
 
 LocatorScheme = Literal["xml_id", "unqualified_id", "expanded_element_path"]
 
@@ -47,6 +47,17 @@ class ElementLocator:
 
     def to_dict(self) -> dict[str, str]:
         return {"scheme": self.scheme, "value": self.value}
+
+
+def _assert_locator_implies_path(
+    path: str | None,
+    locator: ElementLocator | None,
+    *,
+    what: str,
+) -> None:
+    """Paired provenance: a locator is meaningless without its document path."""
+    if locator is not None and not path:
+        raise ValueError(f"{what} locator requires a non-empty source_document_relative_path")
 
 
 @dataclass(frozen=True)
@@ -96,20 +107,54 @@ class ConceptDeclarationRecord:
     source_document_relative_path: str | None = None
     source_locator: ElementLocator | None = None
 
+    def __post_init__(self) -> None:
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="concept declaration",
+        )
+
 
 @dataclass(frozen=True)
 class ConceptLabelRecord:
-    """One effective concept-label resource occurrence (no content uniqueness)."""
+    """One effective concept-label resource occurrence (no content uniqueness).
+
+    ``link_role_uri`` (ELR), ``arcrole_uri``, and ``resource_role_uri`` are
+    distinct. Resource provenance and arc provenance are independent pairs.
+    """
 
     concept: ExpandedQName
-    role_uri: str
+    link_role_uri: str
+    arcrole_uri: str
     text: str
+    source_order: int
     language: str | None = None
-    source_order: int | None = None
+    resource_role_uri: str | None = None
+    order_value: Decimal | None = None
+    source_document_relative_path: str | None = None
+    source_locator: ElementLocator | None = None
+    arc_document_relative_path: str | None = None
+    arc_locator: ElementLocator | None = None
 
     def __post_init__(self) -> None:
-        if not self.role_uri:
-            raise ValueError("role_uri is required")
+        if not self.link_role_uri:
+            raise ValueError("link_role_uri is required")
+        if not self.arcrole_uri:
+            raise ValueError("arcrole_uri is required")
+        if self.source_order < 0:
+            raise ValueError("source_order must be >= 0")
+        if self.order_value is not None and not self.order_value.is_finite():
+            raise ValueError(f"order_value must be finite: {self.order_value!r}")
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="concept label resource",
+        )
+        _assert_locator_implies_path(
+            self.arc_document_relative_path,
+            self.arc_locator,
+            what="concept label arc",
+        )
 
 
 @dataclass(frozen=True)
@@ -117,15 +162,36 @@ class ConceptReferenceRecord:
     """One effective concept-reference occurrence with ordered parts."""
 
     concept: ExpandedQName
-    role_uri: str
+    link_role_uri: str
+    arcrole_uri: str
     source_order: int
     reference_parts: tuple[ReferencePartRecord, ...] = ()
+    resource_role_uri: str | None = None
+    order_value: Decimal | None = None
+    source_document_relative_path: str | None = None
+    source_locator: ElementLocator | None = None
+    arc_document_relative_path: str | None = None
+    arc_locator: ElementLocator | None = None
 
     def __post_init__(self) -> None:
-        if not self.role_uri:
-            raise ValueError("role_uri is required")
+        if not self.link_role_uri:
+            raise ValueError("link_role_uri is required")
+        if not self.arcrole_uri:
+            raise ValueError("arcrole_uri is required")
         if self.source_order < 0:
             raise ValueError("source_order must be >= 0")
+        if self.order_value is not None and not self.order_value.is_finite():
+            raise ValueError(f"order_value must be finite: {self.order_value!r}")
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="concept reference resource",
+        )
+        _assert_locator_implies_path(
+            self.arc_document_relative_path,
+            self.arc_locator,
+            what="concept reference arc",
+        )
 
 
 @dataclass(frozen=True)
@@ -145,6 +211,11 @@ class ContextRecord:
     def __post_init__(self) -> None:
         if not self.source_context_id:
             raise ValueError("source_context_id is required")
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="context",
+        )
 
 
 @dataclass(frozen=True)
@@ -171,6 +242,11 @@ class ContextDimensionRecord:
                 raise ValueError("typed dimension requires typed_member")
             if self.member is not None:
                 raise ValueError("typed dimension must not carry an explicit member")
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="context dimension",
+        )
 
 
 @dataclass(frozen=True)
@@ -185,6 +261,11 @@ class UnitRecord:
     def __post_init__(self) -> None:
         if not self.source_unit_id:
             raise ValueError("source_unit_id is required")
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="unit",
+        )
 
 
 @dataclass(frozen=True)
@@ -237,6 +318,11 @@ class FactRecord:
             raise ValueError("a nil fact must not carry a resolved value")
         if self.resolved_numeric is not None and not self.resolved_numeric.is_finite():
             raise ValueError(f"resolved_numeric must be finite: {self.resolved_numeric!r}")
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="fact",
+        )
 
 
 @dataclass(frozen=True)
@@ -267,6 +353,11 @@ class RelationshipRecord:
         for label, value in (("order_value", self.order_value), ("weight", self.weight)):
             if value is not None and not value.is_finite():
                 raise ValueError(f"{label} must be finite: {value!r}")
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="relationship",
+        )
 
 
 @dataclass(frozen=True)
@@ -286,6 +377,11 @@ class ExtractionIssueRecord:
             raise ValueError("component must be non-empty")
         if not self.code:
             raise ValueError("code must be non-empty")
+        _assert_locator_implies_path(
+            self.source_document_relative_path,
+            self.source_locator,
+            what="extraction issue",
+        )
 
 
 @dataclass(frozen=True)

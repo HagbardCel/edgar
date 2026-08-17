@@ -4,7 +4,7 @@
   "fixture_probes": [
     {
       "id": "ixds_multi_document",
-      "test": "tests/contract/test_arelle_semantic_projection.py::test_ixds_multi_document_facts",
+      "test": "tests/contract/test_arelle_report_extraction.py::test_ixds_multi_document_facts",
       "covers": ["ixds_provenance", "document_uri_order"]
     },
     {
@@ -14,7 +14,7 @@
     },
     {
       "id": "dimensional_default",
-      "test": "tests/contract/test_arelle_semantic_projection.py::test_dimensional_defaults_not_invented",
+      "test": "tests/contract/test_arelle_report_extraction.py::test_dimensional_defaults_not_invented",
       "covers": ["explicit_dimensions"]
     },
     {
@@ -24,12 +24,12 @@
     },
     {
       "id": "non_dimensional_fatal",
-      "test": "tests/contract/test_arelle_semantic_projection.py::test_non_dimensional_context_fails",
+      "test": "tests/contract/test_arelle_report_extraction.py::test_non_dimensional_context_fails",
       "covers": ["fail_closed_fatality"]
     },
     {
       "id": "fact_iterator_ordinal",
-      "test": "tests/contract/test_arelle_semantic_projection.py::test_fact_source_order_matches_iterator_not_locator_sort",
+      "test": "tests/contract/test_arelle_report_extraction.py::test_fact_source_order_matches_iterator_not_locator_sort",
       "covers": ["iterator_ordinal_source_order"]
     }
   ],

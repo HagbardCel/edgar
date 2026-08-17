@@ -11,9 +11,9 @@ from edgar.parsing.config import (
 from edgar.parsing.records import (
     DocumentBlockRecord,
     DocumentIssueRecord,
-    DocumentProjectionData,
     FilingSectionRecord,
-    document_projection_equality_state,
+    ParsedDocumentData,
+    document_equality_state,
 )
 
 
@@ -55,14 +55,14 @@ def test_equality_excludes_issue_message() -> None:
             context={"section_key": "part_1.item_1.business"},
         ),
     )
-    data_a = DocumentProjectionData(
+    data_a = ParsedDocumentData(
         parser_version=DOCUMENT_PROJECTION_VERSION,
         config_fingerprint="a" * 64,
         blocks=blocks,
         sections=(),
         issues=issues_a,
     )
-    data_b = DocumentProjectionData(
+    data_b = ParsedDocumentData(
         parser_version=DOCUMENT_PROJECTION_VERSION,
         config_fingerprint="a" * 64,
         blocks=blocks,
@@ -70,9 +70,9 @@ def test_equality_excludes_issue_message() -> None:
         issues=issues_b,
     )
     cfg = {"parser_version": DOCUMENT_PROJECTION_VERSION}
-    assert document_projection_equality_state(
+    assert document_equality_state(
         data_a, status="complete", parser_config=cfg
-    ) == document_projection_equality_state(data_b, status="complete", parser_config=cfg)
+    ) == document_equality_state(data_b, status="complete", parser_config=cfg)
 
 
 def test_section_range_validation() -> None:

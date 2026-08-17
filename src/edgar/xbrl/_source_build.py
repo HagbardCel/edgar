@@ -72,11 +72,20 @@ def _optional_path_and_locator(
     required: bool,
     what: str,
 ) -> tuple[str | None, ElementLocator | None]:
+    """Map an Arelle locator to a paired (logical_path, ElementLocator).
+
+    No locator → ``(None, None)``. A present locator's document URI must resolve
+    through FilingBundle bindings; a locator without a path is never emitted.
+    """
     if locator is None:
         if required:
             raise SourceBuildError(f"{what} requires a source locator")
         return None, None
-    path = resolve_logical_path(locator.document_uri, uri_paths, required=required, what=what)
+    path = resolve_logical_path(locator.document_uri, uri_paths, required=True, what=what)
+    if path is None:
+        raise SourceBuildError(
+            f"cannot resolve {what} document_uri to bundle logical_path: {locator.document_uri!r}"
+        )
     return path, _element_locator(locator)
 
 
@@ -155,18 +164,33 @@ def _build_declarations(
     return tuple(out)
 
 
-def _build_labels(labels: Sequence[phase1.ConceptLabelRecord]) -> tuple[ConceptLabelRecord, ...]:
-    """Emit-order ``source_order`` (no post-sort)."""
+def _build_labels(
+    labels: Sequence[phase1.ConceptLabelRecord],
+    uri_paths: Mapping[str, str],
+) -> tuple[ConceptLabelRecord, ...]:
+    """Emit-order ``source_order`` (no post-sort). Distinct ELR/arc/resource roles."""
     out: list[ConceptLabelRecord] = []
     for index, lab in enumerate(labels):
-        role_uri = lab.resource_role_uri or lab.link_role_uri
+        path, locator = _optional_path_and_locator(
+            lab.source_locator, uri_paths, required=False, what="concept label resource"
+        )
+        arc_path, arc_locator = _optional_path_and_locator(
+            lab.arc_locator, uri_paths, required=False, what="concept label arc"
+        )
         out.append(
             ConceptLabelRecord(
                 concept=_require_namespaced(lab.concept, what="concept label"),
-                role_uri=role_uri,
+                link_role_uri=lab.link_role_uri,
+                arcrole_uri=lab.arcrole_uri,
                 text=lab.text,
-                language=lab.xml_lang,
                 source_order=index,
+                language=lab.xml_lang,
+                resource_role_uri=lab.resource_role_uri,
+                order_value=lab.order,
+                source_document_relative_path=path,
+                source_locator=locator,
+                arc_document_relative_path=arc_path,
+                arc_locator=arc_locator,
             )
         )
     return tuple(out)
@@ -174,10 +198,16 @@ def _build_labels(labels: Sequence[phase1.ConceptLabelRecord]) -> tuple[ConceptL
 
 def _build_references(
     references: Sequence[phase1.ConceptReferenceRecord],
+    uri_paths: Mapping[str, str],
 ) -> tuple[ConceptReferenceRecord, ...]:
     out: list[ConceptReferenceRecord] = []
     for index, ref in enumerate(references):
-        role_uri = ref.resource_role_uri or ref.link_role_uri
+        path, locator = _optional_path_and_locator(
+            ref.source_locator, uri_paths, required=False, what="concept reference resource"
+        )
+        arc_path, arc_locator = _optional_path_and_locator(
+            ref.arc_locator, uri_paths, required=False, what="concept reference arc"
+        )
         parts = tuple(
             ReferencePartRecord(
                 qname=_clark(
@@ -190,9 +220,16 @@ def _build_references(
         out.append(
             ConceptReferenceRecord(
                 concept=_require_namespaced(ref.concept, what="concept reference"),
-                role_uri=role_uri,
+                link_role_uri=ref.link_role_uri,
+                arcrole_uri=ref.arcrole_uri,
                 source_order=index,
                 reference_parts=parts,
+                resource_role_uri=ref.resource_role_uri,
+                order_value=ref.order,
+                source_document_relative_path=path,
+                source_locator=locator,
+                arc_document_relative_path=arc_path,
+                arc_locator=arc_locator,
             )
         )
     return tuple(out)
@@ -470,8 +507,8 @@ def build_report_extraction(
         arelle_item_fact_count=arelle_item_fact_count,
         concepts=_build_concepts(concept_declarations),
         declarations=_build_declarations(concept_declarations, uri_paths),
-        labels=_build_labels(concept_labels),
-        references=_build_references(concept_references),
+        labels=_build_labels(concept_labels, uri_paths),
+        references=_build_references(concept_references, uri_paths),
         contexts=_build_contexts(contexts, uri_paths),
         dimensions=_build_dimensions(context_dimensions, context_ids, uri_paths),
         units=_build_units(units, uri_paths),

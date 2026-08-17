@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -66,6 +66,10 @@ def _decimal_to_str(value: Decimal | None) -> str | None:
 
 
 def _date_to_iso(value: date | None) -> str | None:
+    return None if value is None else value.isoformat()
+
+
+def _datetime_to_iso(value: datetime | None) -> str | None:
     return None if value is None else value.isoformat()
 
 
@@ -280,9 +284,12 @@ def enrich_report_pin(
     label_rows = conn.execute(
         select(
             src.source_concept_label.c.id,
-            src.source_concept_label.c.role_uri,
+            src.source_concept_label.c.link_role_uri,
+            src.source_concept_label.c.arcrole_uri,
+            src.source_concept_label.c.resource_role_uri,
             src.source_concept_label.c.language,
             src.source_concept_label.c.text,
+            src.source_concept_label.c.order_value,
             src.source_concept_label.c.source_order,
         )
         .where(src.source_concept_label.c.report_id == pinned.report_id)
@@ -292,7 +299,9 @@ def enrich_report_pin(
     reference_rows = conn.execute(
         select(
             src.source_concept_reference.c.id,
-            src.source_concept_reference.c.role_uri,
+            src.source_concept_reference.c.link_role_uri,
+            src.source_concept_reference.c.arcrole_uri,
+            src.source_concept_reference.c.resource_role_uri,
             src.source_concept_reference.c.source_order,
             src.source_concept_reference.c.reference_parts,
         )
@@ -373,9 +382,12 @@ def enrich_report_pin(
                 src.source_context.c.entity_scheme,
                 src.source_context.c.entity_identifier,
                 src.source_context.c.period_kind,
-                src.source_context.c.instant,
-                src.source_context.c.start_date,
-                src.source_context.c.end_date,
+                src.source_context.c.instant_lexical,
+                src.source_context.c.start_lexical,
+                src.source_context.c.end_lexical,
+                src.source_context.c.instant_at,
+                src.source_context.c.start_at,
+                src.source_context.c.end_at,
             ).where(src.source_context.c.id.in_(context_ids))
         ).all()
         for row in context_rows:
@@ -470,9 +482,12 @@ def enrich_report_pin(
 
     labels = [
         {
-            "role_uri": row.role_uri,
+            "link_role_uri": row.link_role_uri,
+            "arcrole_uri": row.arcrole_uri,
+            "resource_role_uri": row.resource_role_uri,
             "language": row.language,
             "text": row.text,
+            "order_value": _numeric_to_str(row.order_value),
             "source_order": row.source_order,
             "_sort_id": int(row.id),
         }
@@ -480,7 +495,8 @@ def enrich_report_pin(
     ]
     labels.sort(
         key=lambda item: (
-            item["role_uri"] or "",
+            item["link_role_uri"] or "",
+            item["resource_role_uri"] or "",
             item["language"] or "",
             item["source_order"] if item["source_order"] is not None else -1,
             item["_sort_id"],
@@ -491,7 +507,9 @@ def enrich_report_pin(
 
     references = [
         {
-            "role_uri": row.role_uri,
+            "link_role_uri": row.link_role_uri,
+            "arcrole_uri": row.arcrole_uri,
+            "resource_role_uri": row.resource_role_uri,
             "source_order": row.source_order,
             "reference_parts": row.reference_parts,
             "_sort_id": int(row.id),
@@ -499,7 +517,12 @@ def enrich_report_pin(
         for row in reference_rows
     ]
     references.sort(
-        key=lambda item: (item["role_uri"] or "", item["source_order"], item["_sort_id"])
+        key=lambda item: (
+            item["link_role_uri"] or "",
+            item["resource_role_uri"] or "",
+            item["source_order"],
+            item["_sort_id"],
+        )
     )
     for item in references:
         del item["_sort_id"]
@@ -537,9 +560,12 @@ def enrich_report_pin(
             "entity_scheme": row.entity_scheme,
             "entity_identifier": row.entity_identifier,
             "period_kind": row.period_kind,
-            "instant_date": _date_to_iso(row.instant),
-            "start_date": _date_to_iso(row.start_date),
-            "end_date": _date_to_iso(row.end_date),
+            "instant_lexical": row.instant_lexical,
+            "start_lexical": row.start_lexical,
+            "end_lexical": row.end_lexical,
+            "instant_at": _datetime_to_iso(row.instant_at),
+            "start_at": _datetime_to_iso(row.start_at),
+            "end_at": _datetime_to_iso(row.end_at),
             "dimensions": dim_payloads,
         }
 

@@ -130,7 +130,7 @@ class ParsedDocument:
 
 
 @dataclass(frozen=True)
-class DocumentProjectionData:
+class ParsedDocumentData:
     """Persisted interpretation payload (no DB ids)."""
 
     parser_version: str
@@ -175,8 +175,8 @@ def issue_equality_representation(issue: DocumentIssueRecord) -> dict[str, Any]:
     }
 
 
-def document_projection_equality_state(
-    data: DocumentProjectionData,
+def document_equality_state(
+    data: ParsedDocumentData,
     *,
     status: str,
     parser_config: Mapping[str, Any],

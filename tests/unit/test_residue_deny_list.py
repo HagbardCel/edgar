@@ -1,4 +1,9 @@
-"""Executable residue must not reintroduce Phase-1 projection lifecycle paths."""
+"""Executable residue must not reintroduce Phase-1 projection lifecycle paths.
+
+This is intentionally a substring scan of comments and docstrings as well as
+code, so later changes cannot "fix" the gate by switching to AST-only
+inspection.
+"""
 
 from __future__ import annotations
 
@@ -22,6 +27,12 @@ _DENY_TOKENS = (
     "verified_reuse",
     "projection_compat",
     "v1_repository_adapter",
+    "SemanticProjectionService",
+    "DocumentProjectionService",
+    "extract_semantic_projection",
+    "semantic_projection",
+    "document_projection",
+    "edgar.projection",
 )
 
 _SCAN_ROOTS = (
@@ -30,19 +41,25 @@ _SCAN_ROOTS = (
     _REPO_ROOT / "scripts",
 )
 
-_ALLOW_PATH_SUBSTRINGS = (
-    "/tests/unit/test_residue_deny_list.py",
-    "/tests/integration/test_v2_clean_head.py",
-)
+# Path (relative to repo) → tokens this file may mention. Only historical
+# table-name literals in the clean-head gate, plus this module's own list.
+_TOKEN_EXEMPTIONS: dict[str, frozenset[str]] = {
+    "tests/unit/test_residue_deny_list.py": frozenset(_DENY_TOKENS),
+    "tests/integration/test_v2_clean_head.py": frozenset(
+        {
+            "semantic_projection",
+            "semantic_projection_attempt",
+            "document_projection",
+            "document_projection_attempt",
+        }
+    ),
+}
 
 
 def _should_scan(path: Path) -> bool:
     if path.suffix != ".py":
         return False
-    text = str(path)
-    if any(allow in text for allow in _ALLOW_PATH_SUBSTRINGS):
-        return False
-    return "/spikes/" not in text
+    return "/spikes/" not in str(path)
 
 
 def test_residue_deny_list_absent_from_live_python() -> None:
@@ -51,9 +68,12 @@ def test_residue_deny_list_absent_from_live_python() -> None:
         for path in root.rglob("*.py"):
             if not _should_scan(path):
                 continue
+            rel = str(path.relative_to(_REPO_ROOT))
+            allowed = _TOKEN_EXEMPTIONS.get(rel, frozenset())
             content = path.read_text(encoding="utf-8")
             for token in _DENY_TOKENS:
+                if token in allowed:
+                    continue
                 if token in content:
-                    rel = path.relative_to(_REPO_ROOT)
                     hits.append(f"{rel}: {token}")
     assert hits == [], "Phase-1 residue tokens found:\n" + "\n".join(hits)

@@ -155,6 +155,8 @@ source_concept_declaration = Table(
     Column("abstract", Boolean, nullable=True),
     Column("nillable", Boolean, nullable=True),
     Column("substitution_group", Text, nullable=True),
+    Column("source_document_id", BigInteger, nullable=True),
+    Column("source_locator", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="concept_declaration_pkey"),
     ForeignKeyConstraint(
         ["report_id"],
@@ -166,6 +168,11 @@ source_concept_declaration = Table(
         ["concept_id"],
         [f"{SOURCE_SCHEMA}.concept.id"],
         name="concept_declaration_concept_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="concept_declaration_source_document_id_fkey",
     ),
     UniqueConstraint(
         "report_id",
@@ -180,6 +187,7 @@ source_concept_declaration = Table(
         "balance IS NULL OR balance IN ('debit', 'credit')",
         name="ck_source_concept_declaration_balance",
     ),
+    Index("ix_source_concept_declaration_source_document", "source_document_id"),
     schema=SOURCE_SCHEMA,
 )
 
@@ -189,10 +197,17 @@ source_concept_label = Table(
     Column("id", BigInteger, autoincrement=True, nullable=False),
     Column("report_id", BigInteger, nullable=False),
     Column("concept_id", UUID(as_uuid=True), nullable=False),
-    Column("role_uri", Text, nullable=False),
+    Column("link_role_uri", Text, nullable=False),
+    Column("arcrole_uri", Text, nullable=False),
+    Column("resource_role_uri", Text, nullable=True),
     Column("language", Text, nullable=True),
     Column("text", Text, nullable=False),
-    Column("source_order", Integer, nullable=True),
+    Column("order_value", Numeric, nullable=True),
+    Column("source_order", Integer, nullable=False),
+    Column("source_document_id", BigInteger, nullable=True),
+    Column("source_locator", JSONB, nullable=True),
+    Column("arc_source_document_id", BigInteger, nullable=True),
+    Column("arc_locator", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="concept_label_pkey"),
     ForeignKeyConstraint(
         ["report_id"],
@@ -205,6 +220,22 @@ source_concept_label = Table(
         [f"{SOURCE_SCHEMA}.concept.id"],
         name="concept_label_concept_id_fkey",
     ),
+    ForeignKeyConstraint(
+        ["source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="concept_label_source_document_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["arc_source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="concept_label_arc_source_document_id_fkey",
+    ),
+    UniqueConstraint(
+        "report_id",
+        "source_order",
+        name="uq_source_concept_label_report_order",
+    ),
+    CheckConstraint("source_order >= 0", name="ck_source_concept_label_source_order_nonneg"),
     Index("ix_source_concept_label_report_concept", "report_id", "concept_id"),
     schema=SOURCE_SCHEMA,
 )
@@ -215,9 +246,16 @@ source_concept_reference = Table(
     Column("id", BigInteger, autoincrement=True, nullable=False),
     Column("report_id", BigInteger, nullable=False),
     Column("concept_id", UUID(as_uuid=True), nullable=False),
-    Column("role_uri", Text, nullable=False),
+    Column("link_role_uri", Text, nullable=False),
+    Column("arcrole_uri", Text, nullable=False),
+    Column("resource_role_uri", Text, nullable=True),
+    Column("order_value", Numeric, nullable=True),
     Column("source_order", Integer, nullable=False),
     Column("reference_parts", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
+    Column("source_document_id", BigInteger, nullable=True),
+    Column("source_locator", JSONB, nullable=True),
+    Column("arc_source_document_id", BigInteger, nullable=True),
+    Column("arc_locator", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="concept_reference_pkey"),
     ForeignKeyConstraint(
         ["report_id"],
@@ -230,11 +268,22 @@ source_concept_reference = Table(
         [f"{SOURCE_SCHEMA}.concept.id"],
         name="concept_reference_concept_id_fkey",
     ),
+    ForeignKeyConstraint(
+        ["source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="concept_reference_source_document_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["arc_source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="concept_reference_arc_source_document_id_fkey",
+    ),
     UniqueConstraint(
         "report_id",
         "source_order",
         name="uq_source_concept_reference_report_order",
     ),
+    CheckConstraint("source_order >= 0", name="ck_source_concept_reference_source_order_nonneg"),
     Index("ix_source_concept_reference_report_concept", "report_id", "concept_id"),
     schema=SOURCE_SCHEMA,
 )
@@ -248,9 +297,14 @@ source_context = Table(
     Column("entity_scheme", Text, nullable=False),
     Column("entity_identifier", Text, nullable=False),
     Column("period_kind", Text, nullable=False),
-    Column("instant", Date, nullable=True),
-    Column("start_date", Date, nullable=True),
-    Column("end_date", Date, nullable=True),
+    Column("instant_lexical", Text, nullable=True),
+    Column("start_lexical", Text, nullable=True),
+    Column("end_lexical", Text, nullable=True),
+    Column("instant_at", DateTime(timezone=True), nullable=True),
+    Column("start_at", DateTime(timezone=True), nullable=True),
+    Column("end_at", DateTime(timezone=True), nullable=True),
+    Column("source_document_id", BigInteger, nullable=True),
+    Column("source_locator", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="context_pkey"),
     ForeignKeyConstraint(
         ["report_id"],
@@ -258,19 +312,33 @@ source_context = Table(
         name="context_report_id_fkey",
         ondelete="CASCADE",
     ),
+    ForeignKeyConstraint(
+        ["source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="context_source_document_id_fkey",
+    ),
     UniqueConstraint("report_id", "source_context_id", name="uq_source_context_report_source_id"),
     CheckConstraint(
         "period_kind IN ('instant', 'duration', 'forever')",
         name="ck_source_context_period_kind",
     ),
     CheckConstraint(
-        "(period_kind = 'instant' AND instant IS NOT NULL"
-        " AND start_date IS NULL AND end_date IS NULL)"
-        " OR (period_kind = 'duration' AND instant IS NULL"
-        " AND start_date IS NOT NULL AND end_date IS NOT NULL)"
-        " OR (period_kind = 'forever' AND instant IS NULL"
-        " AND start_date IS NULL AND end_date IS NULL)",
+        "(period_kind = 'instant' AND instant_lexical IS NOT NULL"
+        " AND start_lexical IS NULL AND end_lexical IS NULL"
+        " AND start_at IS NULL AND end_at IS NULL)"
+        " OR (period_kind = 'duration' AND instant_lexical IS NULL"
+        " AND start_lexical IS NOT NULL AND end_lexical IS NOT NULL"
+        " AND instant_at IS NULL)"
+        " OR (period_kind = 'forever' AND instant_lexical IS NULL"
+        " AND start_lexical IS NULL AND end_lexical IS NULL"
+        " AND instant_at IS NULL AND start_at IS NULL AND end_at IS NULL)",
         name="ck_source_context_period_fields",
+    ),
+    CheckConstraint(
+        "(instant_at IS NULL OR instant_lexical IS NOT NULL)"
+        " AND (start_at IS NULL OR start_lexical IS NOT NULL)"
+        " AND (end_at IS NULL OR end_lexical IS NOT NULL)",
+        name="ck_source_context_at_requires_lexical",
     ),
     Index("ix_source_context_report_source_id", "report_id", "source_context_id"),
     schema=SOURCE_SCHEMA,
@@ -286,6 +354,8 @@ source_context_dimension = Table(
     Column("member_kind", Text, nullable=False),
     Column("explicit_member_concept_id", UUID(as_uuid=True), nullable=True),
     Column("typed_member", JSONB, nullable=True),
+    Column("source_document_id", BigInteger, nullable=True),
+    Column("source_locator", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="context_dimension_pkey"),
     ForeignKeyConstraint(
         ["context_id"],
@@ -302,6 +372,11 @@ source_context_dimension = Table(
         ["explicit_member_concept_id"],
         [f"{SOURCE_SCHEMA}.concept.id"],
         name="context_dimension_explicit_member_concept_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="context_dimension_source_document_id_fkey",
     ),
     CheckConstraint(
         "context_element IN ('segment', 'scenario')",
@@ -329,12 +404,19 @@ source_unit = Table(
     Column("id", BigInteger, autoincrement=True, nullable=False),
     Column("report_id", BigInteger, nullable=False),
     Column("source_unit_id", Text, nullable=False),
+    Column("source_document_id", BigInteger, nullable=True),
+    Column("source_locator", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="unit_pkey"),
     ForeignKeyConstraint(
         ["report_id"],
         [f"{SOURCE_SCHEMA}.xbrl_report.id"],
         name="unit_report_id_fkey",
         ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="unit_source_document_id_fkey",
     ),
     UniqueConstraint("report_id", "source_unit_id", name="uq_source_unit_report_source_id"),
     Index("ix_source_unit_report_source_id", "report_id", "source_unit_id"),
@@ -466,6 +548,8 @@ source_relationship = Table(
     Column("preferred_label", Text, nullable=True),
     Column("target_role", Text, nullable=True),
     Column("attributes", JSONB, nullable=True),
+    Column("source_document_id", BigInteger, nullable=True),
+    Column("source_locator", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="relationship_pkey"),
     ForeignKeyConstraint(
         ["report_id"],
@@ -483,6 +567,11 @@ source_relationship = Table(
         [f"{SOURCE_SCHEMA}.concept.id"],
         name="relationship_target_concept_id_fkey",
     ),
+    ForeignKeyConstraint(
+        ["source_document_id"],
+        [f"{SOURCE_SCHEMA}.document.id"],
+        name="relationship_source_document_id_fkey",
+    ),
     UniqueConstraint("report_id", "source_order", name="uq_source_relationship_report_order"),
     CheckConstraint(
         "network_type IN ('presentation', 'calculation', 'definition')",
@@ -497,6 +586,7 @@ source_relationship = Table(
     ),
     Index("ix_source_relationship_source_concept", "report_id", "source_concept_id"),
     Index("ix_source_relationship_target_concept", "report_id", "target_concept_id"),
+    Index("ix_source_relationship_source_document", "source_document_id"),
     schema=SOURCE_SCHEMA,
 )
 

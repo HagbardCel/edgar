@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -549,21 +549,22 @@ def _insert_report_children(
     report: ReportExtraction,
     documents: Mapping[str, int],
 ) -> None:
-    _bulk_insert_declarations(conn, report_id, report.declarations)
-    _bulk_insert_labels(conn, report_id, report.labels)
-    _bulk_insert_references(conn, report_id, report.references)
-    context_ids = _bulk_insert_contexts(conn, report_id, report.contexts)
-    _bulk_insert_dimensions(conn, context_ids, report.dimensions)
-    unit_ids = _bulk_insert_units(conn, report_id, report.units)
+    _bulk_insert_declarations(conn, report_id, report.declarations, documents)
+    _bulk_insert_labels(conn, report_id, report.labels, documents)
+    _bulk_insert_references(conn, report_id, report.references, documents)
+    context_ids = _bulk_insert_contexts(conn, report_id, report.contexts, documents)
+    _bulk_insert_dimensions(conn, context_ids, report.dimensions, documents)
+    unit_ids = _bulk_insert_units(conn, report_id, report.units, documents)
     _bulk_insert_measures(conn, unit_ids, report.measures)
     _bulk_insert_facts(conn, report_id, report.facts, context_ids, unit_ids, documents)
-    _bulk_insert_relationships(conn, report_id, report.relationships)
+    _bulk_insert_relationships(conn, report_id, report.relationships, documents)
 
 
 def _bulk_insert_declarations(
     conn: Connection,
     report_id: int,
     declarations: Sequence[ConceptDeclarationRecord],
+    documents: Mapping[str, int],
 ) -> None:
     if not declarations:
         return
@@ -577,6 +578,13 @@ def _bulk_insert_declarations(
             "abstract": decl.abstract,
             "nillable": decl.nillable,
             "substitution_group": _optional_clark(decl.substitution_group),
+            "source_document_id": _resolve_optional_document(
+                documents,
+                decl.source_document_relative_path,
+                decl.source_locator,
+                what="declaration",
+            ),
+            "source_locator": _locator_json(decl.source_locator),
         }
         for decl in declarations
     ]
@@ -587,6 +595,7 @@ def _bulk_insert_labels(
     conn: Connection,
     report_id: int,
     labels: Sequence[ConceptLabelRecord],
+    documents: Mapping[str, int],
 ) -> None:
     if not labels:
         return
@@ -594,10 +603,27 @@ def _bulk_insert_labels(
         {
             "report_id": report_id,
             "concept_id": _concept_uuid(label.concept, what="label"),
-            "role_uri": label.role_uri,
+            "link_role_uri": label.link_role_uri,
+            "arcrole_uri": label.arcrole_uri,
+            "resource_role_uri": label.resource_role_uri,
             "language": label.language,
             "text": label.text,
+            "order_value": label.order_value,
             "source_order": label.source_order,
+            "source_document_id": _resolve_optional_document(
+                documents,
+                label.source_document_relative_path,
+                label.source_locator,
+                what=f"label source_order={label.source_order}",
+            ),
+            "source_locator": _locator_json(label.source_locator),
+            "arc_source_document_id": _resolve_optional_document(
+                documents,
+                label.arc_document_relative_path,
+                label.arc_locator,
+                what=f"label arc source_order={label.source_order}",
+            ),
+            "arc_locator": _locator_json(label.arc_locator),
         }
         for label in labels
     ]
@@ -608,6 +634,7 @@ def _bulk_insert_references(
     conn: Connection,
     report_id: int,
     references: Sequence[ConceptReferenceRecord],
+    documents: Mapping[str, int],
 ) -> None:
     if not references:
         return
@@ -615,9 +642,26 @@ def _bulk_insert_references(
         {
             "report_id": report_id,
             "concept_id": _concept_uuid(ref.concept, what="reference"),
-            "role_uri": ref.role_uri,
+            "link_role_uri": ref.link_role_uri,
+            "arcrole_uri": ref.arcrole_uri,
+            "resource_role_uri": ref.resource_role_uri,
+            "order_value": ref.order_value,
             "source_order": ref.source_order,
             "reference_parts": [part.to_dict() for part in ref.reference_parts],
+            "source_document_id": _resolve_optional_document(
+                documents,
+                ref.source_document_relative_path,
+                ref.source_locator,
+                what=f"reference source_order={ref.source_order}",
+            ),
+            "source_locator": _locator_json(ref.source_locator),
+            "arc_source_document_id": _resolve_optional_document(
+                documents,
+                ref.arc_document_relative_path,
+                ref.arc_locator,
+                what=f"reference arc source_order={ref.source_order}",
+            ),
+            "arc_locator": _locator_json(ref.arc_locator),
         }
         for ref in references
     ]
@@ -628,6 +672,7 @@ def _bulk_insert_contexts(
     conn: Connection,
     report_id: int,
     contexts: Sequence[ContextRecord],
+    documents: Mapping[str, int],
 ) -> dict[str, int]:
     if not contexts:
         return {}
@@ -638,9 +683,19 @@ def _bulk_insert_contexts(
             "entity_scheme": ctx.entity_scheme,
             "entity_identifier": ctx.entity_identifier,
             "period_kind": ctx.period_kind,
-            "instant": _parse_filed_date(ctx.period_instant, field="instant"),
-            "start_date": _parse_filed_date(ctx.period_start, field="start_date"),
-            "end_date": _parse_filed_date(ctx.period_end, field="end_date"),
+            "instant_lexical": ctx.period_instant,
+            "start_lexical": ctx.period_start,
+            "end_lexical": ctx.period_end,
+            "instant_at": _parse_offset_aware_datetime(ctx.period_instant),
+            "start_at": _parse_offset_aware_datetime(ctx.period_start),
+            "end_at": _parse_offset_aware_datetime(ctx.period_end),
+            "source_document_id": _resolve_optional_document(
+                documents,
+                ctx.source_document_relative_path,
+                ctx.source_locator,
+                what=f"context {ctx.source_context_id}",
+            ),
+            "source_locator": _locator_json(ctx.source_locator),
         }
         for ctx in contexts
     ]
@@ -657,6 +712,7 @@ def _bulk_insert_dimensions(
     conn: Connection,
     context_ids: Mapping[str, int],
     dimensions: Sequence[ContextDimensionRecord],
+    documents: Mapping[str, int],
 ) -> None:
     if not dimensions:
         return
@@ -682,6 +738,13 @@ def _bulk_insert_dimensions(
                     else None
                 ),
                 "typed_member": typed_member,
+                "source_document_id": _resolve_optional_document(
+                    documents,
+                    dim.source_document_relative_path,
+                    dim.source_locator,
+                    what=f"dimension {dim.source_context_id}",
+                ),
+                "source_locator": _locator_json(dim.source_locator),
             }
         )
     conn.execute(src.source_context_dimension.insert(), rows)
@@ -691,6 +754,7 @@ def _bulk_insert_units(
     conn: Connection,
     report_id: int,
     units: Sequence[UnitRecord],
+    documents: Mapping[str, int],
 ) -> dict[str, int]:
     if not units:
         return {}
@@ -698,6 +762,13 @@ def _bulk_insert_units(
         {
             "report_id": report_id,
             "source_unit_id": unit.source_unit_id,
+            "source_document_id": _resolve_optional_document(
+                documents,
+                unit.source_document_relative_path,
+                unit.source_locator,
+                what=f"unit {unit.source_unit_id}",
+            ),
+            "source_locator": _locator_json(unit.source_locator),
         }
         for unit in units
     ]
@@ -765,6 +836,7 @@ def _bulk_insert_facts(
         source_document_id = _resolve_optional_document(
             documents,
             fact.source_document_relative_path,
+            fact.source_locator,
             what=f"fact source_order={fact.source_order}",
         )
         continuation: Any = null()
@@ -804,6 +876,7 @@ def _bulk_insert_relationships(
     conn: Connection,
     report_id: int,
     relationships: Sequence[RelationshipRecord],
+    documents: Mapping[str, int],
 ) -> None:
     if not relationships:
         return
@@ -821,6 +894,13 @@ def _bulk_insert_relationships(
             "preferred_label": rel.preferred_label,
             "target_role": rel.target_role,
             "attributes": (dict(rel.attributes) if rel.attributes is not None else null()),
+            "source_document_id": _resolve_optional_document(
+                documents,
+                rel.source_document_relative_path,
+                rel.source_locator,
+                what=f"relationship source_order={rel.source_order}",
+            ),
+            "source_locator": _locator_json(rel.source_locator),
         }
         for rel in relationships
     ]
@@ -938,6 +1018,7 @@ def _issue_row(
     document_id = _resolve_optional_document(
         documents,
         issue.source_document_relative_path,
+        issue.source_locator,
         what=f"issue code={issue.code}",
     )
     return {
@@ -957,10 +1038,13 @@ def _issue_row(
 def _resolve_optional_document(
     documents: Mapping[str, int],
     relative_path: str | None,
+    locator: ElementLocator | None = None,
     *,
     what: str,
 ) -> int | None:
     if relative_path is None:
+        if locator is not None:
+            raise PersistExtractionError(f"{what}: locator without source document path")
         return None
     doc_id = documents.get(relative_path)
     if doc_id is None:
@@ -988,11 +1072,23 @@ def _locator_json(locator: ElementLocator | None) -> Any:
     return locator.to_dict()
 
 
-def _parse_filed_date(value: str | None, *, field: str) -> date | None:
+def _parse_offset_aware_datetime(value: str | None) -> datetime | None:
+    """Populate ``*_at`` only for offset-aware absolute ``xs:dateTime`` lexicals.
+
+    Date-only and timezone-less dateTime values leave ``*_at`` NULL. A failed
+    optional parse also returns NULL and never rejects the occurrence.
+    """
     if value is None:
         return None
-    if "T" in value:
-        raise PersistExtractionError(
-            f"context {field} is dateTime and cannot be stored as Date: {value!r}"
-        )
-    return date.fromisoformat(value)
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z") or text.endswith("z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None and parsed.utcoffset() is not None:
+        return parsed
+    return None

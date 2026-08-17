@@ -16,8 +16,9 @@ Configure `.env` with `EDGAR_DATA_ROOT`, `EDGAR_DATABASE_URL`, and (for tests)
 
 ## Migrations
 
-Head revision is `0001_source_v2`: creates schema `source` and all
-`SOURCE_TABLES`.
+Head revision is `0001_source_v2`: frozen self-contained DDL that creates
+schema `source` and all `source.*` tables. `src/edgar/db/source_schema.py` is
+live Core metadata, not the historical meaning of revision `0001`.
 
 **Phase-1 databases cannot upgrade in place.** If `alembic_version` still
 references the deleted 0001–0004 lineage, drop/recreate the database (or run the

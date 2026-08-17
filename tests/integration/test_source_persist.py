@@ -31,14 +31,18 @@ from edgar.ingestion.payload import compute_payload_hash
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.records import ExpandedQName
 from edgar.xbrl.source_records import (
+    ConceptDeclarationRecord,
+    ConceptLabelRecord,
     ConceptRecord,
     ContextDimensionRecord,
     ContextRecord,
     DocumentBlockRecord,
+    ElementLocator,
     ExtractionIssueRecord,
     FactRecord,
     FilingExtraction,
     FilingSectionRecord,
+    RelationshipRecord,
     ReportExtraction,
     UnitMeasureRecord,
     UnitRecord,
@@ -619,3 +623,273 @@ def test_persist_explicit_dimension_sql_null_typed_member(engine: Engine, tmp_pa
     assert row[0] == "explicit"
     assert row[1] is not None
     assert row[2] is None
+
+
+def _locator(value: str = "n1") -> ElementLocator:
+    return ElementLocator(scheme="xml_id", value=value)
+
+
+def test_persist_provenance_on_relationship_declaration_context_unit(
+    engine: Engine, tmp_path: Path
+) -> None:
+    bundle = _make_bundle(tmp_path)
+    loc = _locator("rel1")
+    concepts = (
+        ConceptRecord(namespace_uri=_NS, local_name="Revenue"),
+        ConceptRecord(namespace_uri=_NS, local_name="Assets"),
+    )
+    report = _minimal_report(
+        report_key="a" * 64,
+        concepts=concepts,
+        facts=(_fact(source_order=0, local="Revenue", value="100", numeric=Decimal("100")),),
+    )
+    report = ReportExtraction(
+        report_input=report.report_input,
+        report_key=report.report_key,
+        extractor_version=report.extractor_version,
+        arelle_version=report.arelle_version,
+        arelle_item_fact_count=report.arelle_item_fact_count,
+        concepts=concepts,
+        declarations=(
+            ConceptDeclarationRecord(
+                concept=_qname("Revenue"),
+                period_type="duration",
+                source_document_relative_path=_DOC_PATH,
+                source_locator=_locator("decl1"),
+            ),
+        ),
+        labels=(
+            ConceptLabelRecord(
+                concept=_qname("Revenue"),
+                link_role_uri="http://example.com/role/Statement",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                text="Revenue",
+                source_order=0,
+                language="en",
+                resource_role_uri="http://www.xbrl.org/2003/role/label",
+                source_document_relative_path=_DOC_PATH,
+                source_locator=_locator("lab1"),
+                arc_document_relative_path=_DOC_PATH,
+                arc_locator=_locator("labarc1"),
+            ),
+        ),
+        contexts=(
+            ContextRecord(
+                source_context_id="c1",
+                entity_scheme="http://www.sec.gov/CIK",
+                entity_identifier="0001065088",
+                period_kind="instant",
+                period_instant="2023-12-31",
+                source_document_relative_path=_DOC_PATH,
+                source_locator=_locator("ctx1"),
+            ),
+        ),
+        units=(
+            UnitRecord(
+                source_unit_id="u1",
+                source_document_relative_path=_DOC_PATH,
+                source_locator=_locator("u1"),
+            ),
+        ),
+        measures=report.measures,
+        facts=report.facts,
+        relationships=(
+            RelationshipRecord(
+                source_order=0,
+                network_type="presentation",
+                link_role_uri="http://example.com/role/Income",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
+                source_concept=_qname("Revenue"),
+                target_concept=_qname("Assets"),
+                source_document_relative_path=_DOC_PATH,
+                source_locator=loc,
+            ),
+        ),
+    )
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=FilingExtraction(reports=(report,))
+        )
+        doc_id = conn.execute(
+            select(src.source_document.c.id).where(src.source_document.c.relative_path == _DOC_PATH)
+        ).scalar_one()
+        rel = conn.execute(
+            select(
+                src.source_relationship.c.source_document_id,
+                src.source_relationship.c.source_locator,
+            )
+        ).one()
+        decl = conn.execute(
+            select(
+                src.source_concept_declaration.c.source_document_id,
+                src.source_concept_declaration.c.source_locator,
+            )
+        ).one()
+        ctx = conn.execute(
+            select(
+                src.source_context.c.source_document_id,
+                src.source_context.c.source_locator,
+                src.source_context.c.instant_lexical,
+                src.source_context.c.instant_at,
+            )
+        ).one()
+        unit = conn.execute(
+            select(src.source_unit.c.source_document_id, src.source_unit.c.source_locator)
+        ).one()
+        label = conn.execute(
+            select(
+                src.source_concept_label.c.link_role_uri,
+                src.source_concept_label.c.arcrole_uri,
+                src.source_concept_label.c.resource_role_uri,
+                src.source_concept_label.c.source_document_id,
+                src.source_concept_label.c.arc_source_document_id,
+            )
+        ).one()
+    assert rel[0] == doc_id
+    assert rel[1]["scheme"] == "xml_id"
+    assert decl[0] == doc_id
+    assert decl[1]["value"] == "decl1"
+    assert ctx[0] == doc_id
+    assert ctx[2] == "2023-12-31"
+    assert ctx[3] is None
+    assert unit[0] == doc_id
+    assert label[0] == "http://example.com/role/Statement"
+    assert label[1] == "http://www.xbrl.org/2003/arcrole/concept-label"
+    assert label[2] == "http://www.xbrl.org/2003/role/label"
+    assert label[3] == doc_id
+    assert label[4] == doc_id
+
+
+def test_persist_missing_document_path_keeps_prior_snapshot(engine: Engine, tmp_path: Path) -> None:
+    bundle = _make_bundle(tmp_path)
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_a())
+
+    bad_report = _minimal_report(
+        report_key="e" * 64,
+        concepts=(ConceptRecord(namespace_uri=_NS, local_name="Revenue"),),
+        facts=(_fact(source_order=0, local="Revenue", value="9", numeric=Decimal("9")),),
+    )
+    bad_report = ReportExtraction(
+        report_input=bad_report.report_input,
+        report_key=bad_report.report_key,
+        extractor_version=bad_report.extractor_version,
+        arelle_version=bad_report.arelle_version,
+        arelle_item_fact_count=bad_report.arelle_item_fact_count,
+        concepts=bad_report.concepts,
+        contexts=bad_report.contexts,
+        units=bad_report.units,
+        measures=bad_report.measures,
+        facts=bad_report.facts,
+        relationships=(
+            RelationshipRecord(
+                source_order=0,
+                network_type="presentation",
+                link_role_uri="http://example.com/role/Income",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
+                source_concept=_qname("Revenue"),
+                target_concept=_qname("Revenue"),
+                source_document_relative_path="missing.xml",
+                source_locator=_locator("missing"),
+            ),
+        ),
+    )
+    with (
+        pytest.raises(PersistExtractionError, match="not catalogued"),
+        engine.begin() as conn,
+    ):
+        persist_extraction(
+            conn,
+            filing_id=catalog.filing_id,
+            extraction=FilingExtraction(reports=(bad_report,)),
+        )
+
+    with engine.connect() as conn:
+        facts = conn.execute(
+            select(src.source_fact.c.raw_lexical_value, src.source_fact.c.source_order)
+        ).all()
+        issues = {row[0] for row in conn.execute(select(src.source_extraction_issue.c.code)).all()}
+        reports = conn.execute(select(src.source_xbrl_report.c.report_key)).all()
+    assert facts == [("100", 0)]
+    assert issues == {"ISSUE_A"}
+    assert reports == [("a" * 64,)]
+
+
+def test_persist_datetime_context_lexical_and_offset_aware_at(
+    engine: Engine, tmp_path: Path
+) -> None:
+    bundle = _make_bundle(tmp_path)
+
+    def _report(context_id: str, lexical: str, key: str) -> ReportExtraction:
+        base = _minimal_report(
+            report_key=key,
+            concepts=(ConceptRecord(namespace_uri=_NS, local_name="Revenue"),),
+            facts=(_fact(source_order=0, local="Revenue", value="1", numeric=Decimal("1")),),
+        )
+        return ReportExtraction(
+            report_input=base.report_input,
+            report_key=base.report_key,
+            extractor_version=base.extractor_version,
+            arelle_version=base.arelle_version,
+            arelle_item_fact_count=base.arelle_item_fact_count,
+            concepts=base.concepts,
+            contexts=(
+                ContextRecord(
+                    source_context_id=context_id,
+                    entity_scheme="http://www.sec.gov/CIK",
+                    entity_identifier="0001065088",
+                    period_kind="instant",
+                    period_instant=lexical,
+                ),
+            ),
+            units=base.units,
+            measures=base.measures,
+            facts=(
+                FactRecord(
+                    source_order=0,
+                    concept=_qname("Revenue"),
+                    source_context_id=context_id,
+                    value_status="valid",
+                    source_unit_id="u1",
+                    raw_lexical_value="1",
+                    resolved_value_kind="numeric",
+                    resolved_numeric=Decimal("1"),
+                    source_document_relative_path=_DOC_PATH,
+                ),
+            ),
+        )
+
+    cases = (
+        ("naive", "2024-06-15T12:30:00", False),
+        ("zulu", "2024-06-15T12:30:00Z", True),
+        ("offset", "2024-06-15T12:30:00-04:00", True),
+        ("dateonly", "2024-12-31", False),
+    )
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        filing_id = catalog.filing_id
+
+    for name, lexical, expect_at in cases:
+        key = name.encode().hex().ljust(64, "0")
+        with engine.begin() as conn:
+            persist_extraction(
+                conn,
+                filing_id=filing_id,
+                extraction=FilingExtraction(reports=(_report("c-" + name, lexical, key),)),
+            )
+            row = conn.execute(
+                select(
+                    src.source_context.c.instant_lexical,
+                    src.source_context.c.instant_at,
+                )
+            ).one()
+        assert row[0] == lexical
+        assert row[0] != "2025-01-01"
+        if expect_at:
+            assert row[1] is not None
+            assert row[1].tzinfo is not None
+            assert row[1].utcoffset() is not None
+        else:
+            assert row[1] is None

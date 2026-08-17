@@ -27,6 +27,7 @@ from edgar.corpus_acceptance import (
     evaluate_corpus_role_probes,
     evaluate_taxonomy_transition_probe,
     layer_a_completeness_issues,
+    layer_a_document_inventory_issues,
     load_corpus_probes,
     report_count_matrix,
     resolve_published_bundle,
@@ -35,6 +36,7 @@ from edgar.corpus_acceptance import (
 )
 from edgar.corpus_manifest import CorpusManifest, load_corpus_manifest
 from edgar.db.check import DatabaseRevisionMismatch, require_database_at_head
+from edgar.domain.bundle import FilingBundle
 from edgar.ingestion.source_extract import SourceExtractError, SourceExtractService
 from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
@@ -55,6 +57,7 @@ class PassResult:
     section_count: int | None
     report_probes: list[dict[str, Any]] = field(default_factory=list)
     report_matrices: list[dict[str, Any]] = field(default_factory=list)
+    inventory: dict[str, Any] = field(default_factory=dict)
     layer_a_ok: bool = False
 
 
@@ -101,7 +104,8 @@ def _empty_report(settings: Settings) -> dict[str, Any]:
         },
         "acceptance_gates": {
             "A_internal_source_completeness": (
-                "arelle_item_fact_count == len(facts) == persisted source.fact"
+                "arelle_item_fact_count == len(facts) == persisted source.fact; "
+                "source.document inventory equals FilingBundle.artifacts"
             ),
             "B_reextraction_idempotency": "first V2 snapshot counts/probes == second",
             "C_cutover_preservation": str(_PROBES_PATH),
@@ -114,6 +118,7 @@ def _empty_report(settings: Settings) -> dict[str, Any]:
 def _run_pipeline_pass(
     *,
     bundle_dir: Path,
+    bundle: FilingBundle,
     extract: SourceExtractService,
     engine: Engine,
     source: str,
@@ -145,11 +150,18 @@ def _run_pipeline_pass(
     report_probes = [asdict(p) for p in result.report_probes]
     with engine.connect() as conn:
         matrices = report_count_matrix(conn, result.filing_id)
+        inventory_issues, inventory = layer_a_document_inventory_issues(
+            conn,
+            filing_id=result.filing_id,
+            bundle=bundle,
+            source=source,
+        )
     layer_a = layer_a_completeness_issues(
         report_probes=report_probes,
         report_matrices=matrices,
         source=source,
     )
+    layer_a.extend(inventory_issues)
     if layer_a:
         return None, layer_a
 
@@ -164,6 +176,7 @@ def _run_pipeline_pass(
             section_count=result.persist.section_count,
             report_probes=report_probes,
             report_matrices=matrices,
+            inventory=inventory,
             layer_a_ok=True,
         ),
         [],
@@ -232,6 +245,21 @@ def _filing_report(status: FilingRunStatus) -> dict[str, Any]:
         "extracted": status.extracted,
         "concept_declaration_count": status.concept_declaration_count,
         "fact_count": status.fact_count,
+        "bundle_document_count": None
+        if status.first_pass is None
+        else status.first_pass.inventory.get("bundle_document_count"),
+        "catalog_document_count": None
+        if status.first_pass is None
+        else status.first_pass.inventory.get("catalog_document_count"),
+        "bundle_inventory_digest": None
+        if status.first_pass is None
+        else status.first_pass.inventory.get("bundle_inventory_digest"),
+        "catalog_inventory_digest": None
+        if status.first_pass is None
+        else status.first_pass.inventory.get("catalog_inventory_digest"),
+        "inventory_equal": None
+        if status.first_pass is None
+        else status.first_pass.inventory.get("inventory_equal"),
         "first_pass": None if status.first_pass is None else asdict(status.first_pass),
         "second_pass": None if status.second_pass is None else asdict(status.second_pass),
         "idempotent": status.idempotent,
@@ -329,6 +357,7 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
 
         first, first_issues = _run_pipeline_pass(
             bundle_dir=bundle_dir,
+            bundle=resolution.bundle,
             extract=extract,
             engine=engine,
             source=source,
@@ -349,6 +378,11 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
             "ok": first.layer_a_ok,
             "report_probes": first.report_probes,
             "report_matrices": first.report_matrices,
+            "bundle_document_count": first.inventory.get("bundle_document_count"),
+            "catalog_document_count": first.inventory.get("catalog_document_count"),
+            "bundle_inventory_digest": first.inventory.get("bundle_inventory_digest"),
+            "catalog_inventory_digest": first.inventory.get("catalog_inventory_digest"),
+            "inventory_equal": first.inventory.get("inventory_equal"),
         }
 
         with engine.connect() as conn:
@@ -372,6 +406,7 @@ def run_acceptance(settings: Settings, manifest: CorpusManifest) -> dict[str, An
 
         second, second_issues = _run_pipeline_pass(
             bundle_dir=bundle_dir,
+            bundle=resolution.bundle,
             extract=extract,
             engine=engine,
             source=source,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass
@@ -406,7 +407,7 @@ def load_corpus_probes(path: Path) -> dict[str, Any]:
 
 
 def report_count_matrix(conn: Connection, filing_id: int) -> list[dict[str, Any]]:
-    """Per-report count matrix for corpus acceptance (inventory hashes + counts)."""
+    """Per-report count matrix for corpus acceptance (counts only, not inventory)."""
     reports = (
         conn.execute(
             select(
@@ -493,6 +494,85 @@ def report_count_matrix(conn: Connection, filing_id: int) -> list[dict[str, Any]
             }
         )
     return matrices
+
+
+def canonical_document_inventory_digest(
+    rows: set[tuple[str, str, int]],
+) -> str:
+    """SHA-256 of canonical JSON for sorted ``(relative_path, sha256, byte_size)``."""
+    payload = json.dumps(
+        [[path, sha256, byte_size] for path, sha256, byte_size in sorted(rows)],
+        ensure_ascii=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def bundle_document_inventory(
+    bundle: FilingBundle,
+) -> set[tuple[str, str, int]]:
+    return {
+        (artifact.logical_path, artifact.content.sha256, artifact.content.byte_size)
+        for artifact in bundle.artifacts
+    }
+
+
+def catalog_document_inventory(conn: Connection, filing_id: int) -> set[tuple[str, str, int]]:
+    rows = conn.execute(
+        select(
+            src.source_document.c.relative_path,
+            src.source_document.c.sha256,
+            src.source_document.c.byte_size,
+        ).where(src.source_document.c.filing_id == filing_id)
+    ).all()
+    return {(str(path), str(sha256), int(byte_size)) for path, sha256, byte_size in rows}
+
+
+def document_inventory_evidence(
+    *,
+    bundle_rows: set[tuple[str, str, int]],
+    catalog_rows: set[tuple[str, str, int]],
+) -> dict[str, Any]:
+    return {
+        "bundle_document_count": len(bundle_rows),
+        "catalog_document_count": len(catalog_rows),
+        "bundle_inventory_digest": canonical_document_inventory_digest(bundle_rows),
+        "catalog_inventory_digest": canonical_document_inventory_digest(catalog_rows),
+        "inventory_equal": bundle_rows == catalog_rows,
+    }
+
+
+def layer_a_document_inventory_issues(
+    conn: Connection,
+    *,
+    filing_id: int,
+    bundle: FilingBundle,
+    source: str,
+) -> tuple[list[AcceptanceIssue], dict[str, Any]]:
+    """Filing-scoped Layer A: ``source.document`` equals FilingBundle artifacts."""
+    bundle_rows = bundle_document_inventory(bundle)
+    catalog_rows = catalog_document_inventory(conn, filing_id)
+    evidence = document_inventory_evidence(bundle_rows=bundle_rows, catalog_rows=catalog_rows)
+    if evidence["inventory_equal"]:
+        return [], evidence
+    return (
+        [
+            AcceptanceIssue(
+                component="completeness",
+                code="LAYER_A_DOCUMENT_INVENTORY_MISMATCH",
+                message=(
+                    "source.document (relative_path, sha256, byte_size) does not equal "
+                    f"FilingBundle.artifacts: bundle_count={evidence['bundle_document_count']} "
+                    f"catalog_count={evidence['catalog_document_count']} "
+                    f"bundle_digest={evidence['bundle_inventory_digest']} "
+                    f"catalog_digest={evidence['catalog_inventory_digest']}"
+                ),
+                source=source,
+            )
+        ],
+        evidence,
+    )
 
 
 def layer_a_completeness_issues(

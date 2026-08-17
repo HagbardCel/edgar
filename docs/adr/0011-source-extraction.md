@@ -16,9 +16,11 @@ contract.
 
 ## Decision
 
-1. **V2 Alembic baseline** — Revision `0001_source_v2` creates schema `source`
-   and all `SOURCE_TABLES`. Fresh upgrades do not create Phase-1 projection or
-   public catalog tables. Phase-1 DBs must be recreated.
+1. **V2 Alembic baseline** — Revision `0001_source_v2` is frozen self-contained
+   DDL (`op.create_table` / indexes / named constraints). It does not import
+   `source_schema.py`. Fresh upgrades create schema `source` and only `source.*`
+   tables. Live Core metadata remains in `src/edgar/db/source_schema.py` and is
+   not the historical meaning of `0001`. Phase-1 DBs must be recreated.
 
 2. **Native extract path** — `edgar filings extract` catalogs into
    `source.issuer` / `filing` / `document`, runs the isolated Arelle worker with

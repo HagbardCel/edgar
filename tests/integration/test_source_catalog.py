@@ -271,8 +271,8 @@ def test_context_period_check(engine: Engine, tmp_path: Path) -> None:
                     entity_scheme="http://www.sec.gov/CIK",
                     entity_identifier="0001065088",
                     period_kind="instant",
-                    instant=None,
-                    start_date=date(2023, 1, 1),
-                    end_date=date(2023, 12, 31),
+                    instant_lexical=None,
+                    start_lexical="2023-01-01",
+                    end_lexical="2023-12-31",
                 )
             )

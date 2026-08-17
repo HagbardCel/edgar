@@ -57,7 +57,7 @@ NetworkType = Literal["presentation", "calculation", "definition"]
 CyclesAllowed = Literal["any", "undirected", "none"]
 DiagnosticSeverity = Literal["info", "warning", "error", "critical"]
 IssueSeverity = Literal["fatal", "warning", "info"]
-IssueScope = Literal["operational", "semantic_projection", "document_projection"]
+IssueScope = Literal["operational", "xbrl", "document"]
 
 LOCATOR_SCHEMES: frozenset[str] = frozenset(get_args(LocatorScheme))
 PERIOD_KINDS: frozenset[str] = frozenset(get_args(PeriodKind))
@@ -1233,7 +1233,7 @@ class SemanticIssueRecord:
     severity: IssueSeverity
     code: str
     message: str
-    scope: IssueScope = "semantic_projection"
+    scope: IssueScope = "xbrl"
     locator: SourceLocator | None = None
     context: Mapping[str, Any] = field(default_factory=dict)
 

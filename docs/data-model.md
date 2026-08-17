@@ -3,10 +3,12 @@
 **Status:** Authoritative conceptual persistence model after Phase 2B source
 cutover.
 
-Physical DDL lives in `src/edgar/db/source_schema.py` and is created by Alembic
-revision `0001_source_v2` (CREATE SCHEMA `source` + all `SOURCE_TABLES`).
-Fresh `alembic upgrade head` creates **only** `source.*` — no Phase-1
-public-schema projection/catalog tables.
+Physical DDL is frozen in Alembic revision `0001_source_v2` as self-contained
+`op.create_table` / index / constraint ops (no import of application metadata).
+`src/edgar/db/source_schema.py` is the live SQLAlchemy Core metadata used by
+persistence; later edits there require a new revision and must not change the
+historical meaning of `0001`. Fresh `alembic upgrade head` creates **only**
+`source.*` — no Phase-1 public-schema projection/catalog tables.
 
 Related:
 
@@ -68,19 +70,36 @@ source.xbrl_report
   entrypoint / binding provenance, arelle_version, extracted_at, …
 
 source.concept_declaration   # report-scoped declaration of a concept
+  source_document_id, source_locator   # optional paired provenance
 source.concept_label
-source.concept_reference
-source.context + source.context_dimension
-source.unit + source.unit_measure
+  link_role_uri, arcrole_uri, resource_role_uri, order_value, source_order
+  source_document_id / source_locator           # resource element
+  arc_source_document_id / arc_locator          # arc concept → resource
+source.concept_reference     # same URI + resource/arc provenance grain as labels
+source.context
+  instant_lexical / start_lexical / end_lexical   # filed XML text (source of truth)
+  instant_at / start_at / end_at                  # optional timestamptz; offset-aware only
+  source_document_id, source_locator
+source.context_dimension / source.unit
+  source_document_id, source_locator
 source.fact                  # one row per source occurrence (source_order)
 source.relationship          # effective presentation / calculation / definition
+  source_document_id, source_locator
 source.extraction_issue      # filing- and/or report-scoped diagnostics
 ```
 
 Grain notes:
 
-- Facts and relationships are unique on `(report_id, source_order)`.
-- Contexts/units retain source ids within a report.
+- Facts, relationships, labels, and references are unique on `(report_id, source_order)`.
+- Label/reference `link_role_uri`, `arcrole_uri`, and `resource_role_uri` are
+  distinct; they are never collapsed.
+- Paired provenance: a locator is stored only with a catalogued document path
+  (DTO build resolves FilingBundle URI → `logical_path`; persist resolves path →
+  `source.document`). Missing Arelle locators store both path and locator as NULL.
+- Contexts/units retain source ids within a report. Period identity is the
+  filed lexical string; `*_at` is optional normalization when the lexical form
+  is offset-aware (`Z` or numeric offset). Date-only `2024-12-31` is never
+  stored as `2025-01-01`.
 - Dimensions are structured rows (no opaque `dimensions_json` as identity).
 - Extract replace deletes extraction-owned rows for a filing and re-inserts;
   shared `source.concept` rows persist.

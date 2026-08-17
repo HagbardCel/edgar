@@ -11,10 +11,12 @@ Interpretation rules this extraction commits to:
   their primary binding; the Arelle IXDS surrogate is never a source document
   because it has no bytes of its own. An unattributable document is incoherent.
 - **Periods.** Period fields keep the *filed lexical* value of ``xbrli:instant``
-  / ``startDate`` / ``endDate``. Coherence is checked against Arelle's
-  unadjusted ``instantDate`` / ``endDate``; the midnight-adjusted
-  ``instantDatetime`` / ``endDatetime`` values are never read, so no filed date
-  is silently shifted by a day. A period Arelle cannot represent is incoherent.
+  / ``startDate`` / ``endDate``. Arelle determines period kind and whether the
+  context is representable. ``instantDatetime`` / ``endDatetime`` may be used
+  only to establish that Arelle successfully represents a dateTime-valued
+  boundary; they are never copied into source fields or compared as though
+  their calendar date were the filed lexical date. A period Arelle cannot
+  represent is incoherent.
 - **Dimensions.** Only *filed* occurrences are read, from ``segDimValues`` /
   ``scenDimValues`` plus ``errorDimValues`` (duplicate or unresolvable filed
   occurrences). ``dimValue()``, ``dimMemberQname(includeDefaults=True)``, and
@@ -682,11 +684,14 @@ def _period_fields(
         return "forever", None, None, None
     if instant is not None:
         lexical = _text_content(instant).strip()
-        # instantDate is the unadjusted filed date; instantDatetime is never read.
-        if not lexical or getattr(context, "instantDate", None) is None:
+        representable = (
+            getattr(context, "instantDate", None) is not None
+            or getattr(context, "instantDatetime", None) is not None
+        )
+        if not lexical or not representable:
             extraction.incoherent(
                 INCOHERENT_CONTEXT_PERIOD,
-                f"instant period is not representable as a date: {lexical!r}",
+                f"instant period is not representable: {lexical!r}",
                 locator=locator,
             )
             return None
@@ -700,19 +705,15 @@ def _period_fields(
         return None
     start_lexical = _text_content(start).strip()
     end_lexical = _text_content(end).strip()
-    start_value = getattr(context, "startDatetime", None)
-    if not start_lexical or not end_lexical or start_value is None:
+    start_representable = getattr(context, "startDatetime", None) is not None
+    end_representable = (
+        getattr(context, "endDate", None) is not None
+        or getattr(context, "endDatetime", None) is not None
+    )
+    if not start_lexical or not end_lexical or not start_representable or not end_representable:
         extraction.incoherent(
             INCOHERENT_CONTEXT_PERIOD,
             f"duration period is not representable: {start_lexical!r}..{end_lexical!r}",
-            locator=locator,
-        )
-        return None
-    # endDate is the unadjusted filed date; endDatetime is never read.
-    if getattr(context, "endDate", None) is None:
-        extraction.incoherent(
-            INCOHERENT_CONTEXT_PERIOD,
-            f"duration end is not representable as a date: {end_lexical!r}",
             locator=locator,
         )
         return None

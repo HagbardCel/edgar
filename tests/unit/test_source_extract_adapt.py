@@ -22,6 +22,7 @@ from edgar.xbrl.source_extract import extract_filing
 from edgar.xbrl.source_records import (
     EXTRACTOR_VERSION,
     ConceptDeclarationRecord,
+    ConceptLabelRecord,
     ConceptRecord,
     ConceptReferenceRecord,
     ContextDimensionRecord,
@@ -35,7 +36,11 @@ from edgar.xbrl.source_records import (
     UnitMeasureRecord,
     UnitRecord,
 )
-from edgar.xbrl.source_wire import report_extraction_from_dict, report_extraction_to_dict
+from edgar.xbrl.source_wire import (
+    SourceWireError,
+    report_extraction_from_dict,
+    report_extraction_to_dict,
+)
 from tests.helpers.xbrl_bundles import (
     INSTANCE,
     INSTANCE_URI,
@@ -63,10 +68,31 @@ def _rich_report_for_wire() -> ReportExtraction:
             ConceptDeclarationRecord(concept=concept, period_type="instant"),
             ConceptDeclarationRecord(concept=other, period_type="duration"),
         ),
+        labels=(
+            ConceptLabelRecord(
+                concept=concept,
+                link_role_uri="http://example.com/role/Statement",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                text="Assets",
+                source_order=0,
+                language="en",
+                resource_role_uri="http://www.xbrl.org/2003/role/label",
+            ),
+            ConceptLabelRecord(
+                concept=concept,
+                link_role_uri="http://example.com/role/Other",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                text="Assets",
+                source_order=1,
+                language="en",
+                resource_role_uri="http://www.xbrl.org/2003/role/label",
+            ),
+        ),
         references=(
             ConceptReferenceRecord(
                 concept=concept,
-                role_uri="http://example.com/role",
+                link_role_uri="http://example.com/role",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-reference",
                 source_order=0,
                 reference_parts=(
                     ReferencePartRecord(
@@ -177,6 +203,15 @@ def test_report_extraction_wire_round_trip() -> None:
     assert restored.references[0].reference_parts[1].value == "Topic"
     assert restored.relationships[0].weight == Decimal("-1.0")
     assert [f.source_order for f in restored.facts] == [0, 1, 2]
+    assert restored.labels[0].link_role_uri != restored.labels[1].link_role_uri
+    assert restored.labels[0].resource_role_uri == restored.labels[1].resource_role_uri
+
+
+def test_wire_rejects_schema_version_1() -> None:
+    payload = report_extraction_to_dict(_rich_report_for_wire())
+    payload["schema_version"] = 1
+    with pytest.raises(SourceWireError, match="schema_version"):
+        report_extraction_from_dict(payload)
 
 
 def test_extract_filing_minimal_duplicates_and_count(tmp_path: Path) -> None:
@@ -207,6 +242,14 @@ def test_extract_filing_rich_nil_and_qnames(tmp_path: Path) -> None:
     assert by_name["Assets"].concept.namespace_uri == "http://example.com/rich"
     assert by_name["Assets"].resolved_numeric is not None
     assert isinstance(by_name["Assets"].resolved_numeric, Decimal)
+    labels = [lab for lab in report.labels if lab.concept.local_name == "Assets"]
+    assert len(labels) >= 2
+    roles = {(lab.link_role_uri, lab.arcrole_uri, lab.resource_role_uri) for lab in labels}
+    assert len(roles) == len(labels)
+    assert all(lab.source_document_relative_path for lab in labels)
+    assert all(lab.source_locator is not None for lab in labels)
+    assert all(rel.source_document_relative_path for rel in report.relationships)
+    assert all(rel.source_locator is not None for rel in report.relationships)
 
 
 def test_extract_filing_invalid_transform_facts_counted(tmp_path: Path) -> None:
@@ -301,3 +344,66 @@ def test_report2_fatal_aborts_entire_filing_extraction(tmp_path: Path) -> None:
     assert any(b.document_uri == SCHEMA_URI for b in dual.uri_bindings)
     with pytest.raises(SourceExtractWorkerError):
         extract_filing(dual, store)
+
+
+def test_build_labels_same_resource_role_distinct_elr() -> None:
+    from edgar.xbrl._source_build import _build_labels
+    from edgar.xbrl.records import ConceptLabelRecord as Phase1Label
+    from edgar.xbrl.records import SourceLocator
+
+    concept = ExpandedQName(namespace_uri="http://example.com/test", local_name="Assets")
+    uri = "https://example.com/lab.xml"
+    resource = SourceLocator(document_uri=uri, scheme="xml_id", value="lab1")
+    arc_a = SourceLocator(document_uri=uri, scheme="xml_id", value="arc1")
+    arc_b = SourceLocator(document_uri=uri, scheme="xml_id", value="arc2")
+    labels = _build_labels(
+        (
+            Phase1Label(
+                concept=concept,
+                link_role_uri="http://example.com/role/Statement",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                text="Assets",
+                source_locator=resource,
+                arc_locator=arc_a,
+                resource_role_uri="http://www.xbrl.org/2003/role/label",
+            ),
+            Phase1Label(
+                concept=concept,
+                link_role_uri="http://example.com/role/Other",
+                arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                text="Assets",
+                source_locator=resource,
+                arc_locator=arc_b,
+                resource_role_uri="http://www.xbrl.org/2003/role/label",
+            ),
+        ),
+        {uri: "accession/lab.xml"},
+    )
+    assert len(labels) == 2
+    assert labels[0].resource_role_uri == labels[1].resource_role_uri
+    assert labels[0].link_role_uri != labels[1].link_role_uri
+    assert labels[0].source_document_relative_path == "accession/lab.xml"
+    assert labels[0].arc_document_relative_path == "accession/lab.xml"
+    assert labels[0].source_locator is not None
+    assert labels[0].arc_locator is not None
+
+
+def test_optional_path_and_locator_unbound_uri_fails() -> None:
+    from edgar.xbrl._source_build import SourceBuildError, _optional_path_and_locator
+    from edgar.xbrl.records import SourceLocator
+
+    locator = SourceLocator(
+        document_uri="https://example.com/unbound.xml",
+        scheme="xml_id",
+        value="x1",
+    )
+    with pytest.raises(SourceBuildError, match="cannot resolve"):
+        _optional_path_and_locator(locator, {}, required=False, what="relationship")
+
+
+def test_optional_path_and_locator_missing_locator_is_none_pair() -> None:
+    from edgar.xbrl._source_build import _optional_path_and_locator
+
+    path, locator = _optional_path_and_locator(None, {}, required=False, what="unit")
+    assert path is None
+    assert locator is None

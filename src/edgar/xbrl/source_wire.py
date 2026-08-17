@@ -223,29 +223,58 @@ def _declaration_from_dict(data: dict[str, Any]) -> ConceptDeclarationRecord:
 def _label_to_dict(lab: ConceptLabelRecord) -> dict[str, Any]:
     return {
         "concept": _qname_to_dict(lab.concept),
-        "role_uri": lab.role_uri,
+        "link_role_uri": lab.link_role_uri,
+        "arcrole_uri": lab.arcrole_uri,
+        "resource_role_uri": lab.resource_role_uri,
         "text": lab.text,
         "language": lab.language,
+        "order_value": _decimal_to_str(lab.order_value),
         "source_order": lab.source_order,
+        "source_document_relative_path": lab.source_document_relative_path,
+        "source_locator": _locator_to_dict(lab.source_locator),
+        "arc_document_relative_path": lab.arc_document_relative_path,
+        "arc_locator": _locator_to_dict(lab.arc_locator),
     }
 
 
 def _label_from_dict(data: dict[str, Any]) -> ConceptLabelRecord:
     return ConceptLabelRecord(
         concept=_qname_from_dict(data["concept"], label="label.concept"),
-        role_uri=require_str(data["role_uri"], label="label.role_uri"),
+        link_role_uri=require_str(data["link_role_uri"], label="label.link_role_uri"),
+        arcrole_uri=require_str(data["arcrole_uri"], label="label.arcrole_uri"),
         text=require_str(data["text"], label="label.text"),
+        source_order=require_int(data["source_order"], label="label.source_order"),
         language=_nullable_str(data.get("language"), label="label.language"),
-        source_order=_nullable_int(data.get("source_order"), label="label.source_order"),
+        resource_role_uri=_nullable_str(
+            data.get("resource_role_uri"), label="label.resource_role_uri"
+        ),
+        order_value=_nullable_decimal(data.get("order_value"), label="label.order_value"),
+        source_document_relative_path=_nullable_str(
+            data.get("source_document_relative_path"),
+            label="label.source_document_relative_path",
+        ),
+        source_locator=_locator_from_dict(data.get("source_locator"), label="label.source_locator"),
+        arc_document_relative_path=_nullable_str(
+            data.get("arc_document_relative_path"),
+            label="label.arc_document_relative_path",
+        ),
+        arc_locator=_locator_from_dict(data.get("arc_locator"), label="label.arc_locator"),
     )
 
 
 def _reference_to_dict(ref: ConceptReferenceRecord) -> dict[str, Any]:
     return {
         "concept": _qname_to_dict(ref.concept),
-        "role_uri": ref.role_uri,
+        "link_role_uri": ref.link_role_uri,
+        "arcrole_uri": ref.arcrole_uri,
+        "resource_role_uri": ref.resource_role_uri,
         "source_order": ref.source_order,
+        "order_value": _decimal_to_str(ref.order_value),
         "reference_parts": [p.to_dict() for p in ref.reference_parts],
+        "source_document_relative_path": ref.source_document_relative_path,
+        "source_locator": _locator_to_dict(ref.source_locator),
+        "arc_document_relative_path": ref.arc_document_relative_path,
+        "arc_locator": _locator_to_dict(ref.arc_locator),
     }
 
 
@@ -265,9 +294,26 @@ def _reference_from_dict(data: dict[str, Any]) -> ConceptReferenceRecord:
         )
     return ConceptReferenceRecord(
         concept=_qname_from_dict(data["concept"], label="reference.concept"),
-        role_uri=require_str(data["role_uri"], label="reference.role_uri"),
+        link_role_uri=require_str(data["link_role_uri"], label="reference.link_role_uri"),
+        arcrole_uri=require_str(data["arcrole_uri"], label="reference.arcrole_uri"),
         source_order=require_int(data["source_order"], label="reference.source_order"),
         reference_parts=tuple(parts),
+        resource_role_uri=_nullable_str(
+            data.get("resource_role_uri"), label="reference.resource_role_uri"
+        ),
+        order_value=_nullable_decimal(data.get("order_value"), label="reference.order_value"),
+        source_document_relative_path=_nullable_str(
+            data.get("source_document_relative_path"),
+            label="reference.source_document_relative_path",
+        ),
+        source_locator=_locator_from_dict(
+            data.get("source_locator"), label="reference.source_locator"
+        ),
+        arc_document_relative_path=_nullable_str(
+            data.get("arc_document_relative_path"),
+            label="reference.arc_document_relative_path",
+        ),
+        arc_locator=_locator_from_dict(data.get("arc_locator"), label="reference.arc_locator"),
     )
 
 

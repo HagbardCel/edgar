@@ -13,6 +13,7 @@ from edgar.xbrl.extract import UnattributableSourceDocument, canonical_source_do
 from edgar.xbrl.semantic import SourceExtractWorkerError, run_offline_extract
 from tests.helpers.xbrl_bundles import (
     make_alias_schema_bundle,
+    make_datetime_instant_bundle,
     make_decimals_omitted_bundle,
     make_dimensional_default_bundle,
     make_invalid_transform_bundle,
@@ -36,6 +37,25 @@ def test_offline_extract_period_and_duplicate_facts(tmp_path: Path) -> None:
     assert result.report.arelle_item_fact_count == len(result.report.facts)
     assert result.report.arelle_item_fact_count >= 2
     assert any(d.concept.local_name == "Assets" for d in result.report.declarations)
+
+
+def test_timezone_less_datetime_instant_keeps_filed_lexical(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path)
+    result = run_offline_extract(
+        make_datetime_instant_bundle(store, lexical="2024-06-15T12:30:00"), store
+    )
+    instants = {ctx.period_instant for ctx in result.report.contexts}
+    assert instants == {"2024-06-15T12:30:00"}
+    assert "2024-06-16" not in instants
+
+
+def test_offset_aware_datetime_instant_keeps_filed_lexical(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path)
+    for lexical in ("2024-06-15T12:30:00Z", "2024-06-15T12:30:00-04:00"):
+        result = run_offline_extract(make_datetime_instant_bundle(store, lexical=lexical), store)
+        instants = {ctx.period_instant for ctx in result.report.contexts}
+        assert lexical in instants
+        assert "2024-06-16" not in instants
 
 
 def test_filed_decimals_inf_not_omitted(tmp_path: Path) -> None:

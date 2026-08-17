@@ -129,3 +129,100 @@ def test_v2_clean_head_catalog_smoke(engine: Engine, tmp_path: Path) -> None:
         ).all()
         assert len(rows) == catalog.document_count
         assert catalog.document_count >= 1
+
+
+def _sa_udt_name(col_type: object) -> str:
+    from sqlalchemy import BigInteger, Boolean, Date, DateTime, Integer, Numeric, SmallInteger, Text
+    from sqlalchemy.dialects.postgresql import JSONB, UUID
+
+    if isinstance(col_type, UUID):
+        return "uuid"
+    if isinstance(col_type, JSONB):
+        return "jsonb"
+    if isinstance(col_type, DateTime):
+        return "timestamptz"
+    if isinstance(col_type, Numeric):
+        return "numeric"
+    if isinstance(col_type, BigInteger):
+        return "int8"
+    if isinstance(col_type, SmallInteger):
+        return "int2"
+    if isinstance(col_type, Integer):
+        return "int4"
+    if isinstance(col_type, Boolean):
+        return "bool"
+    if isinstance(col_type, Date):
+        return "date"
+    if isinstance(col_type, Text):
+        return "text"
+    raise TypeError(f"unsupported column type {col_type!r}")
+
+
+def test_v2_clean_head_source_schema_column_parity(engine: Engine) -> None:
+    """Live source_schema.py must match frozen 0001 DDL (drift detector)."""
+    with engine.connect() as conn:
+        columns = {
+            (row.table_name, row.column_name): row
+            for row in conn.execute(
+                text(
+                    """
+                    SELECT table_name, column_name, is_nullable, udt_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'source'
+                    """
+                )
+            )
+        }
+        constraints = {
+            (row.table_name, row.constraint_name, row.constraint_type)
+            for row in conn.execute(
+                text(
+                    """
+                    SELECT c.relname AS table_name, con.conname AS constraint_name,
+                           con.contype AS constraint_type
+                    FROM pg_constraint con
+                    JOIN pg_class c ON c.oid = con.conrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = 'source'
+                    """
+                )
+            )
+        }
+        indexes = {
+            row[0]
+            for row in conn.execute(
+                text("SELECT indexname FROM pg_indexes WHERE schemaname = 'source'")
+            )
+        }
+
+    expected_columns: set[tuple[str, str]] = set()
+    expected_indexes: set[str] = set()
+    expected_constraints: set[tuple[str, str, str]] = set()
+    for table in src.SOURCE_TABLES:
+        for col in table.columns:
+            expected_columns.add((table.name, col.name))
+            row = columns[(table.name, col.name)]
+            expected_null = "YES" if col.nullable else "NO"
+            assert row.is_nullable == expected_null, (table.name, col.name, row.is_nullable)
+            assert row.udt_name == _sa_udt_name(col.type), (table.name, col.name, row.udt_name)
+        for idx in table.indexes:
+            expected_indexes.add(idx.name)
+        for constraint in table.constraints:
+            name = constraint.name
+            if not name:
+                continue
+            visit = type(constraint).__name__
+            kind = {
+                "PrimaryKeyConstraint": "p",
+                "UniqueConstraint": "u",
+                "ForeignKeyConstraint": "f",
+                "CheckConstraint": "c",
+            }.get(visit)
+            if kind is None:
+                continue
+            expected_constraints.add((table.name, name, kind))
+
+    actual_columns = set(columns)
+    assert actual_columns == expected_columns
+    assert expected_indexes <= indexes
+    assert expected_constraints <= constraints

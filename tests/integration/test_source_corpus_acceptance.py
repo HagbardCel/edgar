@@ -10,7 +10,12 @@ from pathlib import Path
 import pytest
 from sqlalchemy import Engine, create_engine
 
-from edgar.corpus_acceptance import lookup_source_filing_id, source_canonical_snapshot
+from edgar.corpus_acceptance import (
+    layer_a_document_inventory_issues,
+    lookup_source_filing_id,
+    source_canonical_snapshot,
+)
+from edgar.db import source_schema as src
 from edgar.db.source import catalog_source_filing, persist_extraction
 from edgar.domain.bundle import (
     BundleArtifact,
@@ -210,3 +215,39 @@ def test_source_canonical_snapshot_counts(engine: Engine, tmp_path: Path) -> Non
     assert snapshot.extraction.relationship_count == 1
     assert snapshot.extraction.block_count == 2
     assert snapshot.extraction.section_count == 1
+
+
+def test_layer_a_document_inventory_mismatch_extra_catalog_row(
+    engine: Engine, tmp_path: Path
+) -> None:
+    bundle = _bundle(tmp_path)
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        issues, evidence = layer_a_document_inventory_issues(
+            conn, filing_id=catalog.filing_id, bundle=bundle, source="test"
+        )
+        assert issues == []
+        assert evidence["inventory_equal"] is True
+        assert evidence["bundle_document_count"] == 1
+        assert evidence["catalog_document_count"] == 1
+        assert evidence["bundle_inventory_digest"] == evidence["catalog_inventory_digest"]
+
+        conn.execute(
+            src.source_document.insert().values(
+                filing_id=catalog.filing_id,
+                relative_path="accession/extra.xml",
+                document_kind="attachment",
+                source_url=None,
+                sha256="0" * 64,
+                byte_size=1,
+                is_primary=False,
+            )
+        )
+        issues, evidence = layer_a_document_inventory_issues(
+            conn, filing_id=catalog.filing_id, bundle=bundle, source="test"
+        )
+    assert issues
+    assert issues[0].code == "LAYER_A_DOCUMENT_INVENTORY_MISMATCH"
+    assert evidence["inventory_equal"] is False
+    assert evidence["catalog_document_count"] == 2
+    assert evidence["bundle_inventory_digest"] != evidence["catalog_inventory_digest"]
