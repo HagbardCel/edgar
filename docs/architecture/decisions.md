@@ -80,19 +80,19 @@ LinkML can generate multiple schema/code representations and semantic exports. T
 
 **Reconsider when:** a real consumer requires interactive simultaneous parser-version comparisons at scale or exact historical API responses that were never exported.
 
-## D6 — Retain Git contracts and database decisions: made
+## D6 — Explicit ownership of contracts, mapping decisions and assessment inputs: made
 
 **Problem:** assign one authority to authored meaning and expensive review history.
 
-**Options:** all Git; all PostgreSQL; current split with content snapshots.
+**Options:** all Git; all PostgreSQL; current contract/mapping split with explicit reviewed assessment inputs and content snapshots.
 
-**Recommendation:** current split, plus historical contract snapshots and backup/restore verification. Do not rebuild the existing decision ledger just to align storage ownership aesthetically.
+**Recommendation:** Git-authored contracts, PostgreSQL-governed mapping decisions, and curator-approved assessment packets selected explicitly by request. Preserve contract and assessment snapshots with backup/restore verification. Standalone packets are current-knowledge inputs unless an accepted revision or previously completed publication anchors the exact reviewed content by the semantic cutoff. This replaces the imprecise claim that PostgreSQL owns every class of semantic judgment. Do not rebuild the existing decision ledger just to align storage ownership aesthetically.
 
 **Reasoning:** small definitions benefit from code review and DB-free validation; transactional review/correction and affected-fact joins fit PostgreSQL. Old hashes without content are insufficient portable evidence. A mirrored snapshot is a copy of authority, not another definition editor.
 
 **Identity refinement:** `metric-v1` and `metric-v2` explicitly identify the definition-hash contract; preserve the original digest bytes and label only verified original-schema legacy records. New ContractRefs include scheme/digest/content. This is a fixed pair of supported hash contracts, not a plugin or serialization migration framework.
 
-**Trade-off:** YAML/mirror synchronization remains. Implement common contract locking and take one loaded YAML snapshot per operation; never accept against a drifting mirror.
+**Trade-off:** standalone assessments without either historical anchor cannot serve strict semantic-as-of requests. This limitation is preferable to a new recording table before observed demand; fail with knowledge-time unknown. YAML/mirror synchronization remains. Implement common contract locking and take one loaded YAML snapshot per operation; never accept against a drifting mirror.
 
 **Reconsider when:** multiple concurrent curators need an interactive contract authoring service. At that point move authoring authority explicitly, with an auditable cutover; never enable both editors.
 
@@ -176,6 +176,7 @@ The SEC company-facts APIs aggregate selected standard-taxonomy, entity-wide fac
 | F14 Factored accounting meaning | Recurrence alone does not establish multiple independent consumers | Several real uses sharing the same source-meaning conclusion and duplicated review effort | Compare factoring cost with direct claims; no mandatory intermediary now |
 | F15 Separate DB writer role | Trusted-local setup already has one owner connection | Shared/untrusted writers or deployment requirements | Keep M2 immutability triggers; add restricted roles/grants before extending the trust boundary |
 | F16 Publication automation | A bounded manifest scan serves the first exports | Measured scan cost or repeated missed/manual correction work | Keep M3 explicit status/notices; add indexing/propagation only with a scoped operational need |
+| F17 Standalone assessment recording | Initial historical queries can use reviewed packets captured in accepted revisions/publications | Named strict-as-of queries materially blocked by missing recording anchors; actual volume/ergonomic cost | Consider one append-only digest/time record with retention and correction rules then; no M3/M4 prerequisite now |
 
 F1, F13 and F14 address issuer recurrence, standard release transitions and multiple semantic consumers respectively. Measure them separately in the [M3 review report](testing-and-quality.md#review-effort-and-taxonomy-continuity-measurement). None automatically authorizes inference or delays M4.
 

@@ -146,3 +146,38 @@ I agree that an old contract can remain defensible without being current. I qual
 Notices can identify a publication-specific problem caused by a mapping, contract, parser, selector, manual assessment or source artifact. They reuse existing typed references; there is no causal graph or promise to automatically find every export affected by every code revision. A new parser or contract version alone is not evidence of an error. Explicit notices and the bounded mapping scan remain sufficient for the first local product.
 
 The test plan now includes these distinctions as implementation acceptance cases. No runtime tests, financial benchmarks, ledger migrations or source re-extractions were performed during this documentation revision.
+
+## Fourth review — assessment authority and stable metric keys
+
+**Input:** user-supplied review beginning “Overall verdict: The updated plans are now very close to implementation-ready,” sections 1–10 and final recommendations. Reviewed against `dbf87bfcffcfcd0590ab2097f02789fbf4582013`. The two substantive points hold; the preferred implementation of the first is not necessary yet.
+
+| Feedback | Disposition |
+|---|---|
+| §5: standalone packets are authored knowledge outside the mapping database | Agree. README, target, data model and D6 now name Git-authored contracts, database-governed mapping decisions, and curator-approved assessment inputs explicitly |
+| §5: undefined recording receipt leaves historical availability underspecified | Agree. Remove that option; strict M4 requires the exact reviewed packet in an accepted mapping revision or previously completed immutable publication by the cutoff |
+| §5 preferred `registry.assessment_record` | Defer. Select the review's leaner alternative first; F17 records the evidence needed to justify dedicated recording later |
+| §6: distinguish a contract revision from a new metric key | Agree. M0 records intended quantity, changed boundaries and the key decision for each initial metric |
+| §§1–4, 7–10: retain the principal architecture and bounded review/selection design | Agree. No further ontology, transformation platform, generic workflow or parser redesign is introduced |
+| “Freeze and implement” and readiness ratings | Not adoption or empirical validation. Keep the recommendation stable unless concrete evidence triggers reconsideration; implementation remains subject to M0 and the user's scope |
+
+### Acknowledging ownership is better than claiming two universal authorities
+
+Qualification and negative-coverage conclusions are real human judgments. Calling them request inputs does not make them disposable parser output. Their approved content is durable, must be backed up and is snapshotted in publications. The revised ownership description makes that explicit without forcing unrelated report qualification into the concept-mapping ledger. A packet cannot override mapping status or redefine a contract, and a file's presence, digest or claimed review flag does not constitute curator approval.
+
+The existing [registry service](../../src/edgar/registry/service.py) stamps mapping revisions with application UTC time. No equivalent implemented standalone-assessment recording path exists. The earlier phrase “local recording receipt” therefore implied a capability the plan had not defined. The [revised timing rule](mapping-and-review.md#typed-conclusions-for-observation-qualification) now enumerates only two permitted records: an accepted revision containing the exact reviewed content, or an earlier completed publication that used it as reviewed input. Check the containing record, content and time; do not use a draft snapshot, bare digest, manually entered date, file metadata or Git author date. These remain trusted-local audit semantics, not tamper-proof timestamp certification.
+
+M3 can use explicitly pinned approved files without a historical claim. M4 rejects an unanchored packet with `knowledge_time_unknown`, rather than pretending it was known earlier. A changed packet needs its own qualifying record. A new export cannot use itself to satisfy an earlier cutoff. Unknown legacy recording provenance remains unknown. Qualification and negative coverage follow the same rule.
+
+### Why not add the proposed recording table now?
+
+An append-only digest/time record is a credible future option, not intrinsically excessive. But it also needs retained content, provenance, correction behavior and a tested relationship to request selection. There is not yet a measured case showing that the limited prior-revision/publication route obstructs this project's historical research workflow.
+
+The chosen restriction closes the correctness gap while keeping M3 and initial M4 smaller. F17 is activated by named strict historical queries materially blocked by missing anchors and evidence of the resulting workload. At that point, decide a small recording contract and migration. Do not create fake mappings or a generic event system simply to obtain timestamps. The trade-off—less convenient historical assessment reuse—is stated rather than hidden.
+
+### Canonical-key continuity is economic governance
+
+The review's coexistence test is useful: if both quantities are legitimate simultaneous requests, separate keys are usually appropriate. Cash including restricted cash and cash excluding it illustrate different measurements. Formalizing the evidenced original intent of one quantity may instead retain the key and create a new ContractRef.
+
+The [governance rule](mapping-and-review.md#stable-metric-keys-versus-contract-revisions) adds two qualifications. First, the test is a review aid, not an automatic algorithm: ambiguous historical prose does not prove a precise original intention. Second, key reuse must not be chosen merely to bypass cross-key conflict checks. Preserve old definitions as written; record the M0 rationale and review mappings independently. Example names in the feedback are not adopted keys, and no current YAML definition is changed by this documentation task.
+
+Further infrastructure remains evidence-triggered. The next meaningful validation is the bounded corpus, actual local ledger and initial contract review described in M0—not another confidence rating of the documents. This turn changes plans only.

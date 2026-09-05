@@ -5,13 +5,13 @@
 
 This is the sole target architecture and migration package. [Documentation index](../README.md) separates it from implemented contracts and historical evidence.
 
-**Feedback revisions:** 2026-09-05. The M1 prerequisite has been narrowed to M1A; richer persistence is now case-triggered M1B. [Feedback assessment](feedback-assessment.md) records all three reviews, accepted changes, disagreements and evidence limits. The second revision separates added coverage from correction, makes hash schemes explicit, introduces one pinned exact-review checklist, and narrows operational prerequisites. The third distinguishes contract-version coexistence, unknown temporal coverage, typed observation qualification and publication currentness from defects.
+**Feedback revisions:** 2026-09-05. The M1 prerequisite has been narrowed to M1A; richer persistence is now case-triggered M1B. [Feedback assessment](feedback-assessment.md) records all four reviews, accepted changes, disagreements and evidence limits. The second revision separates added coverage from correction, makes hash schemes explicit, introduces one pinned exact-review checklist, and narrows operational prerequisites. The third distinguishes contract-version coexistence, unknown temporal coverage, typed observation qualification and publication currentness from defects. The fourth fixes assessment ownership and historical eligibility without adding a recording table, and defines when to retain or change a metric key.
 
 ## Recommendation
 
 Keep the immutable FilingBundle, Arelle, and the relational XBRL source model. Add a small, precise canonical vocabulary, auditable conditional mapping assertions, and an explicit financial observation query. Preserve every source occurrence; make normalization an additional interpretation of its complete aspects.
 
-Use one Python application, one local PostgreSQL database, and the filesystem. Continue Git authority for metric contracts and database authority for semantic decisions. Use ordinary SQL and typed Python for mapping application and selection. Do not require an ontology, reference-taxonomy warehouse, SQLMesh, graph database, or a second accounting-to-metric mapping ledger.
+Use one Python application, one local PostgreSQL database, and the filesystem. Continue Git authority for metric contracts and database authority for mapping decisions. Curator-approved qualification/coverage packets are explicitly pinned request inputs, retained in exports; strict historical use requires a prior accepted mapping revision or completed publication containing the reviewed content. Use ordinary SQL and typed Python for mapping application and selection. Do not require an ontology, reference-taxonomy warehouse, SQLMesh, graph database, or a second accounting-to-metric mapping ledger.
 
 This retains parts of the implementation because they solve the problem well, rather than because an earlier plan selected them. It rejects the mandatory reference-concept intermediary proposed in the historical v2.1 plan: a reference taxonomy is valuable evidence, but it cannot eliminate the application's responsibility to define comparability.
 

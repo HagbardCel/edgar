@@ -44,7 +44,7 @@ flowchart TD
 ```
 
 1. **Evidence:** bytes plus a replaceable relational index of the filing's XBRL and document structure.
-2. **Knowledge:** precise canonical contracts and reviewed assertions, including why, scope, and history.
+2. **Knowledge:** Git-authored canonical contracts, database-governed mapping decisions, and explicitly selected curator-approved qualification/coverage packets. Standalone packets are durable request inputs; their historical eligibility is limited to exact reviewed content already captured in an accepted mapping revision or completed publication by the cutoff.
 3. **Queries/publications:** application of that knowledge and a declared selection policy to produce economic observations.
 
 Keep `source` and `registry` as practical ownership namespaces. Add an `analysis` schema only for useful SQL views; initial results and exports need no durable observation tables. Names do not define the architecture. No `reference`, `semantic`, and `analytics` databases or services are required.
@@ -55,7 +55,7 @@ The six conceptual operations remain distinguishable:
 |---|---|---|
 | What did the filer report? | Artifacts and fact occurrences | No interpretation overwrites evidence |
 | What does XBRL declare? | Report-scoped declarations, contexts, resources, networks | Filed DTS differs from application economic claims |
-| What have we asserted? | Contracts and mapping revisions | Human knowledge is independently durable |
+| What have we asserted? | Contracts, mapping revisions and explicitly pinned reviewed assessment inputs | Human knowledge is independently durable |
 | Which assertions apply? | Query-time mapping application and predicate results | Acceptance alone does not qualify every fact |
 | Which observation answers the question? | Candidate qualification and selection result | Many mapped facts are not the requested period/scope |
 | What is delivered for analysis? | Long-form result and immutable publication | Dataset policy and history are explicit |
@@ -180,7 +180,7 @@ Before choosing a time cohort, build a **filing × exact requested slot** covera
 
 Scan acceptance-time cohorts newest-to-oldest for latest and oldest-to-newest for first. Skip a cohort only if every potential filing is assessed irrelevant for the slot. Unknown coverage in a cohort blocks selecting another member's valid value as unambiguously latest/first; invalid/conflicting relevant claims also block a successful value. Unknown earlier cohorts therefore prevent an unsupported “first” claim. `as-filed` assesses only its named filing. Conservative bounds may exclude filings only under an explicit justified policy; lack of a known mapped concept is never such a bound.
 
-M4 uses a `slot_coverage` section of the same reviewed assessment packet for human negative conclusions, bound to report/receipt, ContractRef, exact slot, search scope/method, evidence pins and limits. Positive/invalid/conflict states derive from inspected source/application results; absent or incomplete assessment remains unknown. No completeness claim across all issuers or a new coverage table. Corrections, packet hashes and semantic/local availability follow the qualification-packet rules. A future negative assessment cannot be used to skip an earlier unknown filing in a strict semantic-as-of query. Publications retain the skipped and blocking cohort assessments as well as selected support.
+M4 uses a `slot_coverage` section of the same reviewed assessment packet for human negative conclusions, bound to report/receipt, ContractRef, exact slot, search scope/method, evidence pins and limits. Positive/invalid/conflict states derive from inspected source/application results; absent or incomplete assessment remains unknown. No completeness claim across all issuers or a new coverage table. Corrections, packet hashes and semantic/local availability follow the qualification-packet rules. A future negative assessment cannot be used to skip an earlier unknown filing in a strict semantic-as-of query. Standalone packets without a qualifying accepted revision or prior completed publication return `knowledge_time_unknown`; authored dates and an undefined local receipt are not substitutes. Publications retain the skipped and blocking cohort assessments as well as selected support.
 
 A latest reported comparative is not necessarily a restatement: it can be a reclassification or another basis change. No automatic filing-wide supersession. Store an evidence-backed `amends` edge when justified, but replacement occurs at observation scope. Partial amendments do not erase unchanged original observations. A formal `restates` classification requires evidence of affected metrics/periods/basis and is deferred until needed.
 
