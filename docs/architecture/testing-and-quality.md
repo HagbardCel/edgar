@@ -20,6 +20,11 @@ Use existing pytest, Hypothesis, real PostgreSQL, and a small mixture of constru
 | Stale meaning cannot publish currently | Contract edit after proposal/acceptance | Accept fails or query marks stale; historical snapshot remains inspectable |
 | Conditions cannot become implicit overrides | Overlapping issuer/report/interval predicates | Conflict or explicit atomic replacement; unknown disjointness is not accepted |
 | One fact cannot silently acquire contradictory exact meaning | Concurrent proposals and corrupt/legacy conflict input | Acceptance transaction rejects; application additionally detects conflicting matches |
+| New coverage is not correction | Accept disjoint report root; query before/after its review time | Earlier roots remain accepted, old publications unaffected; new coverage cannot leak before acceptance |
+| Scope is conjunctive | Reports plus issuer/interval/guards, conflicting and missing metadata | No override; known contradictions reject, unresolved required predicates do not publish |
+| Hash identity states its scheme | Known v1/v2 vectors; wrong/unknown scheme; original-schema export/restore | Exact historical bytes verify under explicit scheme; no algorithm guessing or cross-scheme match |
+| Exact review is sufficiently assessed | Required definition absent; unassessed footnotes; unsupported relevance; truncated packet | Profile cannot pass a missing affirmative requirement or unknown relevance; required pins/content digest validate |
+| Sign policy never rewrites a filed value | Positive/negative loss/benefit and incompatible economic sign cases | Resolved filed Decimal unchanged; incompatibility blocks rather than flips; basis is evidenced |
 | Selection is not arbitrary | Permute fact insert order, IDs, labels, SQL result order | Same support set/value/state; distinct values never resolved by order |
 | Nil, absent and zero differ | Three separately requested slots | Explicit nil/absent state versus valid Decimal zero |
 | Consolidation is not inferred from empty dimensions alone | Other context entity, parent-only/broader disclosures, opaque qualifiers | Strict scope checks fail with evidence |
@@ -28,6 +33,7 @@ Use existing pytest, Hypothesis, real PostgreSQL, and a small mixture of constru
 | Amendment is not whole-filing replacement | Partial amendment and later comparative | Only relevant slots change; unchanged original observations remain available |
 | History is immutable and repairable | UPDATE/DELETE attempts, branching, concurrent replace, sync/accept race | Rejection/rollback; predecessors byte-equivalent; atomic new state |
 | Published lineage survives change | Export, re-extract, revoke/redefine, restore DB separately | Old values/decisions still explain from snapshots/pins; new outputs reflect correction |
+| Publication status survives partial correction | Revoke after export; missing/failed notice; inaccessible ledger; scoped manifest scan | Original bytes unchanged; revoked input detected when ledger available, otherwise status unavailable; no claim to locate external copies |
 | Failed operations do not publish | Inject DB/serialization/fsync/rename failures | Old extraction/publication intact; incomplete temp output never listed as success |
 
 Default tests have no live SEC calls and no required LLM. Source and financial tests must pass with LLM disabled. Security/closure tests continue to verify no ambient cache/network access; a valid filing is insufficient to test hostile or malformed resource behavior.
@@ -48,7 +54,7 @@ Real financial benchmark starting inventory:
 
 The source corpus manifest lists these filings, but full acquisition snapshots are not all committed/pinned across machines today. M0 must create a verified local bundle inventory for the benchmark, not describe the current corpus as a universally reproducible packaged dataset. Keep full bundles outside Git and follow the existing explicit fixture refresh policy.
 
-The benchmark expected-value manifest records: exact contract/hash, issuer, accession/report, period/unit/scope, rendered row/location, expected Decimal or missing reason, supporting source occurrences, reviewer and review date. Use both positive and negative cases. Do not produce expected output by running the implementation under test and blessing it.
+The benchmark expected-value manifest records: exact contract/hash scheme/digest, review-profile reference, issuer, accession/report, period/unit/scope, rendered row/location, expected Decimal or missing reason, supporting source occurrences, reviewer and review date. Use both positive and negative cases. Do not produce expected output by running the implementation under test and blessing it.
 
 Initial release gate is **zero false exact matches on the bounded reviewed benchmark**, not a statistical precision guarantee. Report denominator counts: requested slots, supported slots, selected values, expected missing cases, unexpected missing cases, conflicts, source concepts reviewed, and filings covered. Do not use all-fact coverage to conceal failure on economically important statement lines.
 
@@ -114,8 +120,8 @@ Add upgrade tests from populated `0002_registry` and later adopted revisions, do
 | Too many layers? | Removed mandatory reference warehouse, accounting resolver and binding ledger; mapping application/candidates remain query records |
 | Too few distinctions? | Retained source declaration vs QName, contract vs slot, reporting basis vs dimensions, public vs semantic/local time |
 | Fighting XBRL? | Use native aspects and Arelle networks; repair existing base-set identity in M1A and add other evidence access only when needed |
-| Is every custom abstraction justified? | Keep only source pins, contracts, assertions, request/result and publication; no generic workflow/DAG/entity framework |
-| Is the ledger overengineered? | Reuse its linear append-only revisions; add only immutable conditions, contract content and atomic correction needed for trusted output |
+| Is every custom abstraction justified? | Keep only source pins, contracts, assertions, request/result, one pinned review checklist and publication; no generic workflow/DAG/entity framework |
+| Is the ledger overengineered? | Reuse its linear append-only revisions; add immutable conditions, scheme-tagged contract content and atomic correction; routine coverage uses disjoint roots |
 | Could one exact mapping still mislead? | Report-scoped extension reuse and precise contracts address declaration/context drift; selector separately checks basis/period/unit/slice |
 | Does the plan reach utility soon enough? | M3 ships bounded direct annual analysis; large corpus research, codec cleanup, ontology and dimensional rewriting do not gate it |
 | Is M1 too large? | Revised to mandatory M1A receipts/integrity/inspector plus case-triggered M1B enrichment; no universal opaque-context or footnote-table prerequisite |
@@ -161,3 +167,7 @@ git diff --check
 **Result:** 36 existing tracked/new Markdown documents checked, 156 local links/anchors, two Mermaid blocks; local links/anchors, balanced code fences and whitespace passed. The temporary checker includes moved/new documents as well as retained tracked Markdown and checks new-file whitespace independently. Mermaid syntax/rendering was not validated by an engine. The seven removed originals were also verified to exist at the consolidation recovery commit using `git cat-file -e` for each path.
 
 No runtime tests were rerun, since no production behavior changed. No schema, fixture, parser version, registry data or phase gate changed. The initial 51-test result above remains historical evidence only. No financial review-effort, inheritance-error or benchmark result is claimed by this revision.
+
+## Second feedback review validation
+
+Reviewed the second external critique against baseline `be8ab9395381912df7ee3196a489490eb4fd464f`, the revised documents, registry hashing/loader/scope/acceptance code, and local PostgreSQL configuration. Ran `python3 /private/tmp/edgar_architecture_check.py` and `git diff --check`: **passed**, covering 36 Markdown files, 164 local links/anchors and two unrendered Mermaid blocks. Only target-package Markdown files changed. Runtime and PostgreSQL tests were not rerun; no schema, data, parser, fixture or adoption gate changed. Proposed invariant tests are implementation acceptance requirements, not executed results.

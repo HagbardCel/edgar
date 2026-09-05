@@ -86,7 +86,7 @@ An analytical observation slot is:
 
 ```text
 (issuer/entity identity,
- canonical key + definition hash,
+ canonical key + definition hash scheme + definition hash,
  exact period,
  economic entity/consolidation basis,
  full dimensional slice,
@@ -124,7 +124,7 @@ Do not add all possible relationship tables now. The first release needs the ass
 
 For every fact of a queried source concept:
 
-1. Resolve the named semantic revision/snapshot; candidates, revoked decisions, and stale definition hashes are not trusted input.
+1. Resolve the named semantic revision/snapshot and scheme-qualified ContractRef, including the frozen exact-review assessment. Candidates, revoked decisions, mismatched scheme/digest, and missing required review are not trusted input.
 2. Evaluate its explicit issuer/report/declaration guards and any supported aspect conditions. Unknown or unsupported conditions do not match.
 3. Check basic target compatibility (numeric kind, instant/duration, unit dimension); keep all original aspects and values.
 4. Return application records containing the source occurrence, assertion revision, canonical definition, condition outcomes, and applicability state.
@@ -139,7 +139,7 @@ The first selection profile is `reported-annual-v1`:
 
 1. The caller supplies an explicit filing accession, issuer, metric, exact start/end or instant, reported currency/unit, and `consolidated` scope. A convenience FY request is allowed only after an unambiguous filing-specific fiscal period has been established from filed evidence or a reviewed request manifest. No 365-day/year-end heuristic alone.
 2. Require successful compatible extraction, relevant source locations, and the reviewed current contract. A context entity must agree with the registrant using its filed identifier scheme; a different entity is not relabeled with the filing's CIK.
-3. Require applicable accepted exact mapping, valid non-nil numeric value, correct unit and period. Negative values are valid where the contract allows them. Preserve filed sign; never flip an expense from `balance=debit` or a calculation weight.
+3. Require applicable accepted exact mapping, valid non-nil numeric value, correct unit and period. Negative values are valid where the contract allows them. Preserve filed sign; never flip an expense from `balance=debit` or a calculation weight. For M3, `sign_convention=reported` is a preservation rule, not conversion; check the reviewed economic direction and evidenced `accounting_basis=us_gaap` contract. Unresolved/incompatible sign meaning blocks the slot, while a legitimate negative loss/benefit remains negative.
 4. For this initial profile, require no filed dimensions, no opaque non-dimensional context qualifiers, and positive evidence that the metric/statement scope represents the requested reporting entity. Dimension absence alone is not proof of consolidation. Review can pin report-specific statement evidence; ambiguous entity/scope fails closed. Explicit consolidated members are initially unsupported, not stripped.
 5. Preserve all qualifying occurrences. Group only demonstrably equivalent aspects; then compare values. Initially allow duplicate support only for identical Decimal value **and identical accuracy metadata**. Differing precision/decimals or merely rounding-consistent values return `accuracy_review_required`; later support may use Arelle's duplicate classification without deleting occurrences.
 6. If all qualified support describes one identical value/accuracy group, return that value with **all** support occurrences. Multiple concepts mapped to the same contract can be co-support, but equal numbers alone do not prove their aspects/basis are identical. Different qualified values return `conflicting_values`; do not pick the first, largest, most precise, or standard-tagged fact.
@@ -147,7 +147,7 @@ The first selection profile is `reported-annual-v1`:
 
 The profile deliberately excludes dimensional totals, FX conversion, segment summation, annualization, quarter-by-subtraction, and accounting reconstruction. These are separate future products. Strictness trades coverage for a usable, defensible first result.
 
-The result is long-form, one row per requested slot: value (Decimal string in JSON/CSV), unit, period, definition hash, filing/report, scope, supporting occurrence pins, and state. A missing result has a reason and counts at each filtering stage; it is never silently zero or absent from the response. Reasons include no filing, no extraction, unsupported source structure, unassessed required evidence, unmapped, candidate only, stale definition, guard not met, non-exact only, wrong entity/period/unit/slice, nil, invalid value, accuracy review, conflicting values, and unknown availability. Multiple reasons can be reported with a primary earliest blocking stage.
+The result is long-form, one row per requested slot: value (Decimal string in JSON/CSV), unit, period, definition hash scheme/digest, filing/report, scope, supporting occurrence pins, and state. A missing result has a reason and counts at each filtering stage; it is never silently zero or absent from the response. Reasons include no filing, no extraction, unsupported source structure, unassessed required evidence, required review missing, unmapped, candidate only, stale definition, guard not met, non-exact only, wrong entity/period/unit/slice, nil, invalid value, accuracy review, conflicting values, and unknown availability. Multiple reasons can be reported with a primary earliest blocking stage.
 
 ## Time, amendments, and restatements
 
@@ -182,7 +182,7 @@ public_as_of=T, semantic_as_of=S, acquired_as_of=A (optional)
 
 The first is retrospective normalization, not a claim that today's mapping existed at T. A semantic-as-of request must also specify the ContractRef for each metric (or a saved semantic/publication manifest containing those refs). Do not infer the historically active YAML contract from Git author dates or today's mirror. Require evidence that the contract content was recorded by S, such as a retained decision revision or publication. An explicitly requested retired contract is a historical meaning, not the current metric definition.
 
-Select each mapping chain's latest revision within S, not today's tip filtered afterward, and require its target hash to match the requested ContractRef. Unknown historical contract content blocks the historical query. Equal timestamps are disambiguated by chain/revision order, not by treating independent conflicting decisions as interchangeable. A simple semantic cutoff does not reconstruct an unrecorded historical deployment: the query uses a declared parser/selector implementation over constrained evidence. Exact prior system outputs require a saved publication manifest. Automatic reconstruction of which YAML version was deployed at every past instant is deliberately not promised, so no contract-activation event framework is required.
+Select each mapping chain's latest revision within S, not today's tip filtered afterward, and require its target scheme and hash to match the requested ContractRef. Unknown historical contract content blocks the historical query. Equal timestamps are disambiguated by chain/revision order, not by treating independent conflicting decisions as interchangeable. A simple semantic cutoff does not reconstruct an unrecorded historical deployment: the query uses a declared parser/selector implementation over constrained evidence. Exact prior system outputs require a saved publication manifest. Automatic reconstruction of which YAML version was deployed at every past instant is deliberately not promised, so no contract-activation event framework is required.
 
 A dataset manifest pins all clocks/policies, the examined corpus, and code/semantic inputs. No single `known_at` column can honestly replace them. Later trading datasets must additionally define dissemination/tradability assumptions, securities, prices, and delistings; these are outside this release.
 
@@ -201,7 +201,7 @@ publication + row key + request/policy
 
 Exports retain compact snapshots of the occurrences actually used and the complete selection outcome. They do not embed every fact affected by a mapping. This allows current parser rows to be replaced without breaking old published lineage. A pointer to a bigint source fact is a live convenience only. An export can still be inspected if its parser environment is unavailable; exact replay additionally requires the saved code/lockfile and bundle inventory. Inspection and executable replay are different guarantees.
 
-Publish from a consistent DB read snapshot and a single loaded contract snapshot; verify YAML/mirror coherence. Write output and manifest to a temporary directory, hash contents, then publish atomically through storage utilities. Revoke an erroneous mapping by appending history, recompute new results, and mark dependent publications withdrawn through a separate notice referencing the publication. Never edit the old dataset bytes or retroactively pretend they were correct.
+Publish from a consistent DB read snapshot and a single loaded contract snapshot; verify YAML/mirror coherence. Write output and manifest to a temporary directory, hash contents, then publish atomically through storage utilities. Prove the selector/benchmark before the export work. M3 includes a bounded explicit manifest scan and separate notice command for erroneous publications; automatic propagation and a dependency index are deferred. Revoke an erroneous mapping by appending history, recompute new results, and record withdrawal/correction in a notice referencing the publication. Status/explain checks the current ledger and available notices, reporting status unavailable if those cannot be inspected. Ledger revocation and filesystem notice writes are not a distributed transaction; a failed notice write cannot make a revoked input appear current. Never edit the old dataset bytes or retroactively pretend they were correct.
 
 ## Growth without replacing the foundations
 

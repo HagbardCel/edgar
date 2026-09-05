@@ -54,3 +54,51 @@ The feedback's final list puts M1B/M5 before M4. Read literally as a dependency,
 Keeping the ledger and extending it avoids a second durable migration, which is a concrete reason to prefer this design. It does not establish a measured “low–moderate” migration risk, strongest fidelity, or robust historical financials. The earlier 51 passing tests concern selected existing behavior; the new selector, migrations and temporal policies remain unimplemented. No actual local ledger restore or financial benchmark was performed in this documentation revision.
 
 The package remains a recommendation pending M0 adoption and benchmark review. Consolidating superseded documents does not itself freeze implementation scope. [Documentation consolidation](documentation-consolidation.md) records what was retained from old plans and why competing plans were removed.
+
+## Second review — lifecycle, identity and review sufficiency
+
+**Input:** user-supplied review beginning “Overall verdict: The revision is materially better,” sections 1–17 and final priority list. Reviewed against the consolidated package at `be8ab9395381912df7ee3196a489490eb4fd464f` and relevant registry code. This assessment supplements the first review above; its praise and P1/P2 labels do not constitute adoption, runtime verification or measured risk rankings.
+
+| Review section | Disposition | Result |
+|---|---|---|
+| §§1–6, 14–16: native evidence, direct claims, dimensional/selection boundary, deferred enrichment and documentation | Agree; mostly confirms existing decisions | Retain the architecture and M1A/M1B/M4 boundaries |
+| §7: distinguish added report coverage from correction | Agree; the prior replacement prescription was unnecessary | New reports get disjoint accepted roots; old valid roots remain accepted. Replace/revoke is for actual correction or explicit withdrawal |
+| §8: explicit hash scheme | Agree | ContractRef and new claim/snapshot/export identity include `definition_hash_scheme`; preserve exact legacy verification |
+| §9: small versioned review profile | Agree with bounded interpretation | One Git-authored exact-review checklist with pinned content and results; no profile database or workflow engine |
+| §10: scope conjunction and redundant dates | Agree | All scope/conditions combine with AND; listed reports normally have NULL interval bounds |
+| §11: remove empty dependency interface; defer separate runtime roles | Agree | No publication stub in M2. Retain DB history constraints/triggers; grants wait for an operational need |
+| §12: selector first, publication lifecycle later | Agree on sequencing; partially disagree on deferring all correction support | Benchmark/query first, then export. M3 retains a minimal explicit status/notice path; automatic propagation/indexing is deferred |
+| §13: accounting basis and sign semantics | Agree | Initial `us_gaap` / `reported` meanings defined; M0 freezes each contract's economic direction and reversal examples. No implicit numeric transformation |
+| §17 and overall endorsement | Incorporate supported arguments, not the approval verdict | M0 adoption, real-data review and implementation tests remain outstanding |
+
+### Coverage expansion and what the current evaluator actually does
+
+The old prescription withdrew a valid {2024, 2025} claim merely to add 2026. Disjoint roots state the two review events more faithfully and preserve historical knowledge without extra lifecycle operations. They also avoid false correction notices on previously valid exports. The target conflict policy already permits *proven disjointness*, so the design change is small.
+
+However, the review's statement that the evaluator “already understands finite report sets” is true only of the proposed design. Current [interval.py](../../src/edgar/registry/interval.py) and [service.py](../../src/edgar/registry/service.py) check issuer/global scope and inclusive report-period intervals. M2 must implement report-condition evaluation and disjointness tests; this cannot be treated as existing functionality. Tests now explicitly require preserving earlier accepted roots, rejecting actual intersections and preventing future coverage from entering semantic-as-of queries.
+
+Replacement remains appropriate for an error or intentional withdrawal of authority, with a truthful reason. A contract retirement is not evidence that every old financial assertion was false. General scope compaction/reusable rules remain F1 decisions; they are not smuggled into routine annual review.
+
+### Hash versioning without rewriting legacy claims
+
+Current [hashing.py](../../src/edgar/registry/hashing.py) fixes semantic fields and canonical JSON behavior but has no explicit scheme field. Adding basis/sign changes the hash contract even though SHA-256 remains the digest algorithm. Explicit `metric-v1` and `metric-v2` remove the ambiguity; the [mapping contract](mapping-and-review.md#explicit-definition-hash-schemes) specifies the payload and migration boundary.
+
+The important qualification is not to update old immutable claims with inferred meaning. M2 leaves original rows unchanged, with a documented `0002_registry` legacy decoding for the new nullable scheme field. Verified legacy exports/snapshots state `metric-v1` explicitly; unknown-origin imports cannot guess from dates or content shape. New roots and identity comparisons use explicit schemes. This is a fixed supported contract pair, not a general serialization/versioning framework.
+
+### A checklist must not turn unknown relevance into permission
+
+The profile makes review obligations inspectable, but the suggested “assess” category is insufficient on its own: if relevance is unknown, an agent cannot declare it irrelevant to pass the check. The [minimum profile](mapping-and-review.md#minimum-exact-review-profile) separates capability state from relevance, requires positive definition/disclosure evidence, and records inspection scope, truncation, search limits and contrary evidence. Case requirements may strengthen the base profile, never waive it because SQL lacks a table.
+
+Profile identity belongs to review evidence, not the economic hash or a second decision ledger. A changed profile does not automatically revoke old knowledge. Evidence-only reaffirmation of an unchanged accepted claim is deliberately deferred until a future profile must apply retrospectively; its transition must be designed before such a policy activates. This avoids quietly adding an accepted-to-accepted lifecycle operation to M2 merely because profiles are versioned.
+
+### Operational simplification has a small correctness floor
+
+There are no publications to inspect in M2, so the empty dependency interface is deleted from that phase. The [local Compose setup](../../compose.yaml) configures one `edgar` PostgreSQL user, and current migration/runtime URLs do not establish separate writer roles. Database mutation-rejection triggers and claim constraints meet the immediate trusted-local need. They are protection against ordinary mistakes, not protection from an owner able to drop triggers; shared or untrusted writers would trigger privilege separation.
+
+The selector should be proven before export, as the review suggests. Nevertheless, deferring *all* publication status/correction handling until after a mistake creates an avoidable gap: the first export can already contain a claim later revoked. M3 therefore includes only a bounded manifest scan, status check and explicit append-only notice command alongside immutable exports. No background propagation, dependency index, notification delivery or publication service is required. A failed notice write cannot conceal a revocation when the ledger is available; without current knowledge, status must be reported unavailable. This is the narrow disagreement with §12, not a requirement for a mature publication lifecycle.
+
+### Economic fields have bounded meanings
+
+For the initial direct-reported subset, `accounting_basis=us_gaap` is evidenced reporting basis, not an inference from a tag or a free-text ontology. `sign_convention=reported` preserves Arelle's resolved filed number; it neither reverses an expense sign nor takes an absolute value. Each contract still needs reviewed economic direction and legitimate negative examples. A sign interpretation that does not satisfy that contract blocks publication; a negative amount is not automatically incompatible. Other accounting bases and sign transformations remain separate future decisions.
+
+These changes tighten the recommendation without claiming it is now frozen. No financial benchmark, inheritance trial, runtime migration, or new live mapping was executed for this review.

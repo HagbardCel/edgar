@@ -28,6 +28,8 @@
 
 **Reasoning:** a second reference target is not always available or uniquely appropriate, especially for issuer/non-GAAP measures and industry distinctions. Two reviewed edges introduce two histories and conflicting paths while the application still needs a contract. Reusing exact XBRL identity does not require adopting a taxonomy concept as the only possible economic target.
 
+**Coverage rule:** additional reviewed reports create disjoint accepted roots; correction/revocation is not the default coverage-expansion mechanism. All existing scope fields and new conditions are conjunctive.
+
 **Trade-off:** the project owns concise economic definitions and reviews them. Pure concept guards cannot express every concept-plus-dimension substitution; those remain unsupported until an explicit aspect transformation is introduced.
 
 **Reconsider when:** evidence shows many independently reused source-to-reference conclusions feeding several analytical contracts, and factoring them materially reduces reviews without hiding semantic differences. Such factoring must preserve existing decisions; it is not an excuse to force a reference target onto old claims.
@@ -88,6 +90,8 @@ LinkML can generate multiple schema/code representations and semantic exports. T
 
 **Reasoning:** small definitions benefit from code review and DB-free validation; transactional review/correction and affected-fact joins fit PostgreSQL. Old hashes without content are insufficient portable evidence. A mirrored snapshot is a copy of authority, not another definition editor.
 
+**Identity refinement:** `metric-v1` and `metric-v2` explicitly identify the definition-hash contract; preserve the original digest bytes and label only verified original-schema legacy records. New ContractRefs include scheme/digest/content. This is a fixed pair of supported hash contracts, not a plugin or serialization migration framework.
+
 **Trade-off:** YAML/mirror synchronization remains. Implement common contract locking and take one loaded YAML snapshot per operation; never accept against a drifting mirror.
 
 **Reconsider when:** multiple concurrent curators need an interactive contract authoring service. At that point move authoring authority explicitly, with an auditable cutover; never enable both editors.
@@ -121,6 +125,18 @@ FASB's Meta Model includes relationships addressing concept-dimensional equivale
 **Trade-off:** clients must choose a mode. Strict historical reconstruction is unavailable for missing acceptance timestamps or unrecoverable historic contract content.
 
 **Reconsider when:** a user needs systematic assertion-level restatement classifications or financial-statement set coherence across versions. Add evidence-backed basis/statement-set models; do not infer them from accession order.
+
+## D9 — One pinned exact-review profile: made
+
+**Problem:** consistent minimum evidence assessment across curators without another review system.
+
+**Options:** free-form rationale alone; a fixed typed checklist with versioned content; a configurable review/workflow framework.
+
+**Recommendation:** one Git-authored profile, retained with per-check outcomes in accepted evidence. Required positive support cannot be replaced by assessed absence; conditional evidence needs a reasoned relevance conclusion. Case requirements can strengthen, not weaken, the baseline. Profile identity is independent of economic contract identity.
+
+**Trade-off:** this improves process consistency, not proof of accounting correctness. Sampling and availability limits stay explicit; no checklist can certify unseen future reports. M0 verifies that the initial profile can be assessed with M1A and any specifically required M1B reader.
+
+**Reconsider when:** actual review cases require incompatible procedures. Evidence-only reaffirmation of unchanged accepted claims is deferred until a changed profile must apply retroactively; define that transition before changing query eligibility. Routine new report coverage does not require it.
 
 ## Technology choices and avoided custom code
 
@@ -158,6 +174,8 @@ The SEC company-facts APIs aggregate selected standard-taxonomy, entity-wide fac
 | F12 Richer relational evidence | Not every resource needs a dedicated table before analysis | Named blocked review or repeated costly retrieval | Activate only needed M1B capability; pinned packets first, unknown relevance blocks publication |
 | F13 Standard-taxonomy release continuity | Different releases remain distinct QNames; repeat work is unmeasured | Reviewed release comparisons and measured transition effort | Consider reviewed equivalence sets if they reduce work without hiding definition changes |
 | F14 Factored accounting meaning | Recurrence alone does not establish multiple independent consumers | Several real uses sharing the same source-meaning conclusion and duplicated review effort | Compare factoring cost with direct claims; no mandatory intermediary now |
+| F15 Separate DB writer role | Trusted-local setup already has one owner connection | Shared/untrusted writers or deployment requirements | Keep M2 immutability triggers; add restricted roles/grants before extending the trust boundary |
+| F16 Publication automation | A bounded manifest scan serves the first exports | Measured scan cost or repeated missed/manual correction work | Keep M3 explicit status/notices; add indexing/propagation only with a scoped operational need |
 
 F1, F13 and F14 address issuer recurrence, standard release transitions and multiple semantic consumers respectively. Measure them separately in the [M3 review report](testing-and-quality.md#review-effort-and-taxonomy-continuity-measurement). None automatically authorizes inference or delays M4.
 
