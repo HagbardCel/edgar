@@ -102,3 +102,47 @@ The selector should be proven before export, as the review suggests. Nevertheles
 For the initial direct-reported subset, `accounting_basis=us_gaap` is evidenced reporting basis, not an inference from a tag or a free-text ontology. `sign_convention=reported` preserves Arelle's resolved filed number; it neither reverses an expense sign nor takes an absolute value. Each contract still needs reviewed economic direction and legitimate negative examples. A sign interpretation that does not satisfy that contract blocks publication; a negative amount is not automatically incompatible. Other accounting bases and sign transformations remain separate future decisions.
 
 These changes tighten the recommendation without claiming it is now frozen. No financial benchmark, inheritance trial, runtime migration, or new live mapping was executed for this review.
+
+## Third review — contract versions, coverage and qualification
+
+**Input:** user-supplied review beginning “Overall assessment: This revision is substantially stronger again,” sections 1–13. Compared with package baseline `2bd8f3978075470da1d105107cbedc104f0f75ca` and the current registry conflict implementation. This is another critical design review, not adoption or implementation validation.
+
+| Feedback | Disposition and change |
+|---|---|
+| §1: stale accepted claims obstruct reviewed contract upgrades | Agree. Same-key, different ContractRefs may coexist accepted after independent review. Prior claims and contract differences remain mandatory evidence; current acceptance and one-version-per-key requests stay explicit |
+| §2: later unreviewed filing is not an assessed absence | Agree. M4 adds filing-by-exact-slot coverage before mapping filters; unknown later coverage blocks latest, and unknown earlier coverage blocks first |
+| §3: selector-facing conclusions must be typed | Agree, with explicit scope and ownership. Qualification records accounting basis, consolidated entity basis and sign compatibility, bound to receipt/ContractRef/occurrences within the existing packet format |
+| §4: publication currentness differs from validity | Agree on the distinction; do not certify financial validity from passing hashes or an absence of notices. Use independent integrity, known-issue review status and semantic currency |
+| §5: notices must allow non-mapping defects | Agree. Generic reason/cause references cover contracts, extraction, code, assessments and artifacts; automatic discovery remains bounded to existing checks and explicit notices |
+| §§6–12: retain explicit hash schemes, small review profile, sign semantics, M2 scope and M3 ordering | Agree; no additional frameworks or generalized profile hierarchy |
+| §13 and final endorsement | Incorporate the concrete issues, not the readiness verdict. M0 must still adopt the recommendation and verify the bounded economics/corpus |
+
+### Version coexistence needs a narrow exception, not a compatibility system
+
+The criticism identifies a real tension. Current `_conflict_if_needed` in [service.py](../../src/edgar/registry/service.py) rejects overlapping accepted exact claims for one source concept without comparing target versions. Carrying that rule unchanged into M2 would require rejecting sound older knowledge merely to accept a new contract.
+
+The revised [conflict table](mapping-and-review.md#conflicts-and-safe-correction) permits coexistence for different versions of the **same metric key**. The new version must be independently reviewed; the exception asserts neither equivalence nor inheritance between versions. An actual discovered error still requires explicit correction. Original version-specific history and publications remain explainable.
+
+I do not adopt a blanket “different ContractRefs cannot conflict” rule, nor a new mechanism for classifying all pairs of current meanings as compatible. Different keys remain conservatively conflicting under overlapping scope; same-reference duplicate roots also conflict. This preserves correctness without introducing an ontology or compatibility matrix. Query-time checks use the requested knowledge snapshot rather than treating today's registry as historical truth. The Phase 2C rule stays implemented until the explicitly adopted M2 change.
+
+### Temporal absence must be evaluated for the exact observation slot
+
+The principle in §2 is sound, but its year-to-year example needs qualification: a 2023 value cannot fill a 2024 slot at all. The actual fallback problem arises when a later filing might contain a revised **2023 comparative** for the same requested period, unit, entity and contract.
+
+M4 now starts from the declared filing corpus/catalog, including failed or missing extraction, rather than discovering filings through successful mappings. A later unresolved extension cannot disappear through an inner join and become “no claim.” Only a pinned assessment of absence or a sound explicit exclusion permits skipping that filing. A tied cohort containing both a valid claim and unknown coverage cannot be presented as unambiguously latest. The same reasoning applies in reverse to first-reported queries. Negative review knowledge is subject to the semantic cutoff too; a later review cannot retroactively establish that a filing was known to be irrelevant.
+
+These are M4 query/assessment rules, not a prerequisite for completing a market-wide coverage ledger before M3. Completeness is always relative to the named corpus and inspected slot. The [target](target-architecture.md#time-amendments-and-restatements) specifies the states and scan behavior; no coverage table or automatic semantic resolver is added.
+
+### Typed review results must not become universal mapping assertions
+
+The missing deterministic boundary is real: consolidated scope, accounting basis and economic sign cannot be read from free-form rationale. The [qualification packet](mapping-and-review.md#typed-conclusions-for-observation-qualification) now carries explicit states, values, evidence pins and exact occurrence coverage. An entity identifier is not proof of consolidation; one reviewed statement occurrence does not qualify every fact in a report.
+
+A reusable standard-concept mapping cannot absorb every future issuer's report-specific qualification without confusing the two concerns again. The same packet format therefore supports explicitly supplied reviewed JSON inputs as well as existing mapping evidence. Their authored contents are durable knowledge, requests pin them and publications retain snapshots. No new table, service, general scope language or evidence-only mapping transition is required. Draft/model-only packets are ineligible, conflicting inputs fail, and strict historical use requires recording evidence rather than a manually entered review date. This is an explicit ownership boundary for already-required judgments, not a second concept-mapping ledger.
+
+### “No known issue” is more honest than an automatic “valid” flag
+
+I agree that an old contract can remain defensible without being current. I qualify the suggested `valid|withdrawn|unknown` vocabulary: neither a live ledger check nor a verified checksum proves that no economic, parser or selection error exists. The model instead reports `integrity`, `review_status` and `semantic_currency` independently, with checked scope/time. `no_known_issue` is a limited diagnostic, not a correctness certificate.
+
+Notices can identify a publication-specific problem caused by a mapping, contract, parser, selector, manual assessment or source artifact. They reuse existing typed references; there is no causal graph or promise to automatically find every export affected by every code revision. A new parser or contract version alone is not evidence of an error. Explicit notices and the bounded mapping scan remain sufficient for the first local product.
+
+The test plan now includes these distinctions as implementation acceptance cases. No runtime tests, financial benchmarks, ledger migrations or source re-extractions were performed during this documentation revision.

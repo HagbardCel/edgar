@@ -72,6 +72,7 @@ Do not promise complete raw XLink or XML Schema persistence. Raw bytes preserve 
 | `registry.metric_definition` | Exact historical contract snapshot; `(key, definition_hash_scheme, definition_hash)` | Referenced by assertions/publications; includes hash inputs and a source Git ref when known | Immutable retained mirror of Git-authored meaning; not a second authoring surface; restore from retained YAML history/export |
 | `registry.mapping_assertion` | Immutable decision revision of an immutable claim | Source QName, ContractRef, scope/conditions, predecessor, correction link, evidence | Durable DB authority; not regenerable from filings |
 | Mapping evidence | Bounded structured packet within a revision | Typed source pins, extracts, observations, opposing evidence, generation/review provenance | Durable part of decision; content can be verified but human rationale cannot be regenerated |
+| Reviewed assessment packet | Explicitly reviewed qualification or M4 slot-coverage conclusion; content hash | Scoped ContractRef/report/receipt/occurrences or exact slot | Embedded ledger evidence or explicitly supplied JSON packet; authored content is durable knowledge, not regenerable. Request pins select inputs; publications snapshot them; strict historical use requires recording provenance |
 | `registry.filing_relation` (M4) | Evidence-backed relation revision between accessions | `amends`, rationale/source pins, acceptance history | Durable if reviewed; directly sourced evidence included; never implies filing-wide financial replacement |
 
 Keep mapping status succession as the existing linear immutable chain. New semantic claim content creates a new root; an explicit `replaces_root_id` links a correction without changing the old claim. Add a nullable `conditions` object for newly reviewed roots and copy it unchanged into their successors. Historic rows retain NULL conditions and their exact original content. The new publication API treats missing structured conditions/contract snapshots as `legacy_review_required`; existing audit commands continue to explain them under the original interval semantics. This is historical decoding, not two live mapping authorities.
@@ -82,7 +83,7 @@ Immutable knowledge must survive direct database mistakes as well as service con
 
 Review profiles are small Git-authored procedure documents. Their exact ID, content digest, content and check results are retained within accepted evidence; no new profile/review table. They describe how a decision was reviewed, not canonical meaning or fact selection.
 
-Routine new report coverage creates a disjoint accepted assertion root, retaining older valid roots. `replaces_root_id` is for corrections, never a generic parent link for every new year.
+Routine new report coverage creates a disjoint accepted assertion root, retaining older valid roots. Independently reviewed versions of the same metric key may also coexist accepted; new acceptance requires the current contract and queries pin one version per key. Mere noncurrentness does not revoke an older claim. `replaces_root_id` is for corrections, never a generic parent link for every new year.
 
 ## Derived queries and publications
 
@@ -90,11 +91,12 @@ Routine new report coverage creates a disjoint accepted assertion root, retainin
 |---|---|---|---|
 | ConceptEvidence | One requested QName and report/corpus scope | Declarations, networks, facts, previous decisions | Query DTO; regenerable; accepted evidence snapshots retain the relied-on subset |
 | MappingApplication | Fact occurrence × evaluated relevant assertion | Condition outcomes, target contract, retained source aspects | Query DTO/SQL view; regenerable, no durable affected-fact arrays |
-| FinancialRequest | Exact requested observation slots and named policy/cutoffs | Corpus, ContractRefs, entity/slice/unit/period | Ephemeral query; immutable when included in export manifest |
+| FinancialRequest | Exact requested observation slots and named policy/cutoffs | Corpus, one ContractRef per metric key, reviewed assessment refs, entity/slice/unit/period | Ephemeral query; immutable when included in export manifest |
+| Filing-slot coverage (M4) | Filing × exact requested slot in a declared corpus | Source/mapping inspection and scoped assessment pins | Regenerable query result; human negative assessments are retained knowledge, never inferred from an empty join |
 | ObservationCandidate | Qualified support group within a filing/report and slot | Every supporting occurrence, exact assertions, checks | Query DTO; regenerable; no persisted candidate lifecycle |
 | FinancialResult | One requested slot under a query policy | Selected value/support or explicit missing/conflict state | Ephemeral unless exported; snapshots retain its exact meaning |
 | Publication directory | One exported request/result set | Manifest + results + lineage + exact semantic snapshots + hashes | Durable immutable published artifact; inputs can regenerate equivalent content but original is retained |
-| Publication withdrawal notice | One correction/withdrawal event | Publication digest/path, reason, bad decision revision, replacement publication if any | Durable append-only notice outside original bytes |
+| Publication withdrawal notice | One correction/withdrawal event | Publication digest/path, reason code/text, typed cause refs, actor/time, replacement publication if any | Durable append-only notice outside original bytes |
 
 Suggested publication layout is `manifest.json`, `results.jsonl` (and optional CSV), `lineage.jsonl`, and `knowledge.json`. Use JSON Decimal strings, never float conversion. Each result has a deterministic row key within that publication and joins to lineage by that key. Long-form output is the authoritative export; a wide statement is a presentation of those rows.
 
@@ -102,7 +104,19 @@ Manifest content: request/corpus inventory, all cutoffs and modes, exact definit
 
 Lineage snapshots include source aspect/value/accuracy state, all co-support occurrences, declaration and mapping evidence pins, and selection reasons. Excluded alternatives are represented by bounded summaries plus a reproducible diagnostic query and the pinned corpus; cases whose resolution relied on particular exclusions pin those exclusions too. No snapshot needs a giant list of every fact a reusable mapping might ever affect.
 
-M3 first proves the query/selector against the benchmark, then adds atomic export with lineage and a minimal status/notice path. An explicit local manifest scan takes a decision reference or publication and reports dependencies within the supplied directory; declare scan scope and failures, never claim discovery of all external copies. A notice command atomically writes a separate reasoned withdrawal/correction record. Status/explain checks available ledger revisions and notices and reports current, affected, or status-unavailable; offline historical inspection must not imply current approval. There is no cross-store atomic transaction: ledger revocation takes effect independently, the scan detects revoked inputs even if a notice write fails, and the explicit operation can be retried. Shared notifications, automatic propagation and a catalog/index are deferred until demanded. Restore must verify all hashes and demonstrate an old publication still explains after a source rebuild and a semantic revocation.
+M3 first proves the query/selector against the benchmark, then adds atomic export with lineage and a minimal status/notice path. An explicit local manifest scan takes a decision reference or publication and reports dependencies within the supplied directory; declare scan scope and failures, never claim discovery of all external copies. A notice command atomically writes a separate reasoned withdrawal/correction record. Status/explain separates the dimensions below; offline historical inspection must not imply current approval. There is no cross-store atomic transaction: ledger revocation takes effect independently, the scan detects revoked inputs even if a notice write fails, and the explicit operation can be retried. Shared notifications, automatic propagation and a catalog/index are deferred until demanded. Restore must verify all hashes and demonstrate an old publication still explains after a source rebuild and a semantic revocation.
+
+Publication status reports three small independent fields, with checked scope/time and evidence:
+
+| Field | States and limit |
+|---|---|
+| `integrity` | `verified`, `failed`, `unknown`: hashes and required files only; not financial correctness |
+| `review_status` | `no_known_issue`, `affected`, `withdrawn`, `unknown`: available ledger/assessment/notice evidence. No-known-issue is not a guarantee of economic truth |
+| `semantic_currency` | `current`, `noncurrent`, `unknown`: whether pinned ContractRefs match the explicitly checked current registry. A retired contract is noncurrent, not automatically wrong |
+
+An explicit withdrawal notice yields withdrawn; a revoked supporting assertion or identified defect yields affected pending disposition. A contract/profile/implementation version change alone does not establish a defect. If current knowledge cannot be checked, report unknown for the affected status field while still allowing byte verification and saved explanation. Published content is never relabeled with today's meaning. Rejection/withdrawal reasons distinguish a discovered error from intentional retirement, so impact is visible without calling every old amount false.
+
+Notices contain `publication_ref`, `reason_code`, human reason, `cause_refs[]`, actor, recorded UTC time and optional replacement publication ref. Cause refs use existing tagged AssertionRef, ContractRef, extraction receipt, code revision, assessment digest or artifact pins; there is no new causal graph. Permit a reasoned publication-specific notice when the precise cause is still unknown. The initial manifest scan automatically matches mapping revocations and explicit publication notices; it need not detect every parser/selector defect. A curator can explicitly flag a publication for any supported cause. Original notices remain retained; corrective results are new exports, not edits or silent “unwithdraw” operations.
 
 ## Later structures: decided boundaries, deferred implementation
 

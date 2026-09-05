@@ -28,7 +28,7 @@
 
 **Reasoning:** a second reference target is not always available or uniquely appropriate, especially for issuer/non-GAAP measures and industry distinctions. Two reviewed edges introduce two histories and conflicting paths while the application still needs a contract. Reusing exact XBRL identity does not require adopting a taxonomy concept as the only possible economic target.
 
-**Coverage rule:** additional reviewed reports create disjoint accepted roots; correction/revocation is not the default coverage-expansion mechanism. All existing scope fields and new conditions are conjunctive.
+**Coverage rule:** additional reviewed reports create disjoint accepted roots; correction/revocation is not the default coverage-expansion mechanism. All existing scope fields and new conditions are conjunctive. Same-key contract versions may coexist accepted after independent review, without revocation for mere noncurrentness; same-reference and cross-key overlaps remain conservatively blocked. Each request pins one ContractRef per key. This bounded rule avoids a semantic-compatibility ontology.
 
 **Trade-off:** the project owns concise economic definitions and reviews them. Pure concept guards cannot express every concept-plus-dimension substitution; those remain unsupported until an explicit aspect transformation is introduced.
 
@@ -118,7 +118,7 @@ FASB's Meta Model includes relationships addressing concept-dimensional equivale
 
 **Options:** latest row per issuer/metric/year; single `known_at`; full bitemporal versioning on every table; request-level public/semantic/local cutoffs plus immutable outputs.
 
-**Recommendation:** request-level clocks and policies described in [target architecture](target-architecture.md#time-amendments-and-restatements). No universal source-fact supersession column.
+**Recommendation:** request-level clocks and policies described in [target architecture](target-architecture.md#time-amendments-and-restatements). No universal source-fact supersession column. Filing-slot coverage must distinguish assessed absence from unknown; temporal scans cannot silently skip unreviewed filings. Byte integrity, known defects and semantic currentness of exports are independent.
 
 **Reasoning:** a 10-K/A may amend only part of a filing. A later comparative can change a particular observation without replacing every earlier fact. Economic time and semantic decision time answer different questions.
 
@@ -132,7 +132,7 @@ FASB's Meta Model includes relationships addressing concept-dimensional equivale
 
 **Options:** free-form rationale alone; a fixed typed checklist with versioned content; a configurable review/workflow framework.
 
-**Recommendation:** one Git-authored profile, retained with per-check outcomes in accepted evidence. Required positive support cannot be replaced by assessed absence; conditional evidence needs a reasoned relevance conclusion. Case requirements can strengthen, not weaken, the baseline. Profile identity is independent of economic contract identity.
+**Recommendation:** one Git-authored profile, retained with per-check outcomes in accepted evidence. Required positive support cannot be replaced by assessed absence; conditional evidence needs a reasoned relevance conclusion. Case requirements can strengthen, not weaken, the baseline. Profile identity is independent of economic contract identity. Selector-facing conclusions are typed and bound to occurrences/report/receipt; standalone reviewed packets reuse the evidence format when a reusable mapping does not own report qualification. Negative slot coverage in M4 uses the same packet discipline.
 
 **Trade-off:** this improves process consistency, not proof of accounting correctness. Sampling and availability limits stay explicit; no checklist can certify unseen future reports. M0 verifies that the initial profile can be assessed with M1A and any specifically required M1B reader.
 

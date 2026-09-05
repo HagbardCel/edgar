@@ -18,9 +18,14 @@ Use existing pytest, Hypothesis, real PostgreSQL, and a small mixture of constru
 | Cross-report references are invalid | Deliberately mismatched context/unit/declaration relationships | Named DB constraint or pre-persist error rolls back the complete replacement |
 | Candidate cannot publish | Candidate exact mapping with perfect label/value match | Query state `candidate_only`, no trusted value |
 | Stale meaning cannot publish currently | Contract edit after proposal/acceptance | Accept fails or query marks stale; historical snapshot remains inspectable |
-| Conditions cannot become implicit overrides | Overlapping issuer/report/interval predicates | Conflict or explicit atomic replacement; unknown disjointness is not accepted |
+| Conditions cannot become implicit overrides | Overlapping issuer/report/interval predicates for same-reference or cross-key claims | Conflict or explicit correction; unknown disjointness is not treated as proof of separation |
 | One fact cannot silently acquire contradictory exact meaning | Concurrent proposals and corrupt/legacy conflict input | Acceptance transaction rejects; application additionally detects conflicting matches |
 | New coverage is not correction | Accept disjoint report root; query before/after its review time | Earlier roots remain accepted, old publications unaffected; new coverage cannot leak before acceptance |
+| Contract upgrade is not revocation | Same source/scope, accepted v1 and independently reviewed v2 for one key | Both remain accepted; current request uses v2 only, explicit historical request uses its pin; same-ref/cross-key overlaps still reject |
+| Qualification is typed and scoped | Consolidation mentioned only in prose; wrong occurrence/receipt; global mapping used for parent-only context | Explicit review failure; no prose interpretation or cross-report generalization; draft/conflicting packets cannot qualify |
+| Unknown filing coverage is not absence | Unreviewed later extension or extraction failure for the same exact slot | Latest returns coverage unknown; only scoped assessed absence permits older support |
+| First reporting and review time are honest | Earlier/tied unknown cohort; absence assessment recorded after cutoff | Unknown blocks first/latest as appropriate; future review cannot supply historical negative knowledge |
+| Publication currentness is not correctness | Contract upgrade, revoked claim, byte corruption, selector-defect notice | Currency alone changes on upgrade; integrity and known-issue status stay independent; no global claim of financial validity |
 | Scope is conjunctive | Reports plus issuer/interval/guards, conflicting and missing metadata | No override; known contradictions reject, unresolved required predicates do not publish |
 | Hash identity states its scheme | Known v1/v2 vectors; wrong/unknown scheme; original-schema export/restore | Exact historical bytes verify under explicit scheme; no algorithm guessing or cross-scheme match |
 | Exact review is sufficiently assessed | Required definition absent; unassessed footnotes; unsupported relevance; truncated packet | Profile cannot pass a missing affirmative requirement or unknown relevance; required pins/content digest validate |
@@ -171,3 +176,7 @@ No runtime tests were rerun, since no production behavior changed. No schema, fi
 ## Second feedback review validation
 
 Reviewed the second external critique against baseline `be8ab9395381912df7ee3196a489490eb4fd464f`, the revised documents, registry hashing/loader/scope/acceptance code, and local PostgreSQL configuration. Ran `python3 /private/tmp/edgar_architecture_check.py` and `git diff --check`: **passed**, covering 36 Markdown files, 164 local links/anchors and two unrendered Mermaid blocks. Only target-package Markdown files changed. Runtime and PostgreSQL tests were not rerun; no schema, data, parser, fixture or adoption gate changed. Proposed invariant tests are implementation acceptance requirements, not executed results.
+
+## Third feedback review validation
+
+Reviewed the third critique against `2bd8f3978075470da1d105107cbedc104f0f75ca` and rechecked `_conflict_if_needed` in the current registry service. Ran `git diff --check` and `python3 /private/tmp/edgar_architecture_check.py`: **passed**, with 36 Markdown files, 168 local links/anchors and two Mermaid blocks. The first checker invocation failed because the previous temporary script no longer existed; recreated it outside the repository and reran successfully. Mermaid was checked as fenced text, not rendered. Only target-package Markdown changed; no runtime/database tests, schema/data changes or adoption occurred. New test cases describe future implementation acceptance, not demonstrated financial results.

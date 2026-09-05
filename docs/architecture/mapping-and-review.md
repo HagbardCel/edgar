@@ -125,9 +125,33 @@ M0 case/contract requirements may add checks but cannot waive the base profile. 
 
 Profile changes get a new ID/content digest and leave old accepted revisions intact. M3 requires its frozen profile assessment for release mappings; missing or invalid assessments return `review_required`. Later profile versions govern new reviews and do not automatically invalidate prior accepted evidence. If a future policy must exclude an older profile, define its evidence-only re-review procedure before activating that policy; adding an accepted-to-accepted reaffirmation operation is deferred until that concrete need. An actual semantic error still uses revoke/replace. Profile content verification and economic-hash verification are separate.
 
+## Typed conclusions for observation qualification
+
+The selector never interprets reviewer prose. M0 freezes a small `qualification` object in the existing evidence-packet format; M2 validates its shape and M3 consumes it. Each conclusion carries evidence pins and `state=confirmed|incompatible|unknown`:
+
+- `accounting_basis`: confirmed `us_gaap` for the initial profile.
+- `entity_basis`: confirmed `consolidated` plus the requested reporting entity identity; parent-only or another basis is incompatible with this profile.
+- `sign_interpretation`: confirmed `compatible` with the exact ContractRef; no numeric transformation.
+
+Bind the object to exact ContractRef, BundleRef/ReportRef, extraction receipt, and a finite set of occurrence pins. This finite selection support is not a copy of every fact affected by a concept mapping. Broader statement/report scopes are deferred until a concrete case requires a tested scope predicate. A context entity ID, absence of dimensions or one positive example cannot extend the conclusion to another occurrence. Missing, out-of-scope, incompatible or contradictory conclusions return explicit qualification/review failures. All co-support occurrences need qualified coverage.
+
+An assessment can be embedded in accepted mapping evidence or supplied as a separately reviewed, hash-pinned JSON evidence packet in `FinancialRequest.assessment_refs`. Use the same typed format with `review_status=reviewed`, reviewer identity, review-profile reference and source pins; there is no second mapping ledger or qualification table. A reusable concept mapping does not own universal consolidation knowledge. Separate packets let a newly inspected report qualify without changing that mapping's claim or adding an evidence-only ledger transition.
+
+The authored reviewed packet is durable knowledge, not a parser result. The request explicitly pins the selected packets; exports retain their exact content. Retain originals when correcting an assessment and select the replacement explicitly; conflicting active inputs fail, rather than choosing the latest filename. Draft/AI-only packets cannot qualify a result. A review timestamp entered in a file or a Git author date does not establish historical availability: strict M4 semantic-as-of use requires a retained local recording receipt or earlier immutable publication proving that packet existed by the cutoff. Otherwise report knowledge-time unknown. No assessment service, automatic file discovery or general revision framework is required.
+
 ## Conflicts and safe correction
 
-Continue to reject overlapping accepted exact claims for the same source concept, including stale accepted claims, unless the overlap evaluator proves the scopes/conditions disjoint. Check finite report sets, issuer equality, report-end intervals, and the supported simple predicates. If disjointness cannot be proven, treat it as an overlap. No numeric ranking or implicit issuer override resolves it.
+Conflict checks distinguish semantic versions from corrections. For the same source concept, first test report/issuer/interval/aspect scope disjointness; unknown disjointness counts as overlap. For overlapping accepted exact claims:
+
+| Targets | Acceptance rule |
+|---|---|
+| Same ContractRef | Reject competing roots, including redundant exact claims; add disjoint coverage or correct the existing claim |
+| Same metric key, different scheme/digest | Permit independently reviewed version-specific claims to coexist. The older accepted claim is not revoked merely because it is noncurrent |
+| Different metric keys | Conservatively reject overlapping exact claims; do not infer compatibility or ignore a claim merely because it is stale |
+
+The same-key exception is a bounded version-coexistence rule, not a general “different ContractRefs never conflict” rule. New acceptance still targets the current YAML/mirror ContractRef. Review must include prior claims, contract differences and any contrary evidence; a discovered error requires an explicit correction decision, not concealment behind a new version. No equality between contract versions is inferred.
+
+A request selects exactly one ContractRef per metric key. Application filters to that reference before evaluating claims; a version-comparison study uses separate requests/results. Cross-key conflicts are checked again for the requested knowledge snapshot, including historical queries; no semantic compatibility graph is required. Current-catalog changes cannot silently change the meaning of old accepted claims. This intentionally changes the existing Phase 2C all-target conflict rule only at the adopted M2 cutover.
 
 This prevents contradictory exact meanings before publication. Distinct source concepts can still yield contradictory values for one target slot, so the selector independently checks output conflicts. Same-source broader/narrower/related knowledge can coexist with an exact claim but does not create extra strict values. Canonical subtype relationships later provide hierarchy; do not express the same source fact as universally exact to both parent and child totals.
 
@@ -178,6 +202,8 @@ Importance is a review-priority heuristic, not semantic confidence. Use primary-
 **AdjustedNetSales.** QName and a friendly label cannot establish exactness. The packet shows the issuer's adjustment definition and a reconciliation removing an expense. A reviewer records `related` or rejects an exact candidate. The ordinary revenue query returns `non_exact_only` if no better source exists.
 
 **Reused extension QName.** Report A defines an amount excluding a business; report B includes it under the same QName. A claim scoped to A cannot match B. A broad QName-only mapping would have silently changed economic meaning; the report condition prevents that.
+
+**New contract version.** An exact claim for revenue v1 remains accepted when a separately reviewed v2 root is accepted for the same reports. A v2 query cannot use v1 evidence as if it had the v2 meaning. A v1 export becomes noncurrent relative to the current registry, not erroneous merely due to the upgrade.
 
 **Newly reviewed year.** Roots for old reports remain accepted when a disjoint new-year root is reviewed. Before the latter acceptance, a semantic-as-of query cannot use it; afterward both roots apply within their own scopes. No correction notice is created merely for increased coverage.
 

@@ -5,7 +5,7 @@
 
 This is the sole target architecture and migration package. [Documentation index](../README.md) separates it from implemented contracts and historical evidence.
 
-**Feedback revisions:** 2026-09-05. The M1 prerequisite has been narrowed to M1A; richer persistence is now case-triggered M1B. [Feedback assessment](feedback-assessment.md) records both reviews, accepted changes, disagreements and evidence limits. The second revision separates added coverage from correction, makes hash schemes explicit, introduces one pinned exact-review checklist, and narrows operational prerequisites.
+**Feedback revisions:** 2026-09-05. The M1 prerequisite has been narrowed to M1A; richer persistence is now case-triggered M1B. [Feedback assessment](feedback-assessment.md) records all three reviews, accepted changes, disagreements and evidence limits. The second revision separates added coverage from correction, makes hash schemes explicit, introduces one pinned exact-review checklist, and narrows operational prerequisites. The third distinguishes contract-version coexistence, unknown temporal coverage, typed observation qualification and publication currentness from defects.
 
 ## Recommendation
 
