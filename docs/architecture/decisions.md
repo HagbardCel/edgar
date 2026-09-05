@@ -16,6 +16,8 @@
 
 **Reconsider when:** a maintained third-party export/adapter passes the same occurrence, value, locator, dimensional, resource and offline contract suite. Do not replace it based on one filing or a feature list.
 
+**Delivery:** M1A preserves the existing complete base-set identity and establishes receipts/integrity. Role/arcrole tables, typed-domain enrichment and full footnote persistence are case-triggered M1B additions. Required evidence can first be supplied by a bounded offline Arelle reader and retained packet. Unassessed relevance blocks the affected case; omitted SQL storage never proves irrelevance.
+
 ## D2 — Direct conditional mapping to a measurement contract: made
 
 **Problem:** separate source identity from comparability without multiplying decisions.
@@ -29,6 +31,8 @@
 **Trade-off:** the project owns concise economic definitions and reviews them. Pure concept guards cannot express every concept-plus-dimension substitution; those remain unsupported until an explicit aspect transformation is introduced.
 
 **Reconsider when:** evidence shows many independently reused source-to-reference conclusions feeding several analytical contracts, and factoring them materially reduces reviews without hiding semantic differences. Such factoring must preserve existing decisions; it is not an excuse to force a reference target onto old claims.
+
+**Review discipline:** answer “what does the source mean?” and “why does it fit this contract?” separately in one [review packet](mapping-and-review.md#two-review-questions-one-durable-claim). This preserves two reasoning obligations without requiring two independently maintained claims.
 
 ## D3 — Relational semantic registry, no ontology runtime: made
 
@@ -151,5 +155,10 @@ The SEC company-facts APIs aggregate selected standard-taxonomy, entity-wide fac
 | F9 Materialization/SQLMesh | No measured bottleneck or large DAG | Query timings, corpus size, rebuild cost | Repeated operational pain; live bounded queries now |
 | F10 Ontology/LinkML/RDF | No external semantic interoperability contract | Named consumer and required inference/interchange | Concrete integration, not semantic terminology alone |
 | F11 Acquisition replacement | Parity unknown, current code is tested | Full bundle/security/closure comparison on representative cases | Maintenance burden exceeds demonstrated replacement cost; keep now |
+| F12 Richer relational evidence | Not every resource needs a dedicated table before analysis | Named blocked review or repeated costly retrieval | Activate only needed M1B capability; pinned packets first, unknown relevance blocks publication |
+| F13 Standard-taxonomy release continuity | Different releases remain distinct QNames; repeat work is unmeasured | Reviewed release comparisons and measured transition effort | Consider reviewed equivalence sets if they reduce work without hiding definition changes |
+| F14 Factored accounting meaning | Recurrence alone does not establish multiple independent consumers | Several real uses sharing the same source-meaning conclusion and duplicated review effort | Compare factoring cost with direct claims; no mandatory intermediary now |
+
+F1, F13 and F14 address issuer recurrence, standard release transitions and multiple semantic consumers respectively. Measure them separately in the [M3 review report](testing-and-quality.md#review-effort-and-taxonomy-continuity-measurement). None automatically authorizes inference or delays M4.
 
 These are not TODOs that an implementation agent should fill with invented requirements. Each new decision needs a bounded evidence report and an explicit updated phase scope.

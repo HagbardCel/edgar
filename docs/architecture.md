@@ -1,5 +1,7 @@
 # Architecture
 
+Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+
 **Status:** Phase 2C canonical registry and mapping ledger (on the Phase 2B
 `source.*` baseline).
 

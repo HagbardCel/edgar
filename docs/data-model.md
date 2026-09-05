@@ -1,5 +1,7 @@
 # Data model (V2 `source.*`)
 
+Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+
 **Status:** Authoritative conceptual persistence model after Phase 2C.
 
 Physical DDL is frozen in Alembic revisions `0001_source_v2` (`source.*`) and

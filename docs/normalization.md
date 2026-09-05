@@ -1,5 +1,7 @@
 # Canonical metric and mapping normalization (Phase 2C)
 
+Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+
 Normative contract for Git-authoritative metric definitions and the PostgreSQL
 mapping decision ledger. Observation selection is out of scope.
 
@@ -9,7 +11,7 @@ registry.canonical_metric   = synchronized DB mirror
 registry.mapping_assertion  = immutable reviewed semantic history
 current + accepted + exact + current definition hash
                             = eligible input to Phase 2D (not implemented)
-source.*                    = untouched filing evidence
+source.*                    = extraction evidence untouched by registry writes
 ```
 
 ## 1. Purpose
@@ -24,8 +26,8 @@ or emit `metric_observation`.
 - **`registry.canonical_metric`:** regenerable PostgreSQL mirror for FKs and
   queries. Not an independent definition authority.
 - **`registry.mapping_assertion`:** append-only decision ledger.
-- **`source.*`:** immutable filing evidence. Registry writes never upsert or
-  mutate source rows.
+- **`source.*`:** regenerable extraction of immutable filing evidence. Registry
+  writes never upsert or mutate source rows; extraction replaces them transactionally.
 
 ## 3. Canonical metric contracts
 

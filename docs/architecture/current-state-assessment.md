@@ -24,11 +24,11 @@ mappings propose / accept / reject / show / list / export
 
 Discovery functionality exists inside acquisition (`sec/submissions.py`, `sec/accession.py`); there is no separate discovery command in the inspected CLI. `metrics list/show` inspect definitions, not observed financial values. There is no general concept evidence command, no observation selector, and no canonical financial-value publication path. `MappingMethod` vocabulary names possible model/structural candidates; that does not mean a candidate generator exists.
 
-The CLI is [cli.py](../src/edgar/cli.py); orchestration is in [ingestion](../src/edgar/ingestion/source_extract.py). Catalog commits separately before parsing, so a catalogued filing can have no successful extraction. A failed extraction retains the previous successful snapshot. This distinction must remain visible in missing-data explanations.
+The CLI is [cli.py](../../src/edgar/cli.py); orchestration is in [ingestion](../../src/edgar/ingestion/source_extract.py). Catalog commits separately before parsing, so a catalogued filing can have no successful extraction. A failed extraction retains the previous successful snapshot. This distinction must remain visible in missing-data explanations.
 
 ## Current persistent entities
 
-All source table definitions are in [source_schema.py](../src/edgar/db/source_schema.py); registry definitions are in [registry_schema.py](../src/edgar/db/registry_schema.py). There are 17 source tables and two registry tables. “Source” here denotes extracted evidence, not immutable SQL rows.
+All source table definitions are in [source_schema.py](../../src/edgar/db/source_schema.py); registry definitions are in [registry_schema.py](../../src/edgar/db/registry_schema.py). There are 17 source tables and two registry tables. “Source” here denotes extracted evidence, not immutable SQL rows.
 
 | Entity | Real-world thing and grain | Current identity | Class / target disposition |
 |---|---|---|---|
@@ -55,15 +55,15 @@ All source table definitions are in [source_schema.py](../src/edgar/db/source_sc
 | `registry.canonical_metric` | Current contract copied from YAML | Metric key | Regenerable mirror; KEEP, add historical content separately |
 | `registry.mapping_assertion` | Immutable revision of a semantic claim | Integer revision + unique predecessor | Curated knowledge; KEEP and extend carefully |
 
-`report_key` hashes report input URIs/target, not bundle bytes, bindings, parser version, or extraction time. It identifies a report input, not a frozen interpretation. [report_key.py](../src/edgar/domain/report_key.py) makes this explicit.
+`report_key` hashes report input URIs/target, not bundle bytes, bindings, parser version, or extraction time. It identifies a report input, not a frozen interpretation. [report_key.py](../../src/edgar/domain/report_key.py) makes this explicit.
 
 ## Domain knowledge worth preserving
 
 - **Acquisition/replay:** reconciliation of submissions metadata, index tables, and complete-submission DOCUMENT records; bounded access; per-hop network controls; closure capture; URI aliases and canonical bases. A simple download helper does not replace this contract.
-- **IXDS:** multi-document report inputs and synthetic Arelle document identity handling. [report_input.py](../src/edgar/ingestion/report_input.py), [extract.py](../src/edgar/xbrl/extract.py), and [IXDS fixtures](../tests/helpers/ixds_xbrl_fixture.py) encode hard-won constraints.
+- **IXDS:** multi-document report inputs and synthetic Arelle document identity handling. [report_input.py](../../src/edgar/ingestion/report_input.py), [extract.py](../../src/edgar/xbrl/extract.py), and [IXDS fixtures](../../tests/helpers/ixds_xbrl_fixture.py) encode hard-won constraints.
 - **Occurrence and values:** invalid transformations remain explicit facts; exact Decimal values; filed `decimals`/`precision` including INF; scale/sign/format; continuations; nil states; deterministic element locators.
 - **Dimensions and networks:** typed XML, explicit members, no fabricated defaults, effective relationship sets, target roles, closed/usable/context-element attributes, separate label and reference roles.
-- **Atomic replacement:** filing lock, no shared-concept garbage collection, rollback on insertion failure. [source.py](../src/edgar/db/source.py) and [persistence tests](../tests/integration/test_source_persist.py) are valuable contracts.
+- **Atomic replacement:** filing lock, no shared-concept garbage collection, rollback on insertion failure. [source.py](../../src/edgar/db/source.py) and [persistence tests](../../tests/integration/test_source_persist.py) are valuable contracts.
 - **Review semantics:** definition-hash pinning, rejected terminal revisions, no branching, stale accepted decisions visible, exact-map conflicts checked under a source-concept lock. These are small mechanisms for expensive human knowledge.
 - **Documents:** deterministic DOM order, tables and locators, section disambiguation. Located disclosure text helps reviewers decide what an extension means; removing it would trade existing useful evidence for later reimplementation.
 
@@ -75,7 +75,7 @@ The live extractor calls concept/context/unit/fact/network extraction. It does *
 
 The extractor enumerates exact `(arcrole, linkrole, link QName, arc QName)` base sets, but only the first two identities survive into `source.relationship`. The full base-set key should survive rather than relying on all relevant networks using standard link/arc element names.
 
-Fact-footnote arcs are explicitly excluded and counted in issues. Generic labels/references and unsupported arcroles can produce nonfatal omissions. Tuples, fractions, and non-dimensional context content can block extraction. These policies are visible in [config.py](../src/edgar/xbrl/config.py) and [extract.py](../src/edgar/xbrl/extract.py). Raw artifacts retain the evidence, but the SQL surface is not a complete DTS archive. The target should label supported capabilities honestly and materialize the small missing pieces that review needs.
+Fact-footnote arcs are explicitly excluded and counted in issues. Generic labels/references and unsupported arcroles can produce nonfatal omissions. Tuples, fractions, and non-dimensional context content can block extraction. These policies are visible in [config.py](../../src/edgar/xbrl/config.py) and [extract.py](../../src/edgar/xbrl/extract.py). Raw artifacts retain the evidence, but the SQL surface is not a complete DTS archive. The target should label supported capabilities honestly and materialize the small missing pieces that review needs.
 
 ### Portable lineage is incomplete at the extraction boundary
 
@@ -89,7 +89,7 @@ Fact/report IDs change on replacement. Mapping evidence correctly avoids durable
 
 ### The registry is curated, but some contracts are economically elastic
 
-There are **39** entries in [metrics.yml](../registry/metrics.yml). Examples needing review before use:
+There are **39** entries in [metrics.yml](../../registry/metrics.yml). Examples needing review before use:
 
 - `cash_and_cash_equivalents` allows restricted cash when included in the issuer's line, while also excluding a broader combined total. A common key should not change its boundary based on presentation.
 - `intangible_assets_net` can include goodwill when combined; identifiable intangibles excluding goodwill is a different contract.
@@ -130,4 +130,4 @@ The subprocess, immutable bundle, URI resolver, and fail-closed diagnostics rema
 | Older metric plan: narrower rules automatically take precedence | Specificity is not proof of correctness; explicit corrections or conflicts are safer |
 | Older metric plan: many semantic relation/status types | Separate relationship, review status, method, scope, and derivation; do not encode all in one enum |
 
-Historical documents considered: [v2](../docs/plans/edgar_v2_target_architecture_and_plan.md), [v2.1](../docs/plans/edgar_v2_1_xbrl_native_target_architecture_and_plan.md), [implementation proposal](../docs/plans/xbrl-native-implementation-plan.md), [August assessment](../docs/reviews/2026-08-22-project-assessment.md), [lineage review](../docs/reviews/2026-08-31-xbrl-lineage-review.md), and [refactoring plan](../docs/reviews/2026-08-31-refactoring-plan.md). These untracked historical documents were present before this work and have not been edited.
+Historical v2/v2.1 and implementation plans, the August assessment, lineage review and refactoring proposal were considered as evidence rather than requirements. They were untracked at the original assessment baseline and were subsequently committed in `508682a8445263e433cac93a9bf7673373ab7c68`. The later [documentation consolidation](documentation-consolidation.md) records their disposition and recovery reference. Original baseline findings above remain historical; consolidation does not claim a new runtime audit.

@@ -106,15 +106,15 @@ See [docs/normalization.md](docs/normalization.md) and
 
 | Topic | Document |
 | --- | --- |
+| Documentation index and status | [docs/README.md](docs/README.md) |
+| Target architecture and migration | [docs/architecture/README.md](docs/architecture/README.md) |
 | System boundaries | [docs/architecture.md](docs/architecture.md) |
 | Tables and invariants | [docs/data-model.md](docs/data-model.md) |
 | Filesystem FilingBundle (PR #4) | [docs/adr/0009-filesystem-filing-bundle.md](docs/adr/0009-filesystem-filing-bundle.md) |
 | Fixture and attachment policy | [docs/fixture-policy.md](docs/fixture-policy.md) |
-| Phase sequencing | [docs/phase-1-plan.md](docs/phase-1-plan.md) |
-| Phase 2 registry | [docs/phase-2-plan.md](docs/phase-2-plan.md) |
 | Mapping normalization | [docs/normalization.md](docs/normalization.md) |
-| Roadmap | [docs/project-roadmap.md](docs/project-roadmap.md) |
-| Metric semantics (later phases) | [docs/metric-semantics.md](docs/metric-semantics.md) |
+| Superseded-plan consolidation | [docs/architecture/documentation-consolidation.md](docs/architecture/documentation-consolidation.md) |
+| Financial domain reference | [docs/metric-semantics.md](docs/metric-semantics.md) |
 | Agent rules | [AGENTS.md](AGENTS.md) |
 | Decisions | [docs/adr/](docs/adr/) |
 

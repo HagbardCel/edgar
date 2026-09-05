@@ -11,7 +11,9 @@ canonical registry and mapping ledger is complete.** Do not implement
 applicability, candidate selection, or `metric_observation` until a frozen
 Phase 2D+ plan exists. Phase 2A/2B/2C invariants remain in force.
 
-See `docs/phase-2-plan.md`, `docs/normalization.md`,
+See `docs/README.md` for completed milestones and documentation authority,
+`docs/architecture/README.md` for the proposed target (not yet adopted),
+`docs/normalization.md`,
 [ADR 0010](docs/adr/0010-curated-semantic-registry.md),
 and [ADR 0011](docs/adr/0011-source-extraction.md).
 
@@ -34,8 +36,10 @@ Do not optimize for breadth or ingestion speed before the relevant phase gate is
 Before changing code:
 
 1. Read this file.
-2. Read `docs/phase-2-plan.md` and `docs/phase-1-plan.md`.
-3. Read `docs/project-roadmap.md`.
+2. Read `docs/README.md` for implemented status and scope.
+3. Read `docs/architecture/README.md` and the relevant target/migration decisions.
+   The package is a recommendation until M0 adoption; documentation consolidation
+   does not freeze a Phase 2D+ implementation plan.
 4. Read `docs/architecture.md`, `docs/development.md`, `docs/normalization.md`, and `docs/fixture-policy.md`.
 5. Read `docs/data-model.md` and `docs/data-quality.md`.
 6. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.

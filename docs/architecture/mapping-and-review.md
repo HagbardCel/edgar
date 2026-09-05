@@ -12,6 +12,15 @@ Write inclusion/exclusion boundaries that cannot change with how an issuer label
 
 Contract prose is a deliberate application judgment. Cite authoritative taxonomy definitions instead of reproducing an entire taxonomy, but specify the differences the API promises to preserve. A contract revision affecting economics changes the hash and requires affected mappings to be reviewed again.
 
+## Two review questions, one durable claim
+
+Reviewers explicitly record both conclusions in the rationale/evidence packet:
+
+1. **Source meaning:** what does the filed concept, declaration, disclosure and relevant context express? Cite supporting and opposing evidence, reference concepts considered, and unresolved limits. This answer may be issuer-specific or non-GAAP and need not name one exact FASB equivalent.
+2. **Contract fit:** does that meaning satisfy this precise contract, under which conditions, and which includes/excludes or accounting-basis differences decide the relation? Explain why alternatives were not chosen.
+
+The second conclusion must not be inferred just because a reference label looks right. Store these as two required rationale sections in the existing review packet, not two separately accepted entities or ledgers. A conditioned concept meaning still does not choose the requested annual/consolidated observation. For example, `CloudRevenue` could be only one component of total revenue; its name and a revenue reference do not establish exactness to the total contract.
+
 ## Assertion identity and relationships
 
 A claim is:
@@ -56,6 +65,8 @@ No arbitrary Python, SQL fragments, regular-expression namespace matching, neste
 
 The initial `dimensions` predicates inspect the reported context, not inferred default members. Effective-default-aware equivalence requires the later aspect-comparison capability and its own reviewed condition form. Typed-member semantic predicates are deferred; typed XML remains inspectable. Required fiscal quarter/annual period and requested currency belong in selection, not reusable concept mapping. If evidence demonstrates a meaning changing by fact period within a filing, use report-specific review and keep those facts unresolved until an explicit fact-period semantic predicate is approved.
 
+Do not add `no filed dimensions` to every mapping simply because the first selector requests consolidated values. Use it as a semantic guard only when the mapping evidence establishes a meaning limited to that condition. Otherwise retain mappings on dimensional facts and let observation qualification reject the wrong slice. This avoids quietly moving selection into concept identification.
+
 Default issuer-extension claims use issuer + listed reports. This makes the starting reuse policy conservative even where issuers reuse a namespace with altered declarations or disclosure meaning. For a standard concept, a reviewer can approve reuse under exact QName and approved declaration artifact pins, with semantic rationale applicable beyond one issuer. Labels supplied by an issuer do not override the standard definition automatically; conflicting disclosure evidence causes review.
 
 New taxonomy namespaces generate candidates, not automatic inheritance. New filings of a previously reviewed extension also generate bounded re-review; the inspector shows declaration, disclosure, network, and usage changes. Adding a new report to a claim changes its conditions, so create a new root and atomically replace the previous claim. This is intentional until measured review volume justifies broader extension reuse with a proven drift detector.
@@ -64,6 +75,8 @@ New taxonomy namespaces generate candidates, not automatic inheritance. New fili
 
 Use one `ConceptEvidence` response for humans and agents, rendered as text/Markdown or JSON. Accepted evidence stores a compact snapshot, not only a mutable query URL.
 
+The workflow table below describes evidence required when relevant, not a requirement to build every relational resource table in M1A. Packets distinguish `available`, `assessed_absent`, `not_assessed` and `unsupported`, including source scope and retrieval/truncation limits. A bounded offline reader can provide needed role/footnote evidence before M1B persistence. Missing tables or an excluded-arc count cannot establish irrelevance. If a case's evidence remains unassessed/unattributable, acceptance for the release and publication stay blocked until the required reader/capability is supplied. Snapshot the content actually reviewed so later SQL enrichment is not needed to understand an old decision.
+
 An evidence item has a discriminated kind, summary, position (`supports`, `opposes`, or `context`), typed source pins, and a payload validated for that kind. Common kinds cover declaration, label/documentation, reference parts, network path, dimensional/unit usage, reported value reconciliation, disclosure excerpt, historical comparison, and reviewer/model analysis.
 
 Source pins include accession/report input, BundleRef, artifact SHA/path, locator and QName where appropriate. Reference evidence outside a filing pins publisher URL, package/release and acquired artifact hash. Human analysis has an actor/rationale and links to source items; it cannot masquerade as filed text. Model analysis records model identity, prompt/version, schema version, input hash, parameters, output/failure, and supporting source references. Claimed model citations are checked against the provided packet.
@@ -71,7 +84,7 @@ Source pins include accession/report input, BundleRef, artifact SHA/path, locato
 Acceptance requires:
 
 1. A concrete contract snapshot and current YAML/mirror agreement.
-2. At least one resolvable source evidence item and a nonempty rationale explaining economic inclusion/exclusion, not merely a label match.
+2. At least one resolvable source evidence item and both source-meaning and contract-fit rationale sections, explaining economic inclusion/exclusion rather than merely a label match.
 3. Explicit discussion of relevant contrary evidence or a statement of what was searched and its limits.
 4. Scope/condition validation, compatibility checks and affected-fact preview.
 5. Conflict checks in the acceptance transaction.
@@ -144,3 +157,5 @@ Initially all semantic acceptance is explicit review. Deterministic code can fin
 Optional AI sees a versioned, bounded evidence packet; it returns structured proposals with cited source pins, contrary evidence, and uncertainty. The same inspector used by a human supplies its context. It cannot approve its own output, create source facts, alter fixtures, or become required for replay/querying accepted knowledge. Keep invocation artifacts outside canonical decisions; selected analysis becomes evidence only through review.
 
 Record rejection reasons to avoid repeating the same unsafe suggestion. Do not treat an uncalibrated model score as a probability. Measure accepted mapping precision and review effort on held-out reports before considering any expansion of automation.
+
+From M3, keep a small [review-effort report](testing-and-quality.md#review-effort-and-taxonomy-continuity-measurement), separating issuer recurrence, standard-taxonomy release transitions and new economics. Measure whether factoring a shared reference meaning would remove repeated decisions before introducing it. Unchanged declarations are a structural result; unchanged economics is a reviewed conclusion. No inference engine is needed merely to collect those measurements.

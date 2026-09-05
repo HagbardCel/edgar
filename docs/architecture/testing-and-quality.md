@@ -10,9 +10,10 @@ Use existing pytest, Hypothesis, real PostgreSQL, and a small mixture of constru
 | Identical occurrences do not collapse | Duplicate facts in separate elements/documents; hidden Inline occurrences | Both source rows/pins survive and appear as co-support only after qualification |
 | Context/unit ID collision does not overwrite | Multi-document IXDS with conflicting identifiers | Clear extraction failure or supported occurrence resolution; never silently picks a context |
 | Exact values remain exact | Large/tiny Decimals, negatives, scale, sign, INF/omitted accuracy, nil/invalid transforms | Wire, NUMERIC, export round-trip without float coercion or double scale/sign application |
-| Dimensions cannot disappear | Explicit/typed/default/non-dimensional context fixtures | Filed occurrence rows/XML preserved; unsupported qualifiers block strict observation |
-| XBRL network identity survives | Two base sets sharing role/arcrole but differing link/arc QName | Separate effective sets and complete arc locators; role definitions/targetRole preserved |
-| Resources retain evidence | Multiple label roles/languages, ordered reference parts, shared footnote resources | Every association/resource locator retained; no continuation/footnote conflation |
+| Dimensions cannot disappear | Explicit/typed/default/non-dimensional context fixtures | M1A retains fatal non-dimensional-context rejection; M1B opaque preservation, if activated, still blocks strict observation |
+| XBRL network identity survives | Two base sets sharing role/arcrole but differing link/arc QName | M1A preserves separate full-key effective sets and arc locators/targetRole; required role definitions are pinned in packets or M1B storage |
+| Resources retain evidence | Multiple label roles/languages, ordered reference parts, shared footnote resources | Retain current resources; new footnote associations resolve through Arelle packets or activated M1B tables; no continuation/footnote conflation |
+| Deferred storage cannot hide relevant evidence | Resource absent from SQL, report-level omission only, truncated packet, reader failure | Available / assessed absent / not assessed / unsupported remain distinct; unknown relevance blocks the case |
 | Report provenance is exact | Same payload with changed URI bindings, aliases or report inputs | Receipts differ appropriately; old publication replays against its original descriptor |
 | Cross-report references are invalid | Deliberately mismatched context/unit/declaration relationships | Named DB constraint or pre-persist error rolls back the complete replacement |
 | Candidate cannot publish | Candidate exact mapping with perfect label/value match | Query state `candidate_only`, no trusted value |
@@ -53,6 +54,24 @@ Initial release gate is **zero false exact matches on the bounded reviewed bench
 
 For broader reuse/AI work, separate development and held-out reports, including later years and unreviewed issuers. Track false exact positives, coverage conditional on precision, review minutes per new report/concept, and mappings invalidated by drift. No numerical precision claim is credible without sample size and review methodology.
 
+## Review effort and taxonomy continuity measurement
+
+From M3, produce a small Markdown/CSV report from exported decisions and requested slots, with an optional manual timing log. No monitoring service, schema migration or inheritance engine is needed merely to collect a baseline. Define a review case as a source concept in a report, target contract and proposed scope; successor revisions do not become separate new cases. Classify work as new economic judgment, scope confirmation, correction, evidence retrieval or standard-release transition.
+
+| Measure | Denominator and interpretation |
+|---|---|
+| New economic reviews per filing | New economic-judgment cases / newly reviewed filings; show counts and distribution, separate routine scope confirmations |
+| Repeated issuer-extension cases | Repeated extension cases / new filings; also count distinct exact QNames, keeping namespace changes visible |
+| Unchanged declarations versus unchanged economics | Structurally equal declarations / comparable repeated cases; separately reviewer-assessed unchanged economics / adjudicated cases, with inconclusive and unassessed counts |
+| Review minutes per 100 requested slots | Active review minutes × 100 / all requested slots, including missing and conflicting results; report timing coverage, never fill missing times with zero |
+| Standard-taxonomy continuity cost | Release-transition cases and minutes / all reviewed cases and minutes; retain compared release/definition pins and separate issuer continuity |
+| Shared meaning across consumers | Actual distinct analytical consumers and duplicated review work, including additional cost of a factored meaning/binding review |
+| Optional inheritance trial errors | Independently rejected proposed exact inheritances / adjudicated proposed exact inheritances; this is false-discovery proportion, not classical false-positive rate; show unresolved proposals separately |
+
+Publish sample counts, filings/releases/time window, timing method and N/A for unavailable or zero-denominator quantities. Declaration equality is observable structure; economic equality remains a reviewed judgment. An inheritance trial is optional, independently justified M5 work in shadow mode with held-out drift counterexamples, never a publishing path or M3 prerequisite. Without such a trial its error measure is “not measured.” A tiny error-free sample does not prove safety.
+
+At each bounded corpus expansion, inspect where effort went before choosing F1, F13 or F14. There is no automatic threshold that mandates a reference warehouse, concept-series identity or a second ledger.
+
 ## Accounting and longitudinal checks
 
 Use reconciliation as a diagnostic, not as mapping authority or a mechanism to invent missing facts:
@@ -84,7 +103,7 @@ EDGAR_TEST_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar_te
 make corpus-acceptance
 ```
 
-The existing helper's reset operation is destructive test setup. Harden `reset_test_database` itself to validate the target name before DDL, rather than relying only on callers; include that small guard change with M1's migration tests. Never reuse it for local user data. Testcontainers is unnecessary while one guarded local PostgreSQL service and CI service suffice.
+The existing helper's reset operation is destructive test setup. Harden `reset_test_database` itself to validate the target name before DDL, rather than relying only on callers; include that small guard change with M1A's migration tests. Never reuse it for local user data. Testcontainers is unnecessary while one guarded local PostgreSQL service and CI service suffice.
 
 Add upgrade tests from populated `0002_registry` and later adopted revisions, downgrade tests for reversible source changes, full schema/constraint parity for source and registry, and restore tests for durable knowledge. Empty-head creation alone cannot validate a data migration. New source fields need SQL assertions after actual Arelle extraction; a wire-only round trip can preserve a field never populated by the extractor.
 
@@ -94,12 +113,12 @@ Add upgrade tests from populated `0002_registry` and later adopted revisions, do
 |---|---|
 | Too many layers? | Removed mandatory reference warehouse, accounting resolver and binding ledger; mapping application/candidates remain query records |
 | Too few distinctions? | Retained source declaration vs QName, contract vs slot, reporting basis vs dimensions, public vs semantic/local time |
-| Fighting XBRL? | Use native aspects and Arelle networks; add missing role/base-set/footnote fidelity rather than a second concept framework |
+| Fighting XBRL? | Use native aspects and Arelle networks; repair existing base-set identity in M1A and add other evidence access only when needed |
 | Is every custom abstraction justified? | Keep only source pins, contracts, assertions, request/result and publication; no generic workflow/DAG/entity framework |
 | Is the ledger overengineered? | Reuse its linear append-only revisions; add only immutable conditions, contract content and atomic correction needed for trusted output |
 | Could one exact mapping still mislead? | Report-scoped extension reuse and precise contracts address declaration/context drift; selector separately checks basis/period/unit/slice |
 | Does the plan reach utility soon enough? | M3 ships bounded direct annual analysis; large corpus research, codec cleanup, ontology and dimensional rewriting do not gate it |
-| Is M1 too large? | Split into receipt, native evidence, integrity and inspector changes; retain existing structures and codec. Each addition supplies concrete review/lineage information |
+| Is M1 too large? | Revised to mandatory M1A receipts/integrity/inspector plus case-triggered M1B enrichment; no universal opaque-context or footnote-table prerequisite |
 | Does current-state replacement lose history? | Ad hoc unexported queries are not historical products; published results retain content and input receipts independently of mutable SQL IDs |
 | Are we pretending to know historical state? | Require explicit historical contract pins; exact old deployments are established by exported manifests, not guessed from today's parser |
 | Could we delete more? | Delete unused codecs/shims and empty entrypoint column; retain worker and documents because their evidence/security value is demonstrated |
@@ -110,7 +129,7 @@ The main remaining economic risk is insufficient review evidence, not a missing 
 
 ## Validation performed for this package
 
-This is a documentation-only architecture task. Commands actually executed:
+The initial package at commit `508682a8445263e433cac93a9bf7673373ab7c68` was a documentation-only architecture task. The following validation is historical, not a claim that tests were rerun during feedback revision/consolidation. Commands actually executed then:
 
 ```bash
 uv run pytest -q -m 'not database and not network' tests/contract/test_arelle_report_extraction.py tests/unit/test_source_extract_adapt.py tests/unit/registry
@@ -129,3 +148,16 @@ uv run python /private/tmp/edgar_architecture_check.py
 **Result:** eight Markdown files, 36 local links/anchors and two Mermaid code blocks; local link/anchor, balanced code-fence, and Git whitespace checks passed. The temporary checker invokes `git diff --no-index --check /dev/null <document>` for each new file. Its first invocation incorrectly treated Git's normal exit code 1 for new-file differences as a whitespace failure; the checker was corrected and rerun successfully. Mermaid blocks were inspected as text, not rendered or syntax-validated by a Mermaid engine.
 
 No database integration tests, full corpus acceptance, live SEC acquisition, model experiment, architecture implementation, schema migration, or benchmark financial validation was performed for this package.
+
+## Feedback revision and consolidation validation
+
+The feedback revision and consolidation are documentation-only. Executed after moving the package and updating navigation:
+
+```bash
+python3 /private/tmp/edgar_architecture_check.py
+git diff --check
+```
+
+**Result:** 36 existing tracked/new Markdown documents checked, 156 local links/anchors, two Mermaid blocks; local links/anchors, balanced code fences and whitespace passed. The temporary checker includes moved/new documents as well as retained tracked Markdown and checks new-file whitespace independently. Mermaid syntax/rendering was not validated by an engine. The seven removed originals were also verified to exist at the consolidation recovery commit using `git cat-file -e` for each path.
+
+No runtime tests were rerun, since no production behavior changed. No schema, fixture, parser version, registry data or phase gate changed. The initial 51-test result above remains historical evidence only. No financial review-effort, inheritance-error or benchmark result is claimed by this revision.

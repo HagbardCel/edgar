@@ -1,5 +1,7 @@
 # XBRL-fact → canonical-metric lineage & leanness review
 
+**Historical evidence:** findings and executed checks below refer to the review date, not a new verification. Recommendations are superseded by the [target package](../architecture/README.md); the [consolidation record](../architecture/documentation-consolidation.md) explains retained and rejected ideas.
+
 **Date:** 2026-08-31
 **Goal of review:** Establish whether the repository provides a clear,
 correct, and transparently-lineage-traceable mapping of SEC Edgar XBRL facts

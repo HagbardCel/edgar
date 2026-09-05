@@ -1,5 +1,7 @@
 # Project assessment — leanness, dependencies, and the mapping review loop
 
+**Historical evidence:** findings and executed checks below refer to the review date, not a new verification. Recommendations are superseded by the [target package](../architecture/README.md); the [consolidation record](../architecture/documentation-consolidation.md) explains retained and rejected ideas.
+
 **Date:** 2026-08-22
 **Scope:** Full-repository static assessment (all `src/`, `tests/`, docs, migrations, registry),
 plus runtime health checks. Focus areas requested by the owner:

@@ -1,6 +1,6 @@
 # Migration from the actual repository
 
-**Status:** recommended implementation plan. This work delivers documents only. M0 records adoption and freezes only M1–M4's specified scope before production work starts. Historical Phase 2A/2B/2C names are not reused, and no old applied migration is edited. M5 consists of separately gated options, not authorization for all future infrastructure.
+**Status:** recommended implementation plan. This work delivers documents only. M0 records adoption and freezes the M1A → M2 → M3 → M4 path before production work starts. M1B additions require a documented evidence need. See [feedback assessment and disagreements](feedback-assessment.md) for the 2026-09-05 revision. Historical Phase 2A/2B/2C names are not reused, and no old applied migration is edited. M5 consists of separately gated options, not authorization for all future infrastructure.
 
 ## Change inventory
 
@@ -13,7 +13,7 @@
 | KEEP | `parsing/`, `xbrl/source_documents.py`, document tables/tests | Located disclosure evidence retained |
 | KEEP | `registry/metrics.yml` and append-only mapping ledger | Existing authoring ownership preserved |
 | KEEP | Applied `0001_source_v2.py`, `0002_registry.py`; fixture history | Historical DDL and evidence are not rewritten |
-| MODIFY | `source_records.py`, `_source_build.py`, `extract.py`, `source_wire.py`, `db/source*.py` | Complete extraction receipt, role/network/footnote evidence, capability flags and integrity checks |
+| MODIFY | `source_records.py`, `_source_build.py`, `extract.py`, `source_wire.py`, `db/source*.py` | M1A: receipt, supported network identity, capability reporting and integrity; M1B: justified role/footnote/typed-domain persistence |
 | MODIFY | `registry/models.py`, `hashing.py`, `mapping.py`, `service.py`, `db/registry*.py` | Precise contracts, historical content, validated conditions/evidence and correction transactions |
 | MODIFY | `registry/views.py`, `export.py`, CLI | Bounded concept/fact inspection, old/current contract display, explicit live-vs-historical state |
 | REPLACE | Repetitive native wire codecs and dual adapter DTOs | One validated boundary record family, after first financial delivery and only with parity proof |
@@ -25,19 +25,23 @@
 | ADD | New Alembic revisions and focused fixtures | Extend schema and enforce knowledge immutability without resetting data |
 | DO NOT ADD | Mandatory `reference.*`, second binding ledger, ontology/graph service, SQLMesh | Not needed for first financial release |
 
-`semantic-registry/` remains a historical archive under current project rules. Do not restore it as live authority or delete evidence simply because the architecture changed. Untracked user plans/reviews and the pre-existing `-l` file remain untouched.
+`semantic-registry/` remains a historical archive under current project rules. Do not restore it as live authority or delete evidence simply because the architecture changed. Superseded planning documents were consolidated as recorded in [documentation consolidation](documentation-consolidation.md); evidence reviews and the unrelated pre-existing `-l` file are retained.
 
 ## Sequence and release gates
 
 ```mermaid
 flowchart LR
-    M0[M0: Adopt bounded contracts] --> M1[M1: Inspectable source evidence]
-    M1 --> M2[M2: Safe semantic claims]
+    M0[M0: Adopt bounded contracts] --> M1A[M1A: Publication-critical evidence]
+    M1A --> M2[M2: Safe semantic claims]
     M2 --> M3[M3: First annual financial release]
     M3 --> M4[M4: Time and quarter policies]
     M3 --> Cleanup[Optional DTO consolidation]
-    M4 --> M5[M5: Evidence-driven extensions]
+    M1A -. case needs evidence .-> M1B[M1B: Selected evidence enrichment]
+    M3 -. observed evidence gap .-> M1B
+    M3 -. measured need .-> M5[M5: Evidence-driven extensions]
 ```
+
+M1B and M5 are optional branches, not prerequisites for M4. A specific M1B addition can block an individual M2/M3 case if its evidence cannot otherwise be inspected safely; completing every M1B feature never becomes a blanket release gate. M5 features requiring temporal semantics still depend on the relevant M4 policy.
 
 Each numbered work item below should normally be one reviewable change or a small PR pair. A phase ends with one supported executable path. Do not combine source schema fidelity work, ledger semantics, and serializer replacement into one large cutover.
 
@@ -45,48 +49,72 @@ Each numbered work item below should normally be one reviewable change or a smal
 
 **Objective:** turn independent recommendations into a narrow executable scope without pretending deferred hypotheses are settled.
 
-**Architectural change:** record chosen decisions in a new ADR and make the living architecture/phase documents point to the adopted target. Historical plans remain historical context. No schema or runtime changes.
+**Architectural change:** record chosen decisions in a new ADR and update the documentation index and current implementation contracts to identify adopted target decisions. The consolidation record preserves historical requirements. No schema or runtime changes.
 
 **Implementation work:**
 
-1. Review D1–D8 and explicitly adopt/adjust them. Record that future Phase 2D+ work is now limited to M1–M4, with M5 deferred. Update `AGENTS.md`, `docs/phase-2-plan.md`, `docs/architecture.md`, `docs/normalization.md`, `docs/data-model.md`, and roadmap status consistently. Resolve old instructions requiring a mandatory reference-layer spike rather than leaving conflicting gates.
+1. Review D1–D8 and explicitly adopt/adjust them. Record the mandatory M1A/M2/M3/M4 scope and the case-triggered M1B/M5 gates. Update `AGENTS.md`, `docs/README.md`, `docs/architecture.md`, `docs/normalization.md`, `docs/data-model.md`, and target-package status consistently. Documentation consolidation has removed competing plans, but has not adopted or implemented this recommendation.
 2. Inventory the actual local DB revision, report/filing counts, registry rows by status/hash, and all local bundles. This assessment did not inspect that data. Use read-only counts first; never infer live decisions from historical JSON rules or tests.
 3. Back up registry history including every revision, current/historical contract content available from Git, and bundle descriptors/objects. Existing export includes history, but it is not a demonstrated restore path. Restore into a separately configured guarded test database before any later migration.
 4. Define a bounded benchmark from the six accessions in `fixtures/corpus.toml`: annual eBay pair and Walmart for initial values, eBay amendment as a non-replacement case, JPMorgan and Coca-Cola quarterlies for scope/period counterexamples. No live SEC fetching is required for the architecture task or default tests.
 5. Create a reviewed expected-result manifest for the eight proposed initial metrics, exact periods/units/entity scopes, source locators, and expected missing/conflict cases. Use the real rendered filing for each expected value; do not derive expected values from the same selector being tested. Resolve which keys need narrower replacement definitions.
+6. For each case, inventory required disclosure/network/resource evidence, what extraction exposes, and what remains unassessed. Identify the smallest reader or M1B addition needed to review it. Omitted SQL content is not evidence of irrelevance. Freeze economic boundaries here; M2 implements their registry representation. Record baseline review effort if available, without delaying M3 for a large study.
 
 **Files:** the living docs above; new ADR (next unused number); proposed `fixtures/analysis/` manifest and `tests/helpers/financial_cases.py`. Preserve `fixtures/manifests/` and existing corpus probes.
 
 **Tests and acceptance:** schema inventory and restore report; manually checked expected values or explicitly documented missingness for every requested slot. At least one extension case and one negative non-GAAP/broader case must be represented. Existing fixture availability is verified by hashes. The adopted scope explicitly says no automatic wider mapping reuse, no currency conversion, and no full-history claims.
 
-**Data/removal:** backups only; no production deletes. Retire conflicting plan authority with status links, not deletion of historical reasoning.
+**Data/removal:** backups only; no production deletes. The consolidation record has already retired conflicting plans and retained useful reasoning; M0 records implementation adoption separately.
 
 **Dependency:** none. **Risk:** benchmark values could accidentally copy today's assumptions; independent source verification is essential. **New capability:** one agreed financial release target and a recovery path for curated knowledge.
 
-## M1 — Close source fidelity gaps and ship useful inspection
+## M1A — Publication-critical evidence and useful inspection
 
-**Objective:** make a concept's complete supported case inspectable and make every extract pin its exact replay inputs.
+**Objective:** establish trustworthy inputs and inspectable evidence for the bounded release without requiring every useful XBRL resource to have a relational table.
 
-**Architectural change:** enrich the existing native source model. Keep the worker, storage boundary, and per-filing atomic replacement. No canonical observations yet.
+**Architectural change:** retain the worker, storage boundary and per-filing atomic replacement. Add exact extraction receipts, preserve the complete identity of already-supported networks, and expose capability limits through the inspector. No canonical observations yet.
 
 **Work packages:**
 
-1. **Extraction receipt and source integrity.** Add BundleRef/config/lock/parser evidence to `source.xbrl_report`; pass it from `SourceExtractService` through persistence. Add nullable fields initially for existing rows; after verified re-extraction require them for publication. Drop always-null `entry_document_id` in the same deployment once no reader/writer uses it. Ensure report input still preserves all IXDS members.
-2. **Native evidence completion.** Connect role/arcrole extraction to native DTO/wire/persistence. Carry link and arc QNames on relationships and resource associations. Persist typed-domain provenance/classification from Arelle. Preserve opaque non-dimensional context fragments with an explicit unsupported qualification flag instead of representing them as an empty context; keep tuples/fractions fail-closed. Add supported fact-footnote resources and associations with multiplicity and source locators. Record unsupported resource/network classes as capability omissions.
-3. **Integrity and independent completeness.** Validate same-report declaration/context/unit references, explicit/typed dimension structure, and context/unit ID collisions across report members. Add named DB composite constraints where feasible after preflight/rebuild. Independently inventory test fixture occurrences, including hidden Inline facts and continuations. Keep DTO/persisted count checks but stop presenting them as an independent engine oracle. Preserve an upstream inventoried count separate from emitted rows.
-4. **Concept/fact inspector.** Add bounded SQL queries for declaration/resources, role-aware neighborhoods, dimensions/units, representative facts, historic usage and mapping proposals. Return deterministic typed JSON/Markdown with totals/cursors and source pins. Use SQL pagination, not “load everything then take 25.”
+1. **Extraction receipt.** Add BundleRef/config/lock/parser evidence to `source.xbrl_report`; pass it from `SourceExtractService` through persistence. Stage nullable fields for old rows, then require verified receipts for publication. Drop always-null `entry_document_id` once no reader/writer uses it. Preserve all IXDS report members.
+2. **Existing identity and failure guarantees.** Carry link and arc QNames from the exact Arelle base-set key into supported relationships and resource associations. This is a bounded repair to existing evidence, not a new network framework. Keep current fatal handling of non-dimensional contexts, tuples and fractions. SQL preservation of opaque context fragments is not required for M1A. Report unsupported structures and failed/missing extraction; never represent them as an empty or consolidated context.
+3. **Integrity and independent completeness.** Validate same-report declaration/context/unit references, explicit/typed dimension structure, and context/unit ID collisions across report members. Add named composite DB constraints where appropriate after preflight/rebuild. Independently inventory fixture occurrences, including hidden Inline facts and continuations. Keep DTO/persisted count checks but retain a separate upstream inventoried count; do not call a count derived from emitted rows an independent oracle.
+4. **Concept/fact inspector.** Query existing declarations/resources, role-scoped neighborhoods, dimensions/units, representative facts, historical usage and proposals with SQL pagination. Return typed JSON/Markdown, source pins, counts/cursors and capability status. For evidence absent from SQL, permit a pinned excerpt or small offline Arelle reader producing the same packet; relationships must be resolved by Arelle, not guessed from nearby text. Add only readers needed by M0/M2 cases. If relevance or attribution cannot be established, return `evidence_not_assessed` and block publication of that case.
 
-**Affected files:** `ingestion/source_extract.py`; `xbrl/extract.py`, `config.py`, `source_records.py`, `_source_build.py`, `source_wire.py`; `db/source_schema.py`, `source.py`; new `db/inspection.py`, `inspection/models.py`, `inspection/service.py`; `cli.py`. Keep the current serializer during these behavioral changes.
+**Affected files:** `ingestion/source_extract.py`; `xbrl/extract.py`, `config.py`, `source_records.py`, `_source_build.py`, `source_wire.py`; `db/source_schema.py`, `source.py`; new `db/inspection.py`, `inspection/models.py`, `inspection/service.py`; `cli.py`. Retain the existing serializer during these behavior changes.
 
-**Schema/data:** next unused Alembic revision(s), expected to follow `0002_registry`. Add role/arcrole and footnote tables, receipt fields, network QName fields, opaque-context fields, typed-domain fields, and appropriate constraints. New required fields are staged nullable for old rows; mark those rows publication-ineligible until rebuilt. Backfill by **offline extraction of the exact verified bundle**, never inventing provenance. Migrations include downgrade logic; downgraded code must not claim the new capabilities. An intentional change from failure to opaque preservation bumps extractor/wire versions and has explicit expected-count changes.
+**Schema/data:** next unused Alembic revision(s) after the current `0002_registry`: receipt fields, network QName fields and appropriate integrity constraints. No blanket role/arcrole/footnote tables, typed-domain enrichment or opaque-context storage. New required fields begin nullable for old rows; those rows are publication-ineligible until **offline extraction of the exact verified bundle**. Never invent provenance. Bump extractor/wire versions for changed outputs, include downgrade logic, and ensure downgraded code cannot claim new capabilities.
 
-**Tests:** expand `test_arelle_report_extraction.py`, `test_source_extract_adapt.py`, `test_source_persist.py`, rich/IXDS helpers; add footnote/role/base-set-collision tests, exact bundle binding differences, typed-domain cases, opaque context disqualification, cross-report FK rejection, and inspector snapshots. Run guarded PostgreSQL upgrade/downgrade and rollback tests. A changed source count is explained, not merely accepted into goldens.
+**Tests:** expand `test_arelle_report_extraction.py`, `test_source_extract_adapt.py`, `test_source_persist.py`, rich/IXDS helpers; add base-set-collision, receipt/binding, independent occurrence, cross-report integrity and inspector tests. Retain the non-dimensional-context failure test. Test that omitted relevant resources, unassessed omissions and reader failures cannot appear as “none present.” Exercise each selected reader through real Arelle. Run guarded PostgreSQL migration/rollback tests and review any source-count changes.
 
-**Migration/removal:** current source snapshots may be replaced in bounded batches from immutable bundles. Preserve registry rows and all raw bytes. Do not run an unconditional database reset; source/registry ownership is deliberately separate. Remove only the empty entrypoint column and now-obsolete code for it. No parallel V3 source schema or dual writes.
+**Migration/removal:** replace derived snapshots only in bounded named batches. Preserve registry rows, raw bytes and prior snapshots on failure. Remove only the empty entrypoint column and its obsolete code; no database reset, parallel source schema or dual writes.
 
-**Acceptance:** each benchmark fact resolves to exact bytes and bundle receipt; role descriptions/full network identities/footnotes used in evidence survive wire and SQL; invalid/nil occurrences survive; unsupported qualifiers cannot appear dimensionless to the inspector/selector. All affected source checks and corpus acceptance pass with reviewed deltas. Failure in any report still preserves the previous filing extraction.
+**Acceptance:** every benchmark fact resolves to exact bytes and a bundle receipt; supported network identity survives wire and SQL. Evidence used in review resolves to a reproducible pinned packet whether or not it has dedicated SQL storage. Required unavailable/unassessed evidence blocks the affected case. Invalid/nil occurrences survive; unsupported qualifiers cannot appear dimensionless. Relevant source checks and corpus acceptance pass with reviewed deltas. Failure in any report preserves the previous filing extraction.
 
-**Dependency:** M0. **Risks:** new DTO fields can disappear in handwritten conversion; use end-to-end persisted assertions. Source replay may uncover formerly hidden omissions; isolate those from unrelated source-count changes. **New capability:** investigators can inspect unknown concepts with cited, portable evidence without querying raw tables manually.
+**Dependency:** M0. **Risks:** new DTO fields can disappear in conversion; omitted evidence can be mistaken for absence; packet readers can grow into a second extractor. Use end-to-end provenance assertions and a single bounded inspection contract. **New capability:** investigators can inspect and cite the evidence needed for the initial financial release.
+
+## M1B — Add richer evidence when a case needs it
+
+**Objective:** improve evidence retrieval or preserve currently unsupported structures when a named review/analysis case justifies it. This is not a fixed bundle of release prerequisites.
+
+**Architectural change:** enrich the existing source schema or packet reader progressively. Keep one source model and evidence packet contract; do not create a shadow DTS warehouse.
+
+| Candidate addition | Activation evidence | Smallest acceptable first step |
+|---|---|---|
+| Role/arcrole declaration tables | Required definitions/`usedOn`/`cyclesAllowed` are not inspectable, or repeated packet retrieval is costly | Pinned declaration packet through Arelle; persist tables when actual query requirements justify them |
+| Typed-domain enrichment | A required concept/dimensional case cannot be understood from retained XML/declarations | Arelle-resolved domain provenance/classification; no universal typed equality |
+| Footnote resources and associations | A relevant fact-footnote relationship cannot be reviewed through the packet path, or repeated association queries are needed | Arelle-resolved association and located resource in a packet; relational tables for a concrete consumer |
+| Opaque context fragments | A named filing fails extraction and inspection of its other source facts is useful | Preserve fragments/locators with an unsupported flag; strict financial selection still rejects affected contexts |
+
+**Implementation/files:** record the motivating accession/report and expected evidence for each activated addition. Implement the narrow reader or update `xbrl/extract.py`, native DTO/build/wire, `db/source_schema.py`/`source.py`, and inspection modules as needed. Connect existing role helpers when useful. No speculative tables or plugin registry. External Meta Model packages, concept-series factoring and dimensional transformations remain separate M5 decisions.
+
+**Schema/data and migration/removal:** add only selected fields/tables through new Alembic revisions using [data-model grains](data-model.md). Re-extract named affected bundles; preserve decisions and publications. New fields remain explicitly unavailable on old rows until verified replay. Changing failure to opaque preservation requires parser/wire version changes, reviewed count/diagnostic changes and continued financial disqualification. Consolidate experimental readers into the single inspection path. Include downgrade behavior and capability status.
+
+**Tests:** real Arelle fixtures for activated features, packet provenance/association tests, wire/SQL parity for persisted additions and migration/rollback checks. Cover shared footnote resources with distinct associations, multiple declarations of one role URI, typed-domain namespace identity, and opaque preservation without canonical qualification as applicable.
+
+**Acceptance:** the motivating evidence can be inspected, pinned and explained offline. Absence, unassessed and unsupported states remain distinct. No loss of current occurrences or knowledge history. Packet and SQL output agree where both exist. Complete only the activated addition; other features stay deferred.
+
+**Dependency:** M1A plus a documented case or measured repeated-access need. Pull necessary work before accepting/publishing that case; otherwise it may follow M3. **Risks:** deferring SQL can hide evidence gaps; maintaining two readers can cause drift. **New capability:** the named blocked review/query becomes possible, without making all of M1B a prerequisite for M4.
 
 ## M2 — Precise contracts and conditional, repairable semantic knowledge
 
@@ -112,7 +140,7 @@ Each numbered work item below should normally be one reviewable change or a smal
 
 **Acceptance:** all release mappings have precise contract content and evidence-backed conditions; new filings outside extension scope do not inherit mappings; old accepted/rejected/candidate content is unchanged; hash drift and uncertain conflicts cannot publish; a bad decision can be withdrawn/replaced atomically and fully explained. DB restore preserves knowledge independently of current source fact IDs.
 
-**Dependency:** M1 evidence pins and M0 reviewed economics. **Risks:** backfilling a hash with current prose would falsify history; incorrectly broad re-review could preserve old ambiguity. **New capability:** a finite, inspectable trusted semantic subset ready for a financial query.
+**Dependency:** M1A evidence pins and M0 reviewed economics, plus any specifically activated M1B evidence needed by a release mapping. **Risks:** backfilling a hash with current prose would falsify history; incorrectly broad re-review could preserve old ambiguity. **New capability:** a finite, inspectable trusted semantic subset ready for a financial query.
 
 ## M3 — First usable annual financial analysis release
 
@@ -126,7 +154,8 @@ Each numbered work item below should normally be one reviewable change or a smal
 2. Implement `reported-annual-v1` exactly as [specified](target-architecture.md#deterministic-selection-including-the-cases-where-there-is-no-answer). Require explicit accession/period/unit/scope, preserving all dimensions on mapping application. Handle identical-value/accuracy co-support without choosing a preferred occurrence. Return explicit accuracy/conflict states.
 3. Add `financials query` and `financials explain`, text/JSON/CSV. Every requested slot gets a result even when missing. Support comparison of eBay's annual periods and Walmart's fiscal year without pretending their fiscal calendars are identical. Comparative facts require an explicitly requested period; they are not accidental duplicates of the current annual slot.
 4. Add atomic export through storage utilities, with manifest/result/lineage/knowledge files and hash validation. Snapshot all supporting occurrences, reviewed contracts/decisions and relevant receipts. Keep live surrogate IDs optional and non-authoritative. Add withdrawn-publication notices and dependency search over local manifests.
-5. Run the independently reviewed benchmark. Inspect every unexpected match, unexpected missing value, or conflict. Refine only policy or reviewed mapping evidence warranted by that case; do not relax strictness to raise a coverage percentage.
+5. Record the small [review-effort report](testing-and-quality.md#review-effort-and-taxonomy-continuity-measurement) from M3 onward, using exported decision/request records and an optional manual timing log. No telemetry service or inheritance engine is required.
+6. Run the independently reviewed benchmark. Inspect every unexpected match, unexpected missing value, or conflict. Refine only policy or reviewed mapping evidence warranted by that case; do not relax strictness to raise a coverage percentage.
 
 **Affected files:** new `financials/models.py`, `application.py`, `selection.py`, `service.py`, `export.py`; new `db/financials.py`; `cli.py`; reuse `storage` atomic writing primitives. Add views through a migration only if they improve bounded query clarity; otherwise no new DB schema is needed. Update `README.md`, CLI docs, `docs/normalization.md`, data-quality docs.
 
@@ -134,7 +163,7 @@ Each numbered work item below should normally be one reviewable change or a smal
 
 **Tests:** targeted selector unit cases, real-source PostgreSQL integration, fixture order permutation invariance, duplicate support, competing concepts/values, unknown entity/consolidation, missing/candidate/stale/non-exact decisions, null/nil/zero distinction. Export round-trip and atomic failure. Re-extract source and revoke a mapping, then prove old export explanation still works and a new query changes appropriately. Default tests stay network-disabled.
 
-**Migration/removal:** one new query path, no SQLMesh shadow path and no statement dataframe pretending to be canonical source. No cleanup prerequisite beyond M1/M2. If a materialized prototype was made experimentally, delete it before phase completion or retain it outside production as a clearly labeled fixture experiment.
+**Migration/removal:** one new query path, no SQLMesh shadow path and no statement dataframe pretending to be canonical source. No cleanup prerequisite beyond M1A/M2 and specifically required evidence additions. If a materialized prototype was made experimentally, delete it before phase completion or retain it outside production as a clearly labeled fixture experiment.
 
 **Acceptance — earliest genuine financial utility:**
 
@@ -142,6 +171,8 @@ Each numbered work item below should normally be one reviewable change or a smal
 - Non-vacuous value target: revenue, total assets and operating cash flow for both eBay annual periods and the Walmart annual period (nine verified slots). M0 must confirm those facts support the precise contracts; if a slot genuinely lacks evidence, agree a named alternative report/metric pairing before freezing the benchmark, rather than silently waiving useful output.
 - Every selected value in the bounded benchmark agrees with manually verified filed evidence; any false exact match blocks release. No minimum coverage target permits false positives.
 - At least one issuer extension is handled by reviewed evidence, not label equality.
+- Capability assessments distinguish inspected evidence, assessed absence and unassessed omissions; relevant missing evidence blocks publication.
+- A review-effort baseline reports actual denominators and unmeasured fields; it does not claim statistical inheritance safety.
 - Every value retains all source qualifiers and resolves to bytes; every missing/conflicting result explains its stage.
 - JSON/CSV comparison can be performed offline from one command and exported reproducibly.
 - Repeated request over unchanged inputs gives the same result content and support sets (generation timestamps aside).
@@ -179,7 +210,7 @@ Each numbered work item below should normally be one reviewable change or a smal
 
 **Objective:** reduce maintenance once the financial behavior is protected by end-to-end tests. This work does not gate M3 or M4.
 
-Consolidate `records.py`/`source_records.py` into one production DTO vocabulary while retaining primitive QName/locator helpers used by acquisition/replay. Use Pydantic serialization or a small strict codec, whichever preserves Decimal strings, XML, nulls, occurrence order and rejection behavior. Delete `_source_build.py` only when extraction directly produces the selected records and every field's consumer is checked. Connect needed role helpers from M1; delete genuinely obsolete codecs and aliases after `rg` confirms consumers.
+Consolidate `records.py`/`source_records.py` into one production DTO vocabulary while retaining primitive QName/locator helpers used by acquisition/replay. Use Pydantic serialization or a small strict codec, whichever preserves Decimal strings, XML, nulls, occurrence order and rejection behavior. Delete `_source_build.py` only when extraction directly produces the selected records and every field's consumer is checked. Connect needed role helpers when their M1B capability is activated; delete genuinely obsolete codecs and aliases after `rg` confirms consumers.
 
 Affected modules: extractor, wire, worker, native records, persistence builders, direct tests. No intended schema/economic change; bump wire version if representation changes and extractor version if persisted behavior changes. Run current contract/source/corpus checks with field-level parity, not counts alone. Remove the old path in the same PR sequence; do not maintain two codecs indefinitely. Keep the subprocess, URI security, and document parsing.
 
@@ -189,6 +220,8 @@ M5 is a menu of decision gates, not a single implementation phase:
 
 | Option | Evidence prerequisite | Work / files / data | Acceptance and risk |
 |---|---|---|---|
+| Standard-taxonomy continuity | Measured repeat review across explicit releases, with reviewed unchanged/changed examples | Compare pinned declarations/definitions/references and optional change metadata; consider reviewed equivalence sets only if they reduce work | Exact QNames remain distinct; namespace/local-name continuity never auto-accepts |
+| Reusable accounting meaning | Several independent source-to-reference conclusions support multiple real analytical uses and duplicate reviews | Compare direct claims with optional factored evidence/meaning; migrate only after measured benefit | No mandatory intermediary or transitive acceptance; preserve prior claims and history |
 | Wider extension reuse | Repeated reviewed reports demonstrate stable economics and quantify manual burden | Add one reuse policy + declaration/disclosure drift report to registry/inspection; new claim schema revision only as needed | Held-out changed-meaning cases fail closed; old scopes never silently broaden |
 | Official taxonomy evidence | Required definition/Meta Model relationship absent from filing DTS | Acquire pinned official package through controlled infrastructure; Arelle inspect in isolation; optional package index later | Package/release provenance separate from filing DTS; no silent reference-target inference |
 | Dimensional comparison | Named product/geography/entity query with reviewed examples | Native slice query first; canonical member assertions only for proven correspondences | No disappearing dimensions, defaults, typed values, or assumed additivity |
@@ -207,4 +240,4 @@ Each option requires a small updated ADR/phase spec, targeted fixtures, explicit
 - Use downgrade tests for purely derived additions. Once new durable decisions exist, a downgrade that would discard them must refuse unless an explicit verified archival/export procedure is invoked; forward fixes are preferred. Document intentional irreversible semantics in the migration.
 - Re-extract one filing transactionally at a time; failures retain old state. Whole-corpus rebuilds are bounded operations over a named manifest, never implicit on process startup.
 - Update CLI/schema/parser/fixture/phase docs in the same phase as behavior changes. Use truthful status words: implemented, proposed, experimental, unsupported.
-- Do not claim a database reset is needed merely because Phase 2B once used a clean baseline. The current ledger is durable user data; M1+ extends its migration lineage in place.
+- Do not claim a database reset is needed merely because Phase 2B once used a clean baseline. The current ledger is durable user data; M1A and later changes extend its migration lineage in place.

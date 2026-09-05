@@ -3,6 +3,10 @@
 **Date:** 2026-09-05. **Baseline:** `536ee25002bccfb72b50e02cf8397c2e3972635d`.
 **Status:** independent recommendation for decision; no production changes or phase gate changes are made by this package. “Decision made” means this recommendation has resolved the architectural question, not that the owner has adopted it. Deferred decisions have explicit evidence triggers.
 
+This is the sole target architecture and migration package. [Documentation index](../README.md) separates it from implemented contracts and historical evidence.
+
+**Feedback revision:** 2026-09-05. The M1 prerequisite has been narrowed to M1A; richer persistence is now case-triggered M1B. [Feedback assessment](feedback-assessment.md) records accepted changes, disagreements and evidence limits.
+
 ## Recommendation
 
 Keep the immutable FilingBundle, Arelle, and the relational XBRL source model. Add a small, precise canonical vocabulary, auditable conditional mapping assertions, and an explicit financial observation query. Preserve every source occurrence; make normalization an additional interpretation of its complete aspects.
@@ -22,15 +26,19 @@ This retains parts of the implementation because they solve the problem well, ra
 | [Decisions and technology](decisions.md) | Credible alternatives, recommendations, trade-offs, and deferred decisions |
 | [Migration plan](migration-plan.md) | Repository-specific implementation phases and removal work |
 | [Testing and quality](testing-and-quality.md) | Semantic acceptance gates, benchmark, self-review, and validation performed |
+| [Documentation consolidation](documentation-consolidation.md) | Retained requirements, removed plans, current contracts and historical recovery |
+| [Feedback assessment](feedback-assessment.md) | Disposition of external feedback and reasons for partial agreement or disagreement |
 
 ## The shortest useful route
 
 1. **M0:** adopt the selected decisions and a bounded financial benchmark; inventory and back up actual local semantic decisions.
-2. **M1:** close specific source lineage gaps and provide an inspectable concept/fact evidence packet.
+2. **M1A:** establish exact extraction receipts, occurrence/report integrity, complete identity of supported networks, fail-closed capability reporting, and a bounded inspector.
 3. **M2:** tighten measurement contracts, retain definition snapshots, and add conservative report-scoped mapping conditions and atomic corrections.
 4. **M3 — first useful financial release:** query selected reported annual values across the existing annual filings, with exact periods, explicit missing/conflict results, and portable lineage. Deliver JSON/CSV and an immutable export manifest together.
 5. **M4:** add explicit historical publication policies, quarter/YTD distinction, amendment evidence, and strict point-in-time modes.
 6. **M5:** expand only where benchmark failures justify dimensional equivalence, derivations, taxonomy-package evidence, or AI assistance.
+
+**M1B is an optional branch:** role/arcrole tables, typed-domain enrichment, a relational footnote model and opaque-context storage are introduced only for a demonstrated case or repeated retrieval need. Required evidence must still be inspected and pinned before that case publishes; a packet can supply it without a new table. M1B/M5 do not delay M4 by default. M3 records review effort and taxonomy-continuity work to guide later reuse decisions.
 
 M3 is a financial analysis tool for a bounded set of companies and metrics. It is not a market-wide historical database or a backtest-ready dataset. Reaching it does not require a 20–30 issuer semantic research program, an ontology, or a rewrite of acquisition.
 
@@ -46,6 +54,6 @@ M3 is a financial analysis tool for a bounded set of companies and metrics. It i
 
 ## Confidence and limitations
 
-The recommendation is grounded in code/schema/test inspection, historical plan comparison, primary XBRL/Arelle/SEC documentation, and 51 passing focused offline tests. The current YAML contains **39** metrics; historical references to 20 are stale. The six-accession corpus is a starting point, not a demonstrated normalization benchmark.
+The recommendation is grounded in code/schema/test inspection, historical plan comparison, primary XBRL/Arelle/SEC documentation, and 51 focused offline tests that passed during the original assessment (not rerun for this revision). The current YAML contains **39** metrics; historical references to 20 are stale. The six-accession corpus is a starting point, not a demonstrated normalization benchmark.
 
 No local ledger contents or live corpus outputs were audited, no financial mappings were approved, and no PostgreSQL integration suite was run for this documentation change. Coverage, latency, and review-effort targets in this package are acceptance targets, not measured results. See [validation and limitations](testing-and-quality.md#validation-performed-for-this-package).

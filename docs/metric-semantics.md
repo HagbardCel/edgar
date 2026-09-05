@@ -1,348 +1,31 @@
-# Metric Semantics and Mapping Architecture
+# Financial metric semantics
 
-**Purpose:** Define how filed XBRL facts become comparable financial metrics without destroying economically meaningful differences.
+**Status:** financial domain reference, condensed during the 2026-09-05 planning consolidation. This is not a separate architecture or implementation plan. The implemented ledger contract is [normalization](normalization.md); proposed mapping, selection and phase decisions live in the [target package](architecture/README.md).
 
----
+## Source meaning and comparable measurement
 
-## 1. Core rule
+Keep immutable source artifacts and every supported fact occurrence with its original QName, declaration, context, unit, dimensions, accuracy/nil state and source locator. Current extraction tables are regenerable; “preserve source truth” does not require keeping every SQL extraction forever. Interpretation must never overwrite the evidence it explains.
 
-> Preserve raw facts permanently. Treat every canonical metric as a versioned interpretation supported by explicit evidence.
+A canonical financial meaning is a precise measurement contract. Industry-specific revenue, continuing/discontinued operations, controlling/noncontrolling scope and GAAP/non-GAAP basis can differ materially. A familiar name or taxonomy label does not establish equivalence. A hierarchy may help navigation later, but is not required to define correct contracts now.
 
-Metric mapping must never overwrite, relabel, or delete the source fact.
+Review two questions separately: what the source expresses, and why it satisfies the particular contract. Declarations, documentation, accounting references, networks, source disclosures, dimensional usage and historical examples provide evidence. A reference taxonomy is useful without requiring a second source-to-reference ledger. See [mapping and review](architecture/mapping-and-review.md).
 
----
+## Mapping is separate from selection
 
-## 2. Four semantic layers
+A concept may be correctly mapped while none of its facts satisfies the requested period, unit, entity, reporting basis or dimensional slice. Annual, quarter and YTD observations are not interchangeable. Statement placement supports interpretation but is not universal proof of meaning or a reason to discard a valid concept automatically.
 
-```text
-1. Raw fact occurrence
-2. Filed economic observation
-3. Canonical metric observation
-4. Research feature
-```
+Current ledger relationship types are `exact`, `narrower`, `broader`, and `related`. The target retains exact equivalence under explicit conditions and distinguishes non-publishable relationships from review status. Issuer scope is a condition, not a separate equivalence type; an unresolved candidate is a workflow state, not a financial meaning. Keep rejections and contrary evidence so bad suggestions need not be rediscovered.
 
-### Raw fact occurrence
+The target does not use “more specific mapping wins,” automatic label-based acceptance, or generic score-based selection. Candidates never publish as trusted values; accepted claims still need fact qualification. A conditional mapping preserves dimensions. Any later transformation must identify consumed and residual aspects. Derived and proxy quantities remain explicitly distinguishable from reported ones; wider definitions do not become equivalent by being called a quality tier.
 
-Exactly what appears in the filing:
+## Evidence and financial validation
 
-- concept
-- value
-- context
-- unit
-- dimensions
-- scale/sign/precision
-- document occurrence
-- taxonomy relationships
+Useful review evidence includes exact taxonomy identity and origin; labels/references; declaration properties; role-scoped presentation/calculation and dimensional relationships; unit/period/scope; issuer history; rendered statement lines and disclosure text; and previous decisions, including contrary cases. Packet capability status distinguishes inspected absence from unassessed omissions. Required evidence must be accessible and pinned even if it lacks dedicated SQL tables.
 
-### Filed economic observation
+Reconciliations and longitudinal checks can uncover mistakes, but cannot approve a mapping on their own. Check compatible accounting scope, periods, currency, sign and accuracy before comparing assets with liabilities/equity, reconciling cash flows, or interpreting changed comparative values. A calculation edge does not authorize summing all facts; an unchanged value does not prove unchanged accounting meaning. A score is not a probability without calibration and never substitutes for evidence.
 
-A normalized description of the filed fact without asserting broad comparability.
+## Distinctions to preserve
 
-### Canonical metric observation
-
-A versioned interpretation under a precise metric definition.
-
-### Research feature
-
-A derived variable such as growth, margin, surprise, accruals, or return predictor.
-
-These layers must remain independently queryable.
-
----
-
-## 3. Metric families and definitions
-
-Use a hierarchy rather than one flat metric vocabulary.
-
-Example:
-
-```text
-revenue
-├── operating_company_revenue
-├── banking_net_revenue
-├── insurance_revenue
-├── regulated_utility_revenue
-└── real_estate_rental_revenue
-```
-
-A canonical metric definition is a measurement contract containing:
-
-- economic definition
-- accounting basis
-- period type
-- canonical unit
-- entity scope
-- continuing/discontinued-operations policy
-- inclusion rules
-- exclusion rules
-- allowed dimensions
-- statement-role expectations
-- industry applicability
-- aggregation behavior
-- derivation policy
-- sign convention
-- definition version
-
----
-
-## 4. Mapping relationship types
-
-Mappings are typed relationships, not booleans.
-
-| Type | Meaning |
-|---|---|
-| `equivalent` | Same economic definition under the mapping conditions |
-| `issuer_equivalent` | Equivalent only for a particular issuer and validity period |
-| `narrower_than` | Excludes part of the target definition |
-| `broader_than` | Includes additional economic components |
-| `component_of` | Can contribute to a derived target |
-| `derived_equivalent` | Reconstructable through an approved formula |
-| `presentation_alias` | Alternative presentation of the same underlying concept |
-| `proxy_for` | Related but not equivalent; research use must be explicit |
-| `incompatible` | Similar-looking but materially different |
-| `unresolved` | Insufficient evidence |
-
-Store negative decisions such as `incompatible`; they prevent repeated unsafe suggestions.
-
----
-
-## 5. Mapping scopes
-
-A rule may be:
-
-- global standard-taxonomy rule
-- accounting-regime rule
-- industry-specific rule
-- issuer-specific rule
-- issuer-and-period-specific rule
-- filing-specific override
-
-Narrower rules take precedence, but every selection must retain the rule ID and rationale.
-
----
-
-## 6. Mapping pipeline
-
-### Stage A — Candidate generation
-
-Use:
-
-- exact taxonomy identity
-- labels and references
-- concept documentation
-- presentation parents/children
-- calculation parents/children and weights
-- statement role
-- period type
-- units
-- dimensions
-- issuer history
-- taxonomy transitions
-- industry
-- neighboring statement lines
-- prior reviewed mappings
-
-This stage favors recall and produces candidates only.
-
-### Stage B — Hard compatibility filters
-
-Reject candidates for:
-
-- instant/duration mismatch
-- incompatible unit
-- incompatible scope or dimensions
-- wrong statement role
-- quarter/YTD/annual mismatch
-- segment/consolidated mismatch
-- continuing/discontinued-operations mismatch
-- known non-GAAP definition
-- broader/narrower semantics where exact equivalence is required
-
-### Stage C — Evidence scoring
-
-Score compatible candidates using a versioned policy:
-
-```text
-taxonomy evidence
-+ definition evidence
-+ statement-network evidence
-+ context compatibility
-+ issuer continuity
-+ peer/industry evidence
-```
-
-The score is not a probability unless explicitly calibrated.
-
-### Stage D — Accounting and longitudinal validation
-
-Check:
-
-- calculation-tree consistency
-- balance-sheet identities
-- cash-flow reconciliation
-- sign and scale
-- plausible ranges
-- comparative-period continuity
-- taxonomy transitions
-- rendered-statement agreement
-
-### Stage E — Review and approval
-
-Ambiguous extensions enter a review queue. The reviewer sees the complete evidence packet and records:
-
-- relationship type
-- scope
-- validity interval
-- rationale
-- confidence tier
-- review status
-
----
-
-## 7. Conservative acceptance policy
-
-Default behavior:
-
-> Keep facts separate unless equivalence is demonstrated.
-
-Initial auto-acceptance should be limited to trusted standard concepts under compatible contexts and statement roles. Company extensions should generally require issuer-history evidence or review.
-
----
-
-## 8. Observation quality tiers
-
-### Tier A — Strict
-
-- direct reported fact
-- `equivalent` or approved `issuer_equivalent`
-- high-confidence compatible context
-- no unresolved semantic warnings
-
-### Tier B — Standardized
-
-- approved derivations
-- broader mapping policy
-- still supported by explicit rules
-
-### Tier C — Proxy
-
-- economically related but not equivalent
-- never silently exposed under the strict metric name
-
-Research datasets must state which tiers they include.
-
----
-
-## 9. Later-phase observation and candidate tables (not Phase 2A registry store)
-
-Phase 2A stores curated metric definitions and mapping rules in Git
-(`semantic-registry/`, now a historical archive). Phase 2C live authority is
-`registry/metrics.yml` plus `registry.mapping_assertion`. The PostgreSQL
-designs below support **later** observation/candidate phases and are **not**
-the Phase 2C ledger.
-
-### `metric_family`
-
-- family code
-- name
-- parent family
-- description
-
-### `metric_definition`
-
-- metric code
-- definition version
-- family
-- contract fields
-- active interval
-
-### `metric_mapping_rule`
-
-- source concept
-- target metric
-- relationship type
-- scope
-- issuer/industry applicability
-- validity interval
-- conditions
-- confidence
-- rationale
-- review status
-- policy version
-
-### `metric_candidate`
-
-- source fact
-- candidate metric
-- rule
-- score
-- hard-check results
-- evidence
-- selected/rejected
-- rejection reason
-
-### `metric_observation`
-
-- source fact or derivation
-- target metric
-- economic period
-- value
-- dimensions
-- known-at timestamp
-- metric-definition version
-- mapping-policy version
-- mapping rule
-- confidence tier
-
-### `metric_derivation`
-
-- formula version
-- input observations
-- result
-- calculation time
-- known-at semantics
-
-### `mapping_review`
-
-- decision
-- reviewer
-- evidence snapshot
-- notes
-- timestamp
-
----
-
-## 10. Local LLM role
-
-A local LLM may:
-
-- propose candidate mappings
-- summarize taxonomy evidence
-- identify possible semantic warnings
-- suggest reviewer questions
-- explain why concepts may differ
-
-It may not:
-
-- mutate raw facts
-- auto-approve ambiguous extensions
-- equate non-GAAP metrics with GAAP metrics by label similarity
-- replace hard compatibility checks
-- create source facts not present in the filing
-- become required for reproducible research datasets
-
-Every LLM call must use:
-
-- versioned prompt
-- schema-validated response
-- recorded model identity
-- input hash
-- explicit purpose
-- stored output separate from canonical mapping decisions
-
----
-
-## 11. Examples of distinctions to preserve
 
 ### Revenue
 
@@ -393,51 +76,14 @@ Never conflate:
 - weighted-average basic shares
 - weighted-average diluted shares
 
----
+## Optional AI assistance
 
-## 12. Research robustness
+An AI may summarize pinned evidence, suggest concepts or contrary cases, and help a reviewer articulate uncertainties. Candidate generation remains deferred under current project scope. It cannot invent filed facts, mutate raw evidence, silently equate GAAP/non-GAAP measures, or approve its own uncertain proposals. A deterministic standard-QName match still requires an approved economic rule before publication.
 
-Every analytical extract should expose:
+Code-mediated calls require explicit purpose, versioned prompt, validated response, model identity, input hash, parameters/failures and separately retained outputs. Ingestion, tests and core review must work with models disabled. [Mapping workflows](architecture/mapping-and-review.md) define the planned human/agent interface without making a model the authority.
 
-- mapping confidence
-- relationship type
-- mapping scope
-- direct versus derived
-- extension concept flag
-- quality tier
-- definition version
-- mapping-policy version
+## Research use and expansion
 
-Required sensitivity analyses include:
+Analytical exports should expose the exact contract and decision, relationship/scope, source extension status, reported/derived origin, policy and missing/conflict explanations. Do not fabricate a numerical confidence field where no calibrated judgment exists.
 
-- strict versus broad mappings
-- direct-only versus derived observations
-- standard concepts only versus issuer extensions
-- exclusion of financial companies
-- exclusion of low-confidence mappings
-- alternative metric definitions
-
-Mapping uncertainty is part of the empirical design, not merely an ETL problem.
-
----
-
-## 13. Phase gates
-
-Metric normalization may begin only when Phase 1 can provide, for a candidate fact:
-
-- all labels and references
-- statement role
-- presentation and calculation neighborhood
-- period and dimensions
-- unit and value
-- issuer history
-- exact source location and artifact hash
-
-A metric may be promoted to broad historical use only after:
-
-- definition contract approval
-- fixture coverage
-- issuer-history validation
-- mapping precision review
-- explicit versioning
-- sensitivity testing
+A later study should assess sensitivity to definitions, direct versus derived values, standard versus extension mappings, industry scope and uncertain cases. Broad historical use requires evidence across issuers, taxonomy releases and changed-meaning counterexamples. Mapping uncertainty is part of the research design. The [testing plan](architecture/testing-and-quality.md) defines the bounded first-release gates; [retained roadmap requirements](architecture/documentation-consolidation.md#deferred-product-requirements-from-the-long-term-roadmap) cover later market/text research without authorizing it now.

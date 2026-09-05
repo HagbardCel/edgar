@@ -1,5 +1,7 @@
 # Planning Artifact Update
 
+**Historical record:** former filenames below refer to past edits. Current plans and retained requirements are indexed in [docs/README.md](docs/README.md); superseded originals remain recoverable from the [consolidation record](docs/architecture/documentation-consolidation.md).
+
 ## 2026-07-31 — Slice 0 v3 review corrections
 
 - Purified occurrence hashes (xbrl-relationship-v2 / xbrl-resource-v2): document URI + locator only; three-projection model with explicit `canonical_record` / `diagnostic_provenance`; no direct-concept exception.
