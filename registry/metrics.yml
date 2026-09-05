@@ -1,0 +1,718 @@
+metrics:
+  - key: revenue
+    name: Revenue
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Revenue generated from the reporting entity's ordinary activities
+      during the reporting period, before operating expenses.
+    includes:
+      - sales of goods
+      - service revenue
+      - consolidated ordinary operating revenue
+    excludes:
+      - gross profit
+      - billings
+      - bookings
+      - gross merchandise value
+      - interest income for entities where it is not ordinary operating revenue
+      - other operating income
+
+  - key: cost_of_revenue
+    name: Cost of revenue
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Direct costs attributable to goods sold or services delivered during
+      the reporting period, corresponding to ordinary operating revenue.
+    includes:
+      - cost of goods sold
+      - cost of services
+      - cost of sales reported as a single total
+    excludes:
+      - operating expenses below gross profit
+      - research and development
+      - selling, general, and administrative expense
+      - impairment of long-lived assets not classified as cost of sales
+
+  - key: gross_profit
+    name: Gross profit
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Ordinary operating revenue less cost of revenue for the reporting period.
+    includes:
+      - reported gross profit or gross margin dollars
+      - revenue minus cost of goods sold when presented as a total
+    excludes:
+      - operating income
+      - segment gross profit presented without a consolidated total
+      - gross merchandise value
+
+  - key: research_and_development
+    name: Research and development
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Expense for research and development activities incurred during the
+      reporting period, as classified on the income statement.
+    includes:
+      - research expense
+      - development expense
+      - combined research and development expense
+    excludes:
+      - capitalized internally developed software additions
+      - selling, general, and administrative expense
+      - cost of revenue
+
+  - key: selling_general_administrative
+    name: Selling, general, and administrative
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Selling, general, and administrative operating expenses incurred during
+      the reporting period, excluding research and development and cost of revenue.
+    includes:
+      - selling expense
+      - general and administrative expense
+      - combined SG&A totals
+    excludes:
+      - research and development
+      - cost of revenue
+      - interest expense
+      - income tax expense
+
+  - key: operating_expenses
+    name: Operating expenses
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Total operating expenses incurred during the reporting period, excluding
+      cost of revenue when that amount is presented separately to arrive at
+      gross profit.
+    includes:
+      - research and development
+      - selling, general, and administrative
+      - other operating expenses classified below gross profit
+    excludes:
+      - cost of revenue
+      - interest expense
+      - income tax expense
+      - non-operating other expense
+
+  - key: operating_income
+    name: Operating income
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Income from ordinary operations after operating expenses and before
+      non-operating items, interest, and income taxes.
+    includes:
+      - operating income or loss from continuing operations
+      - income from operations
+    excludes:
+      - pretax income
+      - net income
+      - EBITDA
+      - adjusted or non-GAAP operating income
+
+  - key: interest_expense
+    name: Interest expense
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Interest cost incurred during the reporting period on borrowings and
+      similar interest-bearing obligations, before income taxes.
+    includes:
+      - interest expense on debt
+      - interest cost presented as a separate income-statement line
+    excludes:
+      - interest income
+      - net interest income or expense presented as a single net amount
+        when interest expense is not separately stated
+      - operating expenses
+
+  - key: pretax_income
+    name: Pretax income
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Income before income tax expense for the reporting period.
+    includes:
+      - income before provision for income taxes
+      - earnings before tax
+    excludes:
+      - operating income
+      - net income
+      - income from continuing operations after tax
+
+  - key: income_tax_expense
+    name: Income tax expense
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Current and deferred income tax expense or benefit recognized during
+      the reporting period.
+    includes:
+      - provision for income taxes
+      - current and deferred tax expense presented as a total
+    excludes:
+      - pretax income
+      - taxes other than income taxes
+      - unrecognized tax benefits presented only in notes without an
+        income-statement tax line
+
+  - key: net_income
+    name: Net income
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Consolidated net income or loss for the reporting period, including
+      amounts attributable to noncontrolling interests when those amounts
+      are included in the reported total.
+    includes:
+      - net income including noncontrolling interests
+      - profit or loss for the period
+    excludes:
+      - net income attributable to the parent only
+      - pretax income
+      - comprehensive income
+      - non-GAAP adjusted net income
+
+  - key: net_income_attributable_to_parent
+    name: Net income attributable to parent
+    kind: reported
+    statement: income_statement
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Net income or loss attributable to the parent entity's owners,
+      after noncontrolling interests.
+    includes:
+      - net income attributable to parent shareholders
+      - net income attributable to stockholders
+    excludes:
+      - consolidated net income including noncontrolling interests
+      - income available to common shareholders after preferred dividends
+        when that amount is a narrower residual
+      - comprehensive income attributable to parent
+
+  - key: cash_and_cash_equivalents
+    name: Cash and cash equivalents
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Cash and highly liquid cash equivalents held at the reporting date,
+      excluding restricted cash unless the issuer presents restricted cash
+      inside this same line.
+    includes:
+      - cash
+      - cash equivalents
+      - cash and cash equivalents at carrying value
+    excludes:
+      - restricted cash presented separately
+      - cash including restricted cash when that combined total is broader
+      - short-term investments that are not cash equivalents
+
+  - key: short_term_investments
+    name: Short-term investments
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Marketable or other investments classified as current assets at the
+      reporting date, other than cash equivalents.
+    includes:
+      - marketable securities classified as current
+      - short-term investments
+    excludes:
+      - cash and cash equivalents
+      - long-term investments
+      - restricted cash
+
+  - key: accounts_receivable
+    name: Accounts receivable
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Trade accounts receivable due from customers at the reporting date,
+      typically presented net of allowances.
+    includes:
+      - trade receivables net of allowance
+      - accounts receivable current
+    excludes:
+      - other receivables not arising from ordinary sales
+      - contract assets that are not accounts receivable
+      - long-term receivables
+
+  - key: inventory
+    name: Inventory
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Inventories held for sale or in process of production at the reporting
+      date.
+    includes:
+      - finished goods, work in process, and raw materials presented as a total
+      - inventory net of reserves
+    excludes:
+      - prepaid expenses
+      - property, plant, and equipment
+      - contract assets
+
+  - key: current_assets
+    name: Current assets
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Total assets expected to be realized within one year or the operating
+      cycle, as classified on the balance sheet.
+    includes:
+      - total current assets
+    excludes:
+      - total assets
+      - noncurrent assets
+      - individual current-asset line items such as cash or inventory alone
+
+  - key: property_plant_equipment_net
+    name: Property, plant, and equipment, net
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Property, plant, and equipment at the reporting date, net of accumulated
+      depreciation and impairment.
+    includes:
+      - PP&E net
+      - net property and equipment
+    excludes:
+      - gross PP&E before accumulated depreciation
+      - right-of-use assets presented separately
+      - goodwill and intangible assets
+
+  - key: goodwill
+    name: Goodwill
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Goodwill arising from business combinations, as reported at the
+      reporting date.
+    includes:
+      - goodwill
+    excludes:
+      - finite-lived intangible assets
+      - indefinite-lived intangibles other than goodwill
+      - total intangible assets including goodwill when goodwill is not
+        separately stated
+
+  - key: intangible_assets_net
+    name: Intangible assets, net
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Identifiable intangible assets at the reporting date, net of accumulated
+      amortization and impairment, excluding goodwill unless the issuer
+      presents a single combined intangibles line that includes goodwill.
+    includes:
+      - finite-lived intangibles net
+      - identifiable intangible assets
+    excludes:
+      - goodwill presented separately
+      - PP&E
+      - capitalized software classified in PP&E
+
+  - key: total_assets
+    name: Total assets
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      The sum of all assets reported on the balance sheet at the reporting date.
+    includes:
+      - total assets
+    excludes:
+      - current assets only
+      - net assets or equity
+      - assets under management that are not on-balance-sheet assets
+
+  - key: accounts_payable
+    name: Accounts payable
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Amounts payable to suppliers and similar trade creditors at the
+      reporting date.
+    includes:
+      - trade accounts payable
+      - accounts payable current
+    excludes:
+      - accrued expenses that are not accounts payable
+      - short-term debt
+      - other current liabilities in total
+
+  - key: current_liabilities
+    name: Current liabilities
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Total liabilities classified as current at the reporting date.
+    includes:
+      - total current liabilities
+    excludes:
+      - total liabilities
+      - individual current-liability lines such as accounts payable or
+        short-term debt alone
+      - noncurrent liabilities
+
+  - key: short_term_debt
+    name: Short-term debt
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Interest-bearing borrowings classified as current at the reporting date,
+      including the current portion of long-term debt when that amount is
+      included in the reported short-term debt total.
+    includes:
+      - short-term borrowings
+      - current portion of long-term debt
+      - commercial paper classified as current
+    excludes:
+      - long-term debt noncurrent
+      - accounts payable
+      - lease liabilities presented separately from debt when not classified
+        as short-term debt
+
+  - key: long_term_debt
+    name: Long-term debt
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Interest-bearing borrowings classified as noncurrent at the reporting
+      date.
+    includes:
+      - long-term debt excluding current maturities
+      - notes and bonds payable noncurrent
+    excludes:
+      - current portion of long-term debt
+      - short-term borrowings
+      - total debt including current and noncurrent when presented as one line
+
+  - key: total_liabilities
+    name: Total liabilities
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      The sum of all liabilities reported on the balance sheet at the
+      reporting date.
+    includes:
+      - total liabilities
+    excludes:
+      - current liabilities only
+      - shareholders' equity
+      - total liabilities and equity
+
+  - key: shareholders_equity
+    name: Shareholders' equity
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Equity attributable to the parent entity's owners at the reporting date.
+    includes:
+      - stockholders' equity attributable to parent
+      - total equity attributable to owners of the parent
+    excludes:
+      - equity including noncontrolling interests when parent equity is
+        presented separately
+      - total liabilities and equity
+      - mezzanine or temporary equity classified outside equity
+
+  - key: operating_cash_flow
+    name: Operating cash flow
+    kind: reported
+    statement: cash_flow
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Net cash provided by or used in operating activities during the
+      reporting period.
+    includes:
+      - net cash from operating activities
+      - cash generated from operations
+    excludes:
+      - free cash flow
+      - investing cash flow
+      - financing cash flow
+      - adjusted or non-GAAP operating cash flow
+
+  - key: capital_expenditure
+    name: Capital expenditure
+    kind: reported
+    statement: cash_flow
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Cash paid to acquire property, plant, and equipment and similar
+      long-lived productive assets during the reporting period.
+    includes:
+      - purchases of PP&E
+      - capital expenditures reported as an investing outflow
+    excludes:
+      - depreciation and amortization
+      - acquisitions of businesses
+      - purchases of marketable securities
+      - capitalized software classified outside PP&E purchases when presented
+        separately and not as capex
+
+  - key: depreciation_and_amortization
+    name: Depreciation and amortization
+    kind: reported
+    statement: cash_flow
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Depreciation of tangible assets and amortization of intangible assets
+      recognized during the reporting period, typically as an operating-cash-flow
+      add-back or an income-statement expense total of the same economic content.
+    includes:
+      - depreciation
+      - amortization of finite-lived intangibles
+      - combined depreciation and amortization
+    excludes:
+      - capital expenditure
+      - impairment losses that are not depreciation or amortization
+      - stock-based compensation
+
+  - key: investing_cash_flow
+    name: Investing cash flow
+    kind: reported
+    statement: cash_flow
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Net cash provided by or used in investing activities during the
+      reporting period.
+    includes:
+      - net cash from investing activities
+    excludes:
+      - operating cash flow
+      - financing cash flow
+      - capital expenditure presented alone rather than as the investing total
+
+  - key: financing_cash_flow
+    name: Financing cash flow
+    kind: reported
+    statement: cash_flow
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Net cash provided by or used in financing activities during the
+      reporting period.
+    includes:
+      - net cash from financing activities
+    excludes:
+      - operating cash flow
+      - investing cash flow
+      - dividends paid or share repurchases presented alone rather than as
+        the financing total
+
+  - key: dividends_paid
+    name: Dividends paid
+    kind: reported
+    statement: cash_flow
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Cash dividends paid to owners during the reporting period.
+    includes:
+      - cash dividends paid to parent shareholders
+      - dividends paid reported as a financing outflow
+    excludes:
+      - stock dividends
+      - share repurchases
+      - dividends declared but unpaid
+
+  - key: share_repurchases
+    name: Share repurchases
+    kind: reported
+    statement: cash_flow
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Cash paid to repurchase the entity's own shares during the reporting
+      period.
+    includes:
+      - payments for repurchase of common stock
+      - treasury stock purchases
+    excludes:
+      - dividends paid
+      - proceeds from issuance of shares
+      - share-based compensation
+
+  - key: basic_eps
+    name: Basic earnings per share
+    kind: reported
+    statement: per_share
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary_per_share
+    definition: >
+      Basic earnings per common share for the reporting period.
+    includes:
+      - basic EPS attributable to common shareholders
+    excludes:
+      - diluted EPS
+      - basic EPS from continuing operations only when total basic EPS is
+        the canonical claim
+      - adjusted or non-GAAP EPS
+
+  - key: diluted_eps
+    name: Diluted earnings per share
+    kind: reported
+    statement: per_share
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary_per_share
+    definition: >
+      Diluted earnings per common share for the reporting period.
+    includes:
+      - diluted EPS attributable to common shareholders
+    excludes:
+      - basic EPS
+      - diluted EPS from continuing operations only when total diluted EPS
+        is the canonical claim
+      - adjusted or non-GAAP EPS
+
+  - key: weighted_average_shares_basic
+    name: Weighted-average shares, basic
+    kind: reported
+    statement: shares
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: shares
+    definition: >
+      Weighted-average number of common shares outstanding used to compute
+      basic earnings per share during the reporting period.
+    includes:
+      - weighted-average shares outstanding basic
+    excludes:
+      - weighted-average diluted shares
+      - period-end shares outstanding
+      - potentially dilutive securities
+
+  - key: weighted_average_shares_diluted
+    name: Weighted-average shares, diluted
+    kind: reported
+    statement: shares
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: shares
+    definition: >
+      Weighted-average number of common shares outstanding used to compute
+      diluted earnings per share during the reporting period, including
+      dilutive potential common shares.
+    includes:
+      - weighted-average diluted shares
+    excludes:
+      - weighted-average basic shares
+      - period-end shares outstanding
+      - anti-dilutive securities excluded from the diluted computation
+
+  - key: shares_outstanding
+    name: Shares outstanding
+    kind: reported
+    statement: shares
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: shares
+    definition: >
+      Common shares outstanding at the reporting date.
+    includes:
+      - common shares outstanding period end
+      - issued shares outstanding excluding treasury shares
+    excludes:
+      - weighted-average shares
+      - fully diluted shares outstanding as a hypothetical count
+      - authorized shares

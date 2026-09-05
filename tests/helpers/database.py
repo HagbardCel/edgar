@@ -50,6 +50,7 @@ def reset_test_database(engine: Engine, *, database_url: str | None = None) -> N
     url = database_url or str(engine.url)
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA IF EXISTS source CASCADE"))
+        conn.execute(text("DROP SCHEMA IF EXISTS registry CASCADE"))
         # Drop leftover Phase-1 public tables / alembic_version from prior baselines.
         conn.execute(
             text(
@@ -73,7 +74,7 @@ def reset_test_database(engine: Engine, *, database_url: str | None = None) -> N
 
 
 def truncate_all_tables(conn: Connection) -> None:
-    """Truncate every source.* table owned by the V2 schema."""
+    """Truncate every source.* and registry.* table owned by the V2 schema."""
     qualified: list[str] = []
     for table in ALL_TABLES:
         if table.schema:

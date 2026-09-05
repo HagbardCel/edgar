@@ -2,12 +2,10 @@
 
 Reproducible, point-in-time-aware platform for SEC company filings.
 
-**Status:** Phase 1A–1D and Phase 2A are implemented (`src/edgar/`,
-`semantic-registry/`): filesystem acquisition, catalog foundation, thin Arelle
-semantic projection (PR #6), offline document blocks / regulatory sections
-(PR #7), Phase 1D acceptance (PR #10), and the Git-authoritative curated metric
-registry with reviewed real-corpus mappings (PR #11). Current activity is
-Phase 2B planning/preparation.
+**Status:** Phase 1A–1D, Phase 2A (historical Git registry), Phase 2B (`source.*`),
+and Phase 2C (canonical metrics + mapping ledger) are implemented. Live metric
+contracts are `registry/metrics.yml`; mapping decisions are
+`registry.mapping_assertion`.
 
 Apache-2.0 covers this project's software and documentation. It does **not** automatically license third-party SEC filing content or taxonomies retrieved from EDGAR.
 
@@ -92,29 +90,31 @@ Database integration tests refuse to run unless `EDGAR_TEST_DATABASE_URL` target
 
 Seven frozen evidence files under `fixtures/manifests/0001065088-24-000036/` are guarded by `tests/contract/test_frozen_slice0_evidence.py`. Historical spike documentation lives under `docs/spikes/`.
 
-## Phase 2A metric registry (Git-only)
+## Phase 2C canonical registry
 
 ```bash
+uv run edgar registry validate
 uv run edgar metrics list
 uv run edgar mappings list
 uv run edgar mappings export --format json
-uv run edgar mappings explain <rule_key>   # DB-backed pinned evidence only
 ```
 
-See [semantic-registry/README.md](semantic-registry/README.md) and [docs/adr/0010-curated-semantic-registry.md](docs/adr/0010-curated-semantic-registry.md).
+See [docs/normalization.md](docs/normalization.md) and
+[docs/adr/0010-curated-semantic-registry.md](docs/adr/0010-curated-semantic-registry.md).
 
 ## Documentation
 
 | Topic | Document |
 | --- | --- |
+| Documentation index and status | [docs/README.md](docs/README.md) |
+| Target architecture and migration | [docs/architecture/README.md](docs/architecture/README.md) |
 | System boundaries | [docs/architecture.md](docs/architecture.md) |
 | Tables and invariants | [docs/data-model.md](docs/data-model.md) |
 | Filesystem FilingBundle (PR #4) | [docs/adr/0009-filesystem-filing-bundle.md](docs/adr/0009-filesystem-filing-bundle.md) |
 | Fixture and attachment policy | [docs/fixture-policy.md](docs/fixture-policy.md) |
-| Phase sequencing | [docs/phase-1-plan.md](docs/phase-1-plan.md) |
-| Phase 2A registry | [docs/phase-2-plan.md](docs/phase-2-plan.md) |
-| Roadmap | [docs/project-roadmap.md](docs/project-roadmap.md) |
-| Metric semantics (later phases) | [docs/metric-semantics.md](docs/metric-semantics.md) |
+| Mapping normalization | [docs/normalization.md](docs/normalization.md) |
+| Superseded-plan consolidation | [docs/architecture/documentation-consolidation.md](docs/architecture/documentation-consolidation.md) |
+| Financial domain reference | [docs/metric-semantics.md](docs/metric-semantics.md) |
 | Agent rules | [AGENTS.md](AGENTS.md) |
 | Decisions | [docs/adr/](docs/adr/) |
 
