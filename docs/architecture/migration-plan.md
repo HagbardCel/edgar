@@ -1,6 +1,16 @@
 # Migration from the actual repository
 
-**Status:** recommended implementation plan. This work delivers documents only. M0 records adoption and freezes the M1A → M2 → M3 → M4 path before production work starts. M1B additions require a documented evidence need. See [feedback assessment and disagreements](feedback-assessment.md) for the 2026-09-05 revision. Historical Phase 2A/2B/2C names are not reused, and no old applied migration is edited. M5 consists of separately gated options, not authorization for all future infrastructure.
+**Status:** adopted implementation plan ([ADR 0012](../adr/0012-adopt-bounded-financial-architecture.md)). **M0 is complete. Next phase: M1A.** M1A → M2 → M3 → M4 is the adopted mandatory path. M1B additions require a documented evidence need. See [feedback assessment and disagreements](feedback-assessment.md) for the 2026-09-05 revision. Historical Phase 2A/2B/2C names are not reused, and no old applied migration is edited. M5 consists of separately gated options, not authorization for all future infrastructure.
+
+### M0 checklist (complete)
+
+- [x] ADR 0012 and documentation authority updates
+- [x] Working-state inventory and backups
+- [x] Restore proof into `edgar_test`
+- [x] Six-filing benchmark corpus on `edgar_test`
+- [x] Eight frozen metric-v2 contract definitions + bounded review cases
+- [x] Exact-review profile and derived M1A requirements
+- [x] Static validation helpers; M0 closeout
 
 ## Change inventory
 

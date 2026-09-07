@@ -1,6 +1,6 @@
 # Data quality
 
-Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+Documentation scope: this file describes the implemented baseline. The adopted target is in the [target package](architecture/README.md) ([ADR 0012](adr/0012-adopt-bounded-financial-architecture.md)); see the [documentation index](README.md) for status and authority.
 
 **Status:** Operational posture for V2 source extraction.
 
@@ -33,6 +33,6 @@ Every persisted `source.*` extraction row traces to:
 
 ## What quality does *not* mean
 
-- Automatic acceptance of canonical metrics (observation selection remains Phase 2D+, unimplemented).
+- Automatic acceptance of canonical metrics (observation selection remains M3 under ADR 0012, unimplemented).
 - LLM auto-approval of ambiguous mapping rules.
 - Ambient cache or network fetches during offline extract.

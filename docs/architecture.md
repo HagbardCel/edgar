@@ -1,9 +1,12 @@
 # Architecture
 
-Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+Documentation scope: this file describes the **implemented baseline** (Phase 2B
+`source.*` + Phase 2C registry). The **adopted target** is in the
+[target package](architecture/README.md) and [ADR 0012](adr/0012-adopt-bounded-financial-architecture.md).
+See the [documentation index](README.md) for status and authority.
 
 **Status:** Phase 2C canonical registry and mapping ledger (on the Phase 2B
-`source.*` baseline).
+`source.*` baseline). **Current migration phase: M0 — complete; next: M1A.**
 
 ## Mission
 
@@ -11,12 +14,13 @@ Preserve immutable SEC filing evidence, extract deterministic document structure
 and XBRL semantics into `source.*`, and enable offline replay. Canonical metric
 **definitions** live in Git `registry/metrics.yml`; mapping **decisions** live
 in `registry.mapping_assertion`. Canonical metric observations remain deferred
-(Phase 2D+). See [`normalization.md`](normalization.md) and
+until M3 under the adopted migration. See [`normalization.md`](normalization.md) and
 [ADR 0010](adr/0010-curated-semantic-registry.md).
 
 Persistence detail: [`docs/data-model.md`](data-model.md). Source extraction
 decision: [ADR 0011](adr/0011-source-extraction.md). Historical Phase-1 projection
 ADR: [ADR 0008](adr/0008-lean-xbrl-semantic-projection.md) (superseded).
+Adopted forward plan: [ADR 0012](adr/0012-adopt-bounded-financial-architecture.md).
 
 ## Layering
 

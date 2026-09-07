@@ -1,18 +1,31 @@
 # Canonical metric and mapping normalization (Phase 2C)
 
-Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+Documentation scope: this file describes the **implemented Phase 2C baseline**.
+See the [documentation index](README.md) for status and authority.
 
 Normative contract for Git-authoritative metric definitions and the PostgreSQL
-mapping decision ledger. Observation selection is out of scope.
+mapping decision ledger. Observation selection is out of scope for this
+baseline.
 
 ```text
 metrics.yml                 = current canonical meaning
 registry.canonical_metric   = synchronized DB mirror
 registry.mapping_assertion  = immutable reviewed semantic history
 current + accepted + exact + current definition hash
-                            = eligible input to Phase 2D (not implemented)
+                            = eligible input to a future observation stage
 source.*                    = extraction evidence untouched by registry writes
 ```
+
+The Phase 2C implementation originally froze the following future eligibility
+sketch: only current accepted exact mappings with a matching definition hash
+would feed later observation selection. Forward implementation of contracts,
+conditions, observation selection and publication is now governed by the adopted
+M2/M3 rules in [architecture/mapping-and-review.md](architecture/mapping-and-review.md)
+and [architecture/migration-plan.md](architecture/migration-plan.md)
+([ADR 0012](adr/0012-adopt-bounded-financial-architecture.md)). This document
+retains the Phase 2C wording as historical evidence of what the baseline
+implemented and expected; it does not claim that Phase 2C was always designed
+around the later M3 contract.
 
 ## 1. Purpose
 
@@ -136,7 +149,9 @@ current accepted assertion
 currently publishable mapping
 ```
 
-Frozen Phase 2D eligibility (not implemented here):
+Frozen Phase 2C eligibility sketch for a then-future observation stage
+(not implemented here; forward rules are adopted M2/M3 in
+[architecture/mapping-and-review.md](architecture/mapping-and-review.md)):
 
 ```text
 current
