@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import copy
+
+import pytest
+
 from tests.helpers.financial_cases import (
     CORE_VALUE_SLOTS,
     CORPUS_ACCESSIONS,
@@ -14,6 +18,10 @@ from tests.helpers.financial_cases import (
     metric_v2_definition_hash,
     validate_benchmark_static,
 )
+
+
+def _value_case(benchmark: dict) -> dict:
+    return next(c for c in benchmark["cases"] if c.get("expected", {}).get("state") == "value")
 
 
 def test_review_profile_four_groups() -> None:
@@ -105,6 +113,7 @@ def test_no_dimension_selection_policy_in_m1a_delta() -> None:
             assert cap.get("capability") != "dimension_selection_policy"
     reqs = derive_m1a_requirements(benchmark["cases"])
     assert "dimension_selection_policy" not in {r["requirement"] for r in reqs}
+    assert "official_taxonomy_evidence" not in {r["requirement"] for r in reqs}
 
 
 def test_derive_m1a_requirements_is_benchmark_triggered_delta() -> None:
@@ -155,6 +164,76 @@ def test_walmart_rnd_missing_has_assessment() -> None:
         assert field in assessment
 
 
+def test_parent_ni_and_walmart_cash_not_false_exact() -> None:
+    benchmark = load_benchmark()
+    parent = next(
+        c for c in benchmark["cases"] if c["case_id"] == "ebay_fy2023_net_income_parent_value"
+    )
+    assert parent["semantic_expectation"]["relation"] is None
+    assert parent["expected"]["state"] == "review_required"
+    cash = next(
+        c
+        for c in benchmark["cases"]
+        if c["case_id"] == "walmart_fy2024_cash_excluding_restricted_accuracy_review"
+    )
+    assert cash["semantic_expectation"]["relation"] is None
+    assert cash["expected"]["state"] == "review_required"
+
+
+def test_ko_period_is_fiscal_not_calendar_approx() -> None:
+    benchmark = load_benchmark()
+    ko = next(
+        c
+        for c in benchmark["cases"]
+        if c["case_id"] == "ko_2024q2_segment_revenue_narrower_ytd_counterexample"
+    )
+    assert ko["slot"]["period"]["start"] == "2024-03-30"
+    assert ko["slot"]["period"]["end"] == "2024-06-28"
+
+
+def test_extension_source_occurrences_exclude_lab_xml() -> None:
+    benchmark = load_benchmark()
+    ext = next(
+        c
+        for c in benchmark["cases"]
+        if c["case_id"] == "ebay_fy2023_disposal_product_development_rd_extension_narrower"
+    )
+    paths = [o.get("artifact_path") for o in ext.get("source_occurrences") or []]
+    assert paths == ["accession/ebay-20231231.htm"]
+    decl = ext["review_assessment"]["declaration_definition"]["evidence_pins"]
+    lab_sha = "75d81938377db187698c9db5749e156567f9ac258154f7f9fd50ec23e0e7f341"
+    assert any(p.get("artifact_sha256") == lab_sha for p in decl)
+
+
+def test_available_declaration_uses_distinct_semantic_pin() -> None:
+    benchmark = load_benchmark()
+    for case in benchmark["cases"]:
+        if case.get("semantic_expectation", {}).get("relation") != "exact":
+            continue
+        dd = case.get("review_assessment", {}).get("declaration_definition") or {}
+        if dd.get("capability_state") != "available":
+            continue
+        measurement = {
+            (
+                o.get("artifact_sha256"),
+                (o.get("locator") or {}).get("scheme"),
+                (o.get("locator") or {}).get("value"),
+            )
+            for o in case.get("source_occurrences") or []
+        }
+        distinct = False
+        for pin in dd.get("evidence_pins") or []:
+            ident = (
+                pin.get("artifact_sha256"),
+                (pin.get("locator") or {}).get("scheme"),
+                (pin.get("locator") or {}).get("value"),
+            )
+            if ident not in measurement:
+                distinct = True
+                break
+        assert distinct, case["case_id"]
+
+
 def test_no_source_fact_ids_in_occurrences() -> None:
     benchmark = load_benchmark()
     for case in benchmark["cases"]:
@@ -162,7 +241,62 @@ def test_no_source_fact_ids_in_occurrences() -> None:
             assert "id" not in occ
             assert "fact_id" not in occ
             assert "source_fact_id" not in occ
+            assert "concept_qname" in occ
         qual = case.get("qualification") or {}
         for occ in qual.get("occurrence_pins") or []:
             assert "id" not in occ
             assert "fact_id" not in occ
+
+
+@pytest.mark.parametrize("field", ["contract_ref", "report_ref", "bundle_ref"])
+def test_qualification_requires_binding_refs(field: str) -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = _value_case(mutated)
+    del case["qualification"][field]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any(field in e and case["case_id"] in e for e in errors)
+
+
+def test_occurrence_requires_concept_qname() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = _value_case(mutated)
+    del case["source_occurrences"][0]["concept_qname"]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("concept_qname" in e and case["case_id"] in e for e in errors)
+
+
+def test_available_declaration_rejects_measurement_only_pin() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = next(
+        c
+        for c in mutated["cases"]
+        if c.get("semantic_expectation", {}).get("relation") == "exact"
+        and (c.get("review_assessment") or {})
+        .get("declaration_definition", {})
+        .get("capability_state")
+        == "available"
+    )
+    occ = case["source_occurrences"][0]
+    case["review_assessment"]["declaration_definition"]["evidence_pins"] = [
+        {
+            "artifact_sha256": occ["artifact_sha256"],
+            "locator": copy.deepcopy(occ["locator"]),
+        }
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("distinct" in e and case["case_id"] in e for e in errors)

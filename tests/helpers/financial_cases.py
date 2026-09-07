@@ -253,6 +253,37 @@ def _bundle_ref_equal(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool
     return all(left.get(k) == right.get(k) for k in keys)
 
 
+def _portable_pin_identity(pin: Mapping[str, Any]) -> tuple[str, str, str] | None:
+    sha = pin.get("artifact_sha256")
+    locator = pin.get("locator")
+    if not isinstance(sha, str) or not isinstance(locator, Mapping):
+        return None
+    scheme = locator.get("scheme")
+    value = locator.get("value")
+    if not isinstance(scheme, str) or not isinstance(value, str):
+        return None
+    return (sha, scheme, value)
+
+
+def _measurement_occurrence_identities(case: Mapping[str, Any]) -> set[tuple[str, str, str]]:
+    identities: set[tuple[str, str, str]] = set()
+    for occ in case.get("source_occurrences") or []:
+        if isinstance(occ, Mapping):
+            ident = _portable_pin_identity(occ)
+            if ident is not None:
+                identities.add(ident)
+    assessment = case.get("review_assessment")
+    if isinstance(assessment, Mapping):
+        fact_usage = assessment.get("fact_usage")
+        if isinstance(fact_usage, Mapping):
+            for pin in fact_usage.get("evidence_pins") or []:
+                if isinstance(pin, Mapping):
+                    ident = _portable_pin_identity(pin)
+                    if ident is not None:
+                        identities.add(ident)
+    return identities
+
+
 def _validate_locator_struct(locator: Any, *, label: str, errors: list[str]) -> None:
     if not isinstance(locator, Mapping):
         errors.append(f"{label}: locator must be a mapping")
@@ -283,8 +314,8 @@ def _validate_occurrence_struct(occ: Any, *, label: str, errors: list[str]) -> N
     else:
         _validate_locator_struct(locator, label=f"{label}.locator", errors=errors)
     qname = occ.get("concept_qname")
-    if qname is not None and (not isinstance(qname, str) or not QNAME_RE.match(qname)):
-        errors.append(f"{label}: concept_qname must be a Clark QName when present")
+    if not isinstance(qname, str) or not QNAME_RE.match(qname):
+        errors.append(f"{label}: concept_qname Clark QName is required")
 
 
 def _validate_evidence_pin_struct(pin: Any, *, label: str, errors: list[str]) -> None:
@@ -531,6 +562,51 @@ def validate_benchmark_static(
                 per_check_fields=per_check_fields,
                 errors=errors,
             )
+            assessment = case.get("review_assessment")
+            if isinstance(assessment, Mapping):
+                dd = assessment.get("declaration_definition")
+                if isinstance(dd, Mapping):
+                    dd_state = dd.get("capability_state")
+                    if dd_state == "available":
+                        pins = dd.get("evidence_pins") or []
+                        if not isinstance(pins, list) or not pins:
+                            errors.append(
+                                f"{case_id}: available declaration_definition requires "
+                                "nonempty evidence_pins"
+                            )
+                        else:
+                            measurement_ids = _measurement_occurrence_identities(case)
+                            has_distinct = False
+                            for pin in pins:
+                                if not isinstance(pin, Mapping):
+                                    continue
+                                ident = _portable_pin_identity(pin)
+                                if ident is not None and ident not in measurement_ids:
+                                    has_distinct = True
+                                    break
+                            if not has_distinct:
+                                errors.append(
+                                    f"{case_id}: available declaration_definition requires ≥1 "
+                                    "semantic-evidence pin distinct from representative "
+                                    "measurement occurrences "
+                                    "(artifact_sha256, locator.scheme, locator.value)"
+                                )
+                    elif dd_state in {"not_assessed", "unsupported"}:
+                        caps = case.get("evidence_capabilities") or []
+                        if not any(
+                            isinstance(c, Mapping)
+                            and c.get("capability")
+                            in {
+                                "official_taxonomy_evidence",
+                                "taxonomy_declaration_or_definition_disclosure",
+                            }
+                            for c in caps
+                        ):
+                            errors.append(
+                                f"{case_id}: exact declaration_definition "
+                                f"{dd_state} requires an explicit case-local "
+                                "evidence_capabilities gap explaining why"
+                            )
 
         if relation in {"broader", "related", "narrower"}:
             has_negative_nonexact = True
@@ -663,21 +739,21 @@ def validate_benchmark_static(
             if qual.get("extraction_receipt") is not None:
                 errors.append(f"{case_id}: M0 qualification.extraction_receipt must be null")
             q_cref = qual.get("contract_ref")
-            if isinstance(q_cref, Mapping) and not _contract_ref_equal(q_cref, cref):
+            if not isinstance(q_cref, Mapping):
+                errors.append(f"{case_id}: qualification.contract_ref is required")
+            elif not _contract_ref_equal(q_cref, cref):
                 errors.append(f"{case_id}: qualification.contract_ref != case.contract_ref")
             q_report = qual.get("report_ref")
-            if isinstance(q_report, Mapping) and (
-                q_report.get("accession") != accession or q_report.get("report_key") != report_key
-            ):
+            if not isinstance(q_report, Mapping):
+                errors.append(f"{case_id}: qualification.report_ref is required")
+            elif q_report.get("accession") != accession or q_report.get("report_key") != report_key:
                 errors.append(
                     f"{case_id}: qualification.report_ref must equal enclosing case report"
                 )
             q_bundle = qual.get("bundle_ref")
-            if (
-                isinstance(q_bundle, Mapping)
-                and isinstance(bundle_ref, Mapping)
-                and not _bundle_ref_equal(q_bundle, bundle_ref)
-            ):
+            if not isinstance(q_bundle, Mapping):
+                errors.append(f"{case_id}: qualification.bundle_ref is required")
+            elif isinstance(bundle_ref, Mapping) and not _bundle_ref_equal(q_bundle, bundle_ref):
                 errors.append(
                     f"{case_id}: qualification.bundle_ref must equal enclosing case bundle_ref"
                 )

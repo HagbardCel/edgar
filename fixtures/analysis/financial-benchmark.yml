@@ -298,16 +298,16 @@ cases:
   review_assessment:
     declaration_definition:
       capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2022}RevenueFromContractWithCustomerExcludingAssessedTax
-      method: offline iXBRL/taxonomy review against rendered statement line
+      inspected_scope: us-gaap:RevenueFromContractWithCustomerPolicyTextBlock (revenue recognition policy)
+      method: Closed-world offline iXBRL disclosure review against claimed source meaning
       evidence_pins:
       - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
         locator:
           scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMjEvZnJhZzo5YzQ5MDM3ODBkOGI0MDVlYjE3NTUzMDJiOTc4YjlhNi90YWJsZTplMzZiMDI3NjY5NmM0ZDlkYjkyNWRiOTQzODMyNzVlMy90YWJsZXJhbmdlOmUzNmIwMjc2Njk2YzRkOWRiOTI1ZGI5NDM4MzI3NWUzXzMtMS0xLTEtMTE3MzQ1_47aebf1b-7c44-48fa-ba24-4674c2cd7a1a
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2022}RevenueFromContractWithCustomerExcludingAssessedTax
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMzYvZnJhZzo4NWY3NTA1YzY4NGY0OTE5YTYzNzdkZjIxNjkyMDQ2Yy90ZXh0cmVnaW9uOjg1Zjc1MDVjNjg0ZjQ5MTlhNjM3N2RmMjE2OTIwNDZjXzM2OTQy_d1742ae5-f5ca-42a3-8676-58fdcf38e201
+      conclusion: Filed revenue-recognition policy disclosure affirms source meaning of ordinary customer
+        revenue/net revenues recognized when control transfers, net of taxes — supporting the claimed
+        RevenueFromContractWithCustomer/net-sales source meaning (not the measurement occurrence alone).
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -443,16 +443,21 @@ cases:
     contract_fit: Balance-sheet total assets at period end equals the contract.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2022}Assets
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:Assets plus available issuer disclosures
+        in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
+      - artifact_sha256: e8c6b324f1b6f463eddee9d21f9e3daf13103165e8cc3ee107b4cec4d38f9693
         locator:
           scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMTUvZnJhZzozYWY1ZWIzZWEwNTE0MWZiODFjY2Q4ZWRhNTA5YmI0OC90YWJsZTpmZDNiMjJkNDc2Yjc0ZDU5YTczMDBkYWYzZTMzNjJiZi90YWJsZXJhbmdlOmZkM2IyMmQ0NzZiNzRkNTlhNzMwMGRhZjNlMzM2MmJmXzI1LTEtMS0xLTExNzM0NQ_7975d35a-7407-4377-847c-d85de5a88ee4
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2022}Assets supports the stated
-        source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
+          value: us-gaap_Assets
+      conclusion: xs:element declaration for us-gaap:Assets was located in the filing DTS, but no attributable
+        affirmative concept definition/documentation sufficient for the exact-review declaration_definition
+        group is present under closed-world offline replay (issuer policy candidates were empty or did
+        not substantiate source meaning). Exact semantic expectation and value remain based on statement
+        fact usage; unresolved definition evidence blocks M2 exact acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -553,6 +558,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -585,17 +597,22 @@ cases:
     contract_fit: Exact match to operating cash flow contract.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2022}NetCashProvidedByUsedInOperatingActivities
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:NetCashProvidedByUsedInOperatingActivities
+        plus available issuer disclosures in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
+      - artifact_sha256: e8c6b324f1b6f463eddee9d21f9e3daf13103165e8cc3ee107b4cec4d38f9693
         locator:
           scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMzAvZnJhZzpmOWI0YWFlYzdkNGU0MTMzOTcyY2NjNTk5NmY5NzI4NC90YWJsZTplM2ZmMzQwMTU2MGE0NzcxYTE2YjliODhhMjM4N2ViYy90YWJsZXJhbmdlOmUzZmYzNDAxNTYwYTQ3NzFhMTZiOWI4OGEyMzg3ZWJjXzMwLTEtMS0xLTExNzM0NQ_2c8fd5fd-63bb-4452-81ed-66d8fb1d4584
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2022}NetCashProvidedByUsedInOperatingActivities
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: us-gaap_NetCashProvidedByUsedInOperatingActivities
+      conclusion: xs:element declaration for us-gaap:NetCashProvidedByUsedInOperatingActivities was located
+        in the filing DTS, but no attributable affirmative concept definition/documentation sufficient
+        for the exact-review declaration_definition group is present under closed-world offline replay
+        (issuer policy candidates were empty or did not substantiate source meaning). Exact semantic expectation
+        and value remain based on statement fact usage; unresolved definition evidence blocks M2 exact
+        acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -696,6 +713,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -729,16 +753,16 @@ cases:
   review_assessment:
     declaration_definition:
       capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}RevenueFromContractWithCustomerExcludingAssessedTax
-      method: offline iXBRL/taxonomy review against rendered statement line
+      inspected_scope: us-gaap:RevenueFromContractWithCustomerPolicyTextBlock (revenue recognition policy)
+      method: Closed-world offline iXBRL disclosure review against claimed source meaning
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
         locator:
           scheme: unqualified_id
-          value: f-114
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}RevenueFromContractWithCustomerExcludingAssessedTax
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: f-500
+      conclusion: Filed revenue-recognition policy disclosure affirms source meaning of ordinary customer
+        revenue/net revenues recognized when control transfers, net of taxes — supporting the claimed
+        RevenueFromContractWithCustomer/net-sales source meaning (not the measurement occurrence alone).
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -874,16 +898,21 @@ cases:
     contract_fit: Exact total assets.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}Assets
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:Assets plus available issuer disclosures
+        in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
+      - artifact_sha256: 5b23edf9ea3f1a6e35a50214e72d8a21acc2c262c6490d606a72cee0c3fb342e
         locator:
           scheme: unqualified_id
-          value: f-66
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}Assets supports the stated
-        source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
+          value: us-gaap_Assets
+      conclusion: xs:element declaration for us-gaap:Assets was located in the filing DTS, but no attributable
+        affirmative concept definition/documentation sufficient for the exact-review declaration_definition
+        group is present under closed-world offline replay (issuer policy candidates were empty or did
+        not substantiate source meaning). Exact semantic expectation and value remain based on statement
+        fact usage; unresolved definition evidence blocks M2 exact acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -984,6 +1013,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1016,17 +1052,22 @@ cases:
     contract_fit: Exact operating cash flow.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}NetCashProvidedByUsedInOperatingActivities
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:NetCashProvidedByUsedInOperatingActivities
+        plus available issuer disclosures in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
+      - artifact_sha256: 5b23edf9ea3f1a6e35a50214e72d8a21acc2c262c6490d606a72cee0c3fb342e
         locator:
           scheme: unqualified_id
-          value: f-369
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}NetCashProvidedByUsedInOperatingActivities
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: us-gaap_NetCashProvidedByUsedInOperatingActivities
+      conclusion: xs:element declaration for us-gaap:NetCashProvidedByUsedInOperatingActivities was located
+        in the filing DTS, but no attributable affirmative concept definition/documentation sufficient
+        for the exact-review declaration_definition group is present under closed-world offline replay
+        (issuer policy candidates were empty or did not substantiate source meaning). Exact semantic expectation
+        and value remain based on statement fact usage; unresolved definition evidence blocks M2 exact
+        acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1127,6 +1168,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1162,16 +1210,16 @@ cases:
   review_assessment:
     declaration_definition:
       capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}RevenueFromContractWithCustomerExcludingAssessedTax
-      method: offline iXBRL/taxonomy review against rendered statement line
+      inspected_scope: us-gaap:RevenueRecognitionPolicyTextBlock (Net Sales revenue recognition)
+      method: Closed-world offline iXBRL disclosure review against claimed source meaning
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
         locator:
           scheme: unqualified_id
-          value: f-66
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}RevenueFromContractWithCustomerExcludingAssessedTax
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: f-585
+      conclusion: Filed revenue-recognition policy disclosure affirms source meaning of ordinary customer
+        revenue/net revenues recognized when control transfers, net of taxes — supporting the claimed
+        RevenueFromContractWithCustomer/net-sales source meaning (not the measurement occurrence alone).
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1307,16 +1355,21 @@ cases:
     contract_fit: Exact total assets.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}Assets
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:Assets plus available issuer disclosures
+        in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
+      - artifact_sha256: 5b23edf9ea3f1a6e35a50214e72d8a21acc2c262c6490d606a72cee0c3fb342e
         locator:
           scheme: unqualified_id
-          value: f-191
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}Assets supports the stated
-        source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
+          value: us-gaap_Assets
+      conclusion: xs:element declaration for us-gaap:Assets was located in the filing DTS, but no attributable
+        affirmative concept definition/documentation sufficient for the exact-review declaration_definition
+        group is present under closed-world offline replay (issuer policy candidates were empty or did
+        not substantiate source meaning). Exact semantic expectation and value remain based on statement
+        fact usage; unresolved definition evidence blocks M2 exact acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1417,6 +1470,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1449,17 +1509,22 @@ cases:
     contract_fit: Exact operating cash flow.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}NetCashProvidedByUsedInOperatingActivities
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:NetCashProvidedByUsedInOperatingActivities
+        plus available issuer disclosures in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
+      - artifact_sha256: 5b23edf9ea3f1a6e35a50214e72d8a21acc2c262c6490d606a72cee0c3fb342e
         locator:
           scheme: unqualified_id
-          value: f-407
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}NetCashProvidedByUsedInOperatingActivities
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: us-gaap_NetCashProvidedByUsedInOperatingActivities
+      conclusion: xs:element declaration for us-gaap:NetCashProvidedByUsedInOperatingActivities was located
+        in the filing DTS, but no attributable affirmative concept definition/documentation sufficient
+        for the exact-review declaration_definition group is present under closed-world offline replay
+        (issuer policy candidates were empty or did not substantiate source meaning). Exact semantic expectation
+        and value remain based on statement fact usage; unresolved definition evidence blocks M2 exact
+        acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1560,6 +1625,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1592,16 +1664,21 @@ cases:
     contract_fit: Exact operating income for FY2023.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}OperatingIncomeLoss
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:OperatingIncomeLoss plus available
+        issuer disclosures in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
+      - artifact_sha256: 5b23edf9ea3f1a6e35a50214e72d8a21acc2c262c6490d606a72cee0c3fb342e
         locator:
           scheme: unqualified_id
-          value: f-141
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}OperatingIncomeLoss supports
-        the stated source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
+          value: us-gaap_OperatingIncomeLoss
+      conclusion: xs:element declaration for us-gaap:OperatingIncomeLoss was located in the filing DTS,
+        but no attributable affirmative concept definition/documentation sufficient for the exact-review
+        declaration_definition group is present under closed-world offline replay (issuer policy candidates
+        were empty or did not substantiate source meaning). Exact semantic expectation and value remain
+        based on statement fact usage; unresolved definition evidence blocks M2 exact acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1702,6 +1779,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1734,17 +1818,22 @@ cases:
     contract_fit: Exact R&D expense as classified on the income statement.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}ResearchAndDevelopmentExpense
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:ResearchAndDevelopmentExpense plus
+        available issuer disclosures in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
+      - artifact_sha256: 5b23edf9ea3f1a6e35a50214e72d8a21acc2c262c6490d606a72cee0c3fb342e
         locator:
           scheme: unqualified_id
-          value: f-126
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}ResearchAndDevelopmentExpense
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: us-gaap_ResearchAndDevelopmentExpense
+      conclusion: xs:element declaration for us-gaap:ResearchAndDevelopmentExpense was located in the
+        filing DTS, but no attributable affirmative concept definition/documentation sufficient for the
+        exact-review declaration_definition group is present under closed-world offline replay (issuer
+        policy candidates were empty or did not substantiate source meaning). Exact semantic expectation
+        and value remain based on statement fact usage; unresolved definition evidence blocks M2 exact
+        acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1845,6 +1934,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1871,62 +1967,18 @@ cases:
     unit: USD
     scope: consolidated
   semantic_expectation:
-    relation: exact
-    source_concept: '{http://fasb.org/us-gaap/2023}NetIncomeLoss'
-    source_meaning: US-GAAP net income (loss); for eBay this is attributable to the parent (no material
-      NCI line split in the primary undimensional fact selected).
-    contract_fit: Exact parent net income for FY2023 under reported sign.
-  review_assessment:
-    declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}NetIncomeLoss
-      method: offline iXBRL/taxonomy review against rendered statement line
-      evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-165
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}NetIncomeLoss supports the
-        stated source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
-      reviewer: m0-reviewer
-    fact_usage:
-      capability_state: available
-      inspected_scope: undimensional monetary facts for {http://fasb.org/us-gaap/2023}NetIncomeLoss in
-        the named report; period 2023-01-01/2023-12-31; value 2767000000.00
-      method: offline ReportExtraction occurrence inventory; dimension absence confirmed
-      evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-165
-      conclusion: Representative undimensional fact usage matches the requested slot period/unit/scope.
-      reviewer: m0-reviewer
-    network_resources:
-      capability_state: not_assessed
-      relevance: unknown
-      inspected_scope: presentation/calculation/reference/footnote networks for this claim
-      method: deferred detailed arc/footnote adjudication pending persisted link/arc QNames
-      evidence_pins: []
-      conclusion: Network identity not fully assessable in M0 without persisted link_qname/arc_qname (M1A).
-      reviewer: m0-reviewer
-    contrary_evidence_contract_fit:
-      capability_state: available
-      inspected_scope: competing concepts and statement presentation for 2023-01-01/2023-12-31
-      method: manual contrary-concept search in undimensional inventory + statement reading order
-      evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-165
-      conclusion: No contrary undimensional concept overturned exact contract fit for this slot.
-      reviewer: m0-reviewer
+    relation: null
+    source_concept: null
+    source_meaning: Prior exact claim treated undimensional NetIncomeLoss as parent-attributable; re-review
+      found no affirmative parent-attribution presentation or NCI-none equivalence. Consolidation policy
+      records minority interests as NCI, and NCI balance-sheet amounts exist — absence of an NCI P&L line
+      does not prove NetIncomeLoss equals net income attributable to eBay Inc./parent.
+    contract_fit: Whether NetIncomeLoss satisfies net_income_attributable_to_parent remains materially
+      unresolved without affirmative parent-attribution evidence.
   expected:
-    state: value
-    value: '2767000000.00'
-  rendered_evidence:
-    document: accession/ebay-20231231.htm
-    location: consolidated income statement — net income
-    row_label: Net income (loss)
+    state: review_required
+    reason: Parent-attributable net income cannot be established from NetIncomeLoss by absence of a material
+      NCI income line; affirmative evidence required.
   source_occurrences:
   - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
     artifact_path: accession/ebay-20231231.htm
@@ -1934,49 +1986,8 @@ cases:
       scheme: unqualified_id
       value: f-165
     concept_qname: '{http://fasb.org/us-gaap/2023}NetIncomeLoss'
-  qualification:
-    contract_ref:
-      metric_key: net_income_attributable_to_parent
-      definition_hash_scheme: metric-v2
-      definition_hash: ffcfc02f7b5f1b79a3bfe23f1ae962cc1c433488646b63b86dc9c37d23714b0f
-    report_ref:
-      accession: 0001065088-24-000036
-      report_key: 5df33cea53528659979435c5020dafa9ebb5e36daa8539340ee539c80edb68c7
-    bundle_ref:
-      opaque_id: 87aa60a1382a41709ec8cbdfd5c83490
-      payload_hash: 96ae41f1730dfd79972d2cd0f33290db3ef95576fb562f586343576fb7478662
-      relative_bundle_dir: bundles/0001065088/0001065088-24-000036/87aa60a1382a41709ec8cbdfd5c83490
-    extraction_receipt: null
-    occurrence_pins:
-    - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-      artifact_path: accession/ebay-20231231.htm
-      locator:
-        scheme: unqualified_id
-        value: f-165
-      concept_qname: '{http://fasb.org/us-gaap/2023}NetIncomeLoss'
-    accounting_basis:
-      state: confirmed
-      value: us_gaap
-      evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator: *id003
-      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
-    entity_basis:
-      state: confirmed
-      value: consolidated
-      entity: http://www.sec.gov/CIK|0001065088
-      evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator: *id004
-      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
-    sign_interpretation:
-      state: confirmed
-      value: compatible
-      evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-165
+    note: Illustrative NetIncomeLoss occurrence previously treated as parent NI; not an accepted exact
+      mapping pending affirmative parent-attribution evidence.
   evidence_capabilities:
   - capability: extraction_receipt
     capability_state: unsupported
@@ -2021,16 +2032,17 @@ cases:
   review_assessment:
     declaration_definition:
       capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue
-      method: offline iXBRL/taxonomy review against rendered statement line
+      inspected_scope: us-gaap:CashAndCashEquivalentsPolicyTextBlock (cash, cash equivalents and restricted
+        cash)
+      method: Closed-world offline iXBRL disclosure review against claimed source meaning
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
         locator:
           scheme: unqualified_id
-          value: f-42
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: f-521
+      conclusion: Policy defines cash and cash equivalents as short-term highly liquid investments and
+        separately defines restricted cash when withdrawal/use is legally restricted — affirming source
+        meaning of the unrestricted C&E line.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -2054,14 +2066,17 @@ cases:
       reviewer: m0-reviewer
     contrary_evidence_contract_fit:
       capability_state: available
-      inspected_scope: competing concepts and statement presentation for 2023-12-31
-      method: manual contrary-concept search in undimensional inventory + statement reading order
+      inspected_scope: Restricted-cash separation in CashAndCashEquivalentsPolicyTextBlock relative to
+        cash_excluding_restricted_cash
+      method: Closed-world offline policy disclosure review
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
         locator:
           scheme: unqualified_id
-          value: f-42
-      conclusion: No contrary undimensional concept overturned exact contract fit for this slot.
+          value: f-521
+      conclusion: Filed policy separately defines restricted cash and states restricted balances are held
+        for letters of credit/escrow — establishing that CashAndCashEquivalentsAtCarryingValue as used
+        here excludes restricted cash and therefore fits cash_excluding_restricted_cash.
       reviewer: m0-reviewer
   expected:
     state: value
@@ -2163,17 +2178,22 @@ cases:
     contract_fit: Exact cash purchases of PP&E.
   review_assessment:
     declaration_definition:
-      capability_state: available
-      inspected_scope: declaration and standard/us-gaap or issuer definition evidence for {http://fasb.org/us-gaap/2023}PaymentsToAcquirePropertyPlantAndEquipment
-      method: offline iXBRL/taxonomy review against rendered statement line
+      capability_state: not_assessed
+      inspected_scope: Filing DTS xs:element declaration for us-gaap:PaymentsToAcquirePropertyPlantAndEquipment
+        plus available issuer disclosures in the verified FilingBundle.
+      method: Closed-world offline bundle / resolved-DTS review without ambient Arelle cache/package/network
+        fallback.
       evidence_pins:
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
+      - artifact_sha256: 5b23edf9ea3f1a6e35a50214e72d8a21acc2c262c6490d606a72cee0c3fb342e
         locator:
           scheme: unqualified_id
-          value: f-372
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}PaymentsToAcquirePropertyPlantAndEquipment
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
+          value: us-gaap_PaymentsToAcquirePropertyPlantAndEquipment
+      conclusion: xs:element declaration for us-gaap:PaymentsToAcquirePropertyPlantAndEquipment was located
+        in the filing DTS, but no attributable affirmative concept definition/documentation sufficient
+        for the exact-review declaration_definition group is present under closed-world offline replay
+        (issuer policy candidates were empty or did not substantiate source meaning). Exact semantic expectation
+        and value remain based on statement fact usage; unresolved definition evidence blocks M2 exact
+        acceptance.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -2274,6 +2294,13 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
+  - capability: official_taxonomy_evidence
+    capability_state: unsupported
+    required_phase: M5
+    reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
+      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
+      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
+      only; does not activate or implement M5 as the next project phase.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -2316,7 +2343,7 @@ cases:
       method: offline lab.xml documentation role inspection
       evidence_pins:
       - artifact_sha256: 75d81938377db187698c9db5749e156567f9ac258154f7f9fd50ec23e0e7f341
-        locator: &id009
+        locator:
           scheme: unqualified_id
           value: lab_ebay_DisposalGroupIncludingDiscontinuedOperationProductDevelopment_documentation_en-US
       conclusion: Declaration/documentation for {http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment
@@ -2416,10 +2443,6 @@ cases:
       scheme: unqualified_id
       value: f-715
     concept_qname: '{http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment'
-  - artifact_sha256: 75d81938377db187698c9db5749e156567f9ac258154f7f9fd50ec23e0e7f341
-    artifact_path: accession/ebay-20231231_lab.xml
-    locator: *id009
-    concept_qname: '{http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment'
 - case_id: walmart_fy2024_revenues_broader_than_revenue_contract
   contract_ref:
     metric_key: revenue
@@ -2496,108 +2519,40 @@ cases:
     unit: USD
     scope: consolidated
   semantic_expectation:
-    relation: exact
+    relation: null
     source_concept: '{http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue'
-    source_meaning: US-GAAP cash and cash equivalents at carrying value (unrestricted cash line).
-    contract_fit: Concept meaning fits cash_excluding_restricted_cash; two undimensional occurrences differ
-      in accuracy metadata (rounding-compatible), requiring accuracy review.
-  review_assessment:
-    declaration_definition:
-      capability_state: available
-      inspected_scope: definition/disclosure for {http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue
-      method: taxonomy + statement review
-      evidence_pins: &id010
-      - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: &id011
-          scheme: unqualified_id
-          value: f-171
-      - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: &id012
-          scheme: unqualified_id
-          value: f-492
-      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue
-        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
-        reviewed.
-      reviewer: m0-reviewer
-    fact_usage:
-      capability_state: available
-      inspected_scope: representative facts and period/unit/dimension usage
-      method: offline extraction / iXBRL inspection
-      evidence_pins: *id010
-      conclusion: Fact usage inspected for the named report.
-      reviewer: m0-reviewer
-    network_resources:
-      capability_state: not_assessed
-      relevance: unknown
-      inspected_scope: presentation/calculation/references/footnotes
-      method: deferred pending link/arc persistence
-      evidence_pins: []
-      conclusion: Network identity not fully assessable without persisted link_qname/arc_qname.
-      reviewer: m0-reviewer
-    contrary_evidence_contract_fit:
-      capability_state: available
-      inspected_scope: contrary concepts and contract fit
-      method: manual contrary search
-      evidence_pins: *id010
-      conclusion: Exact concept fit; differing decimals/scale yield rounding-compatible amounts — accuracy
-        review required, not conflicting_values.
-      reviewer: m0-reviewer
+    source_meaning: CashAndCashEquivalentsAtCarryingValue under Walmart's cash policy describes short-term
+      cash equivalents; whether the face line excludes restricted cash as required by cash_excluding_restricted_cash
+      is not affirmatively established by the filed RestrictedCashAndCashEquivalentsPolicy text (transferability
+      limits ≠ restricted-cash line separation).
+    contract_fit: Contract-fit for cash_excluding_restricted_cash remains materially unresolved without
+      affirmative restricted-cash exclusion/separation evidence; accuracy review of the two undimensional
+      amounts is separately noted.
   expected:
     state: review_required
-    reason: Same undimensional CashAndCashEquivalentsAtCarryingValue at 2024-01-31 with differing accuracy
-      metadata (decimals=-6/scale=6 → 9867000000 vs decimals=-8/scale=9 → 9900000000); values are rounding-consistent
-      — accuracy review required, not conflicting_values.
+    reason: Restricted-cash exclusion for cash_excluding_restricted_cash is not affirmatively established
+      from the filed cash policy; separately, the two undimensional amounts (decimals=-6/scale=6 vs decimals=-8/scale=9)
+      also require accuracy review rather than conflicting_values.
     reason_code: accuracy_review_required
-  source_occurrences: &id013
+  source_occurrences:
   - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
     artifact_path: accession/wmt-20240131.htm
-    locator: *id011
+    locator:
+      scheme: unqualified_id
+      value: f-171
     concept_qname: '{http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue'
     decimals: '-6'
     scale: '6'
     normalized_value: '9867000000'
   - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
     artifact_path: accession/wmt-20240131.htm
-    locator: *id012
+    locator:
+      scheme: unqualified_id
+      value: f-492
     concept_qname: '{http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue'
     decimals: '-8'
     scale: '9'
     normalized_value: '9900000000'
-  qualification:
-    contract_ref:
-      metric_key: cash_excluding_restricted_cash
-      definition_hash_scheme: metric-v2
-      definition_hash: daa38a62d254a752c8342a22162fa8607fe4f294a29da7185f1e3c716768aaf0
-    report_ref:
-      accession: 0000104169-24-000056
-      report_key: d9389fd167b4599d899ff7b6c03bb9942acfe8d4bc5445909ec6ea3f98ec9036
-    bundle_ref:
-      opaque_id: d77e7138fd9d434287fcc57a1f626217
-      payload_hash: 67380495711cd3526f1b4850d80aa04323eacb847a15f91a89fd54b486f07570
-      relative_bundle_dir: bundles/0000104169/0000104169-24-000056/d77e7138fd9d434287fcc57a1f626217
-    extraction_receipt: null
-    occurrence_pins: *id013
-    accounting_basis:
-      state: confirmed
-      value: us_gaap
-      evidence_pins:
-      - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: *id005
-      rationale: us-gaap:UseOfEstimates — prepared in conformity with U.S. GAAP
-    entity_basis:
-      state: confirmed
-      value: consolidated
-      entity: http://www.sec.gov/CIK|0000104169
-      evidence_pins:
-      - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: *id006
-      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation
-    sign_interpretation:
-      state: confirmed
-      value: compatible
-      evidence_pins:
-      - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: *id011
   evidence_capabilities:
   - capability: extraction_receipt
     capability_state: unsupported
@@ -2788,8 +2743,8 @@ cases:
   slot:
     period:
       type: duration
-      start: '2024-04-01'
-      end: '2024-06-30'
+      start: '2024-03-30'
+      end: '2024-06-28'
     unit: USD
     scope: consolidated
   semantic_expectation:
@@ -2797,12 +2752,13 @@ cases:
     source_concept: '{http://www.thecocacolacompany.com/20240628}RevenueForReportableSegments'
     source_meaning: Issuer-extension revenue for reportable segments; segment cuts and intersegment items
       differ from consolidated ordinary revenue.
-    contract_fit: Narrower/segmented relative to the consolidated revenue contract; also illustrates quarter
-      vs YTD selection risk on 10-Q filings.
+    contract_fit: Narrower/segmented relative to the consolidated revenue contract; KO fiscal Q2 duration
+      is 2024-03-30/2024-06-28 (context c-351). Also illustrates quarter vs YTD selection risk on 10-Q
+      filings.
   expected:
     state: review_required
     reason: Segment revenue extension is not exact consolidated revenue; quarter/YTD duration choice on
-      KO 10-Q requires explicit period discipline.
+      KO 10-Q requires explicit period discipline (pinned occurrence uses fiscal 2024-03-30/2024-06-28).
   source_occurrences:
   - artifact_sha256: 5c437e234a9d62d16e5a8b20b5e7be7dca2eab6200b7d61a133d0700a6cf3195
     artifact_path: accession/ko-20240628.htm
@@ -2811,8 +2767,7 @@ cases:
       value: f-1417
     concept_qname: '{http://www.thecocacolacompany.com/20240628}RevenueForReportableSegments'
     note: Dimensional reportable-segment occurrence (EuropeMiddleEastAfricaMember), context c-351, period
-      2024-03-30/2024-06-28 — illustrates narrower segment cut vs consolidated revenue (case slot uses
-      calendar labels; KO fiscal dates apply).
+      2024-03-30/2024-06-28.
   evidence_capabilities:
   - capability: extraction_receipt
     capability_state: unsupported
@@ -2884,6 +2839,12 @@ benchmark_notes:
     no additional exact issuer-extension mapping was identified within the documented reviewed search
     scope. The eBay disposal-group product-development extension is retained as a reviewed narrower extension
     case.
-  m0_exact_vs_acceptance: relation=exact records the reviewed semantic expectation; static fixture validity
-    does not mean M2-acceptance-ready. Unresolved required profile evidence (e.g. network_resources not_assessed)
-    remains an M1A/M2 blocker.
+  m0_exact_vs_acceptance: relation=exact records the reviewed semantic expectation for the source concept;
+    successful static validation does not mean the case is M2-acceptance-ready. Unresolved required profile
+    evidence (e.g. declaration_definition not_assessed, network_resources not_assessed, or official_taxonomy_evidence)
+    remains an M1A/M2/M5 blocker as classified. required_phase:M5 documents a case-specific unmet future
+    gate only and does not activate M5 as the next mandatory project phase.
+  core_value_slot_policy: If honest re-review would downgrade any CORE_VALUE_SLOT from expected.state=value,
+    M0 must record a named replacement pairing or reopen completion — never weaken CORE_VALUE_SLOTS merely
+    to keep validation green. Parent-NI and Walmart-cash re-reviews in this follow-up are outside the
+    nine core slots.

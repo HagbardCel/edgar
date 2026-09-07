@@ -62,7 +62,7 @@ All six corpus accessions were **present before M0** under `var/bundles/` (valid
 
 Offline replay spot-check: eBay `0001065088-24-000036` published bundle loads successfully (`load_completed=True`).
 
-Raw machine-readable bundle listing (local scratch, not authority): `fixtures/analysis/_bundle_inventory_raw.json`.
+Raw machine-readable bundle listing was retained as local scratch under `${EDGAR_DATA_ROOT}` and is not committed.
 
 ## Backups (outside Git)
 
