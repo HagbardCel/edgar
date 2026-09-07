@@ -305,8 +305,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMjEvZnJhZzo5YzQ5MDM3ODBkOGI0MDVlYjE3NTUzMDJiOTc4YjlhNi90YWJsZTplMzZiMDI3NjY5NmM0ZDlkYjkyNWRiOTQzODMyNzVlMy90YWJsZXJhbmdlOmUzNmIwMjc2Njk2YzRkOWRiOTI1ZGI5NDM4MzI3NWUzXzMtMS0xLTEtMTE3MzQ1_47aebf1b-7c44-48fa-ba24-4674c2cd7a1a
-      conclusion: Source concept {http://fasb.org/us-gaap/2022}RevenueFromContractWithCustomerExcludingAssessedTax
-        expresses the claimed quantity for 2022-01-01/2022-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2022}RevenueFromContractWithCustomerExcludingAssessedTax
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -378,18 +379,20 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
-        locator:
+        locator: &id001
           scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMjEvZnJhZzo5YzQ5MDM3ODBkOGI0MDVlYjE3NTUzMDJiOTc4YjlhNi90YWJsZTplMzZiMDI3NjY5NmM0ZDlkYjkyNWRiOTQzODMyNzVlMy90YWJsZXJhbmdlOmUzNmIwMjc2Njk2YzRkOWRiOTI1ZGI5NDM4MzI3NWUzXzMtMS0xLTEtMTE3MzQ1_47aebf1b-7c44-48fa-ba24-4674c2cd7a1a
+          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMzYvZnJhZzo4NWY3NTA1YzY4NGY0OTE5YTYzNzdkZjIxNjkyMDQ2Yy90ZXh0cmVnaW9uOjg1Zjc1MDVjNjg0ZjQ5MTlhNjM3N2RmMjE2OTIwNDZjXzM2OTkw_303c10b4-ffb5-4509-a058-33d934590bf5
+      rationale: us-gaap:UseOfEstimates — consolidated FS prepared in conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
-        locator:
+        locator: &id002
           scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMjEvZnJhZzo5YzQ5MDM3ODBkOGI0MDVlYjE3NTUzMDJiOTc4YjlhNi90YWJsZTplMzZiMDI3NjY5NmM0ZDlkYjkyNWRiOTQzODMyNzVlMy90YWJsZXJhbmdlOmUzNmIwMjc2Njk2YzRkOWRiOTI1ZGI5NDM4MzI3NWUzXzMtMS0xLTEtMTE3MzQ1_47aebf1b-7c44-48fa-ba24-4674c2cd7a1a
+          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMzYvZnJhZzo4NWY3NTA1YzY4NGY0OTE5YTYzNzdkZjIxNjkyMDQ2Yy90ZXh0cmVnaW9uOjg1Zjc1MDVjNjg0ZjQ5MTlhNjM3N2RmMjE2OTIwNDZjXzM2ODQ1_5438738c-e2f7-4f0c-b901-a91468e1e047
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -412,7 +415,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2022_total_assets_value
   contract_ref:
     metric_key: total_assets
@@ -449,8 +451,8 @@ cases:
         locator:
           scheme: unqualified_id
           value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMTUvZnJhZzozYWY1ZWIzZWEwNTE0MWZiODFjY2Q4ZWRhNTA5YmI0OC90YWJsZTpmZDNiMjJkNDc2Yjc0ZDU5YTczMDBkYWYzZTMzNjJiZi90YWJsZXJhbmdlOmZkM2IyMmQ0NzZiNzRkNTlhNzMwMGRhZjNlMzM2MmJmXzI1LTEtMS0xLTExNzM0NQ_7975d35a-7407-4377-847c-d85de5a88ee4
-      conclusion: Source concept {http://fasb.org/us-gaap/2022}Assets expresses the claimed quantity for
-        2022-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2022}Assets supports the stated
+        source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -522,18 +524,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
-        locator:
-          scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMTUvZnJhZzozYWY1ZWIzZWEwNTE0MWZiODFjY2Q4ZWRhNTA5YmI0OC90YWJsZTpmZDNiMjJkNDc2Yjc0ZDU5YTczMDBkYWYzZTMzNjJiZi90YWJsZXJhbmdlOmZkM2IyMmQ0NzZiNzRkNTlhNzMwMGRhZjNlMzM2MmJmXzI1LTEtMS0xLTExNzM0NQ_7975d35a-7407-4377-847c-d85de5a88ee4
+        locator: *id001
+      rationale: us-gaap:UseOfEstimates — consolidated FS prepared in conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
-        locator:
-          scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMTUvZnJhZzozYWY1ZWIzZWEwNTE0MWZiODFjY2Q4ZWRhNTA5YmI0OC90YWJsZTpmZDNiMjJkNDc2Yjc0ZDU5YTczMDBkYWYzZTMzNjJiZi90YWJsZXJhbmdlOmZkM2IyMmQ0NzZiNzRkNTlhNzMwMGRhZjNlMzM2MmJmXzI1LTEtMS0xLTExNzM0NQ_7975d35a-7407-4377-847c-d85de5a88ee4
+        locator: *id002
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -556,7 +556,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2022_operating_cash_flow_value
   contract_ref:
     metric_key: operating_cash_flow
@@ -594,8 +593,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMzAvZnJhZzpmOWI0YWFlYzdkNGU0MTMzOTcyY2NjNTk5NmY5NzI4NC90YWJsZTplM2ZmMzQwMTU2MGE0NzcxYTE2YjliODhhMjM4N2ViYy90YWJsZXJhbmdlOmUzZmYzNDAxNTYwYTQ3NzFhMTZiOWI4OGEyMzg3ZWJjXzMwLTEtMS0xLTExNzM0NQ_2c8fd5fd-63bb-4452-81ed-66d8fb1d4584
-      conclusion: Source concept {http://fasb.org/us-gaap/2022}NetCashProvidedByUsedInOperatingActivities
-        expresses the claimed quantity for 2022-01-01/2022-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2022}NetCashProvidedByUsedInOperatingActivities
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -667,18 +667,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
-        locator:
-          scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMzAvZnJhZzpmOWI0YWFlYzdkNGU0MTMzOTcyY2NjNTk5NmY5NzI4NC90YWJsZTplM2ZmMzQwMTU2MGE0NzcxYTE2YjliODhhMjM4N2ViYy90YWJsZXJhbmdlOmUzZmYzNDAxNTYwYTQ3NzFhMTZiOWI4OGEyMzg3ZWJjXzMwLTEtMS0xLTExNzM0NQ_2c8fd5fd-63bb-4452-81ed-66d8fb1d4584
+        locator: *id001
+      rationale: us-gaap:UseOfEstimates — consolidated FS prepared in conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 866be9861c77d8069a0814603e74bfb7cfcec30b551c1591c7cee490dab78da8
-        locator:
-          scheme: unqualified_id
-          value: id3VybDovL2RvY3MudjEvZG9jOmZlZjEyNTIxZjUwMDQ3YmRhZDRkZWIzZTc0NjcxZTQ2L3NlYzpmZWYxMjUyMWY1MDA0N2JkYWQ0ZGViM2U3NDY3MWU0Nl8xMzAvZnJhZzpmOWI0YWFlYzdkNGU0MTMzOTcyY2NjNTk5NmY5NzI4NC90YWJsZTplM2ZmMzQwMTU2MGE0NzcxYTE2YjliODhhMjM4N2ViYy90YWJsZXJhbmdlOmUzZmYzNDAxNTYwYTQ3NzFhMTZiOWI4OGEyMzg3ZWJjXzMwLTEtMS0xLTExNzM0NQ_2c8fd5fd-63bb-4452-81ed-66d8fb1d4584
+        locator: *id002
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -701,7 +699,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_revenue_value
   contract_ref:
     metric_key: revenue
@@ -739,8 +736,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-114
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}RevenueFromContractWithCustomerExcludingAssessedTax
-        expresses the claimed quantity for 2023-01-01/2023-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}RevenueFromContractWithCustomerExcludingAssessedTax
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -812,18 +810,20 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
+        locator: &id003
           scheme: unqualified_id
-          value: f-114
+          value: f-493
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
+        locator: &id004
           scheme: unqualified_id
-          value: f-114
+          value: f-497
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -846,7 +846,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_total_assets_value
   contract_ref:
     metric_key: total_assets
@@ -883,8 +882,8 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-66
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}Assets expresses the claimed quantity for
-        2023-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}Assets supports the stated
+        source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -956,18 +955,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-66
+        locator: *id003
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-66
+        locator: *id004
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -990,7 +987,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_operating_cash_flow_value
   contract_ref:
     metric_key: operating_cash_flow
@@ -1028,8 +1024,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-369
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}NetCashProvidedByUsedInOperatingActivities
-        expresses the claimed quantity for 2023-01-01/2023-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}NetCashProvidedByUsedInOperatingActivities
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1101,18 +1098,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-369
+        locator: *id003
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-369
+        locator: *id004
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -1135,7 +1130,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: walmart_fy2024_revenue_value
   contract_ref:
     metric_key: revenue
@@ -1175,8 +1169,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-66
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}RevenueFromContractWithCustomerExcludingAssessedTax
-        expresses the claimed quantity for 2023-02-01/2024-01-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}RevenueFromContractWithCustomerExcludingAssessedTax
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1248,18 +1243,20 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator:
+        locator: &id005
           scheme: unqualified_id
-          value: f-66
+          value: f-485
+      rationale: us-gaap:UseOfEstimates — prepared in conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0000104169
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator:
+        locator: &id006
           scheme: unqualified_id
-          value: f-66
+          value: f-484
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -1282,7 +1279,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: walmart_fy2024_total_assets_value
   contract_ref:
     metric_key: total_assets
@@ -1319,8 +1315,8 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-191
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}Assets expresses the claimed quantity for
-        2024-01-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}Assets supports the stated
+        source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1392,18 +1388,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator:
-          scheme: unqualified_id
-          value: f-191
+        locator: *id005
+      rationale: us-gaap:UseOfEstimates — prepared in conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0000104169
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator:
-          scheme: unqualified_id
-          value: f-191
+        locator: *id006
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -1426,7 +1420,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: walmart_fy2024_operating_cash_flow_value
   contract_ref:
     metric_key: operating_cash_flow
@@ -1464,8 +1457,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-407
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}NetCashProvidedByUsedInOperatingActivities
-        expresses the claimed quantity for 2023-02-01/2024-01-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}NetCashProvidedByUsedInOperatingActivities
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1537,18 +1531,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator:
-          scheme: unqualified_id
-          value: f-407
+        locator: *id005
+      rationale: us-gaap:UseOfEstimates — prepared in conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0000104169
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator:
-          scheme: unqualified_id
-          value: f-407
+        locator: *id006
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -1571,7 +1563,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_operating_income_value
   contract_ref:
     metric_key: operating_income
@@ -1609,8 +1600,8 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-141
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}OperatingIncomeLoss expresses the claimed
-        quantity for 2023-01-01/2023-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}OperatingIncomeLoss supports
+        the stated source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1682,18 +1673,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-141
+        locator: *id003
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-141
+        locator: *id004
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -1716,7 +1705,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_rnd_value
   contract_ref:
     metric_key: research_and_development
@@ -1754,8 +1742,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-126
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}ResearchAndDevelopmentExpense expresses
-        the claimed quantity for 2023-01-01/2023-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}ResearchAndDevelopmentExpense
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1827,18 +1816,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-126
+        locator: *id003
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-126
+        locator: *id004
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -1861,7 +1848,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_net_income_parent_value
   contract_ref:
     metric_key: net_income_attributable_to_parent
@@ -1900,8 +1886,8 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-165
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}NetIncomeLoss expresses the claimed quantity
-        for 2023-01-01/2023-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}NetIncomeLoss supports the
+        stated source meaning; label alone is insufficient — definition/disclosure evidence reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -1973,18 +1959,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-165
+        locator: *id003
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-165
+        locator: *id004
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -2007,7 +1991,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_cash_excluding_restricted_value
   contract_ref:
     metric_key: cash_excluding_restricted_cash
@@ -2045,8 +2028,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-42
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue expresses
-        the claimed quantity for 2023-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -2118,18 +2102,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-42
+        locator: *id003
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-42
+        locator: *id004
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -2152,7 +2134,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_cash_ppe_purchases_value
   contract_ref:
     metric_key: cash_purchases_of_ppe
@@ -2190,8 +2171,9 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-372
-      conclusion: Source concept {http://fasb.org/us-gaap/2023}PaymentsToAcquirePropertyPlantAndEquipment
-        expresses the claimed quantity for 2023-01-01/2023-12-31.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}PaymentsToAcquirePropertyPlantAndEquipment
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
@@ -2263,18 +2245,16 @@ cases:
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-372
+        locator: *id003
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator:
-          scheme: unqualified_id
-          value: f-372
+        locator: *id004
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
@@ -2297,9 +2277,8 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
-- case_id: ebay_fy2023_disposal_product_development_rd_extension_exact
-  benchmark_role: issuer_extension_exact
+- case_id: ebay_fy2023_disposal_product_development_rd_extension_narrower
+  benchmark_role: issuer_extension_reviewed
   contract_ref:
     metric_key: research_and_development
     definition_hash_scheme: metric-v2
@@ -2322,29 +2301,37 @@ cases:
     unit: USD
     scope: consolidated
   semantic_expectation:
-    relation: exact
+    relation: narrower
     source_concept: '{http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment'
-    source_meaning: Issuer-extension product-development expense for disposal groups / discontinued operations
-      (eBay's R&D analogue line in disposal disclosures).
-    contract_fit: Meaning matches research_and_development (R&D/product-development expense as classified).
-      Exact semantic relation holds for the concept; it is not a label-only match.
+    source_meaning: Issuer documentation role text defines this concept as 'Disposal Group, Including
+      Discontinued Operation, Product Development' — product-development expense scoped to disposal groups
+      / discontinued operations, not entity-wide total R&D.
+    contract_fit: Narrower than research_and_development (total R&D). Concept meaning is intrinsically
+      disposal-group scoped per documentation; dimensional occurrence eligibility is a separate observation
+      question.
   review_assessment:
     declaration_definition:
       capability_state: available
-      inspected_scope: definition/disclosure for {http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment
-      method: taxonomy + statement review
-      evidence_pins: &id001
-      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator: &id002
+      inspected_scope: issuer taxonomy documentation resource for DisposalGroupIncludingDiscontinuedOperationProductDevelopment
+      method: offline lab.xml documentation role inspection
+      evidence_pins:
+      - artifact_sha256: 75d81938377db187698c9db5749e156567f9ac258154f7f9fd50ec23e0e7f341
+        locator: &id009
           scheme: unqualified_id
-          value: f-715
-      conclusion: Declaration/disclosure supports the stated source meaning.
+          value: lab_ebay_DisposalGroupIncludingDiscontinuedOperationProductDevelopment_documentation_en-US
+      conclusion: Declaration/documentation for {http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
       inspected_scope: representative facts and period/unit/dimension usage
       method: offline extraction / iXBRL inspection
-      evidence_pins: *id001
+      evidence_pins: &id007
+      - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
+        locator: &id008
+          scheme: unqualified_id
+          value: f-715
       conclusion: Fact usage inspected for the named report.
       reviewer: m0-reviewer
     network_resources:
@@ -2359,15 +2346,16 @@ cases:
       capability_state: available
       inspected_scope: contrary concepts and contract fit
       method: manual contrary search
-      evidence_pins: *id001
-      conclusion: Concept meaning fits R&D; dimensional disposal-group contexts prevent use as the undimensional
-        consolidated face R&D observation.
+      evidence_pins: *id007
+      conclusion: Documentation establishes disposal-group scope → narrower vs total R&D; dimensional
+        contexts additionally place occurrences outside reported-annual-v1 undimensional consolidated
+        selection.
       reviewer: m0-reviewer
   expected:
     state: unsupported
-    reason: Only dimensional disposal-group occurrences exist for this issuer extension; the consolidated
-      undimensional R&D slot cannot consume them without an explicit dimension-selection policy (deferred
-      past M0).
+    reason: Filed occurrences are dimensional and therefore outside reported-annual-v1's supported consolidated
+      profile. A future dimensional-comparison product is optional and evidence-triggered. Semantic relation
+      is narrower (disposal-group product development), independently of observation eligibility.
   qualification:
     contract_ref:
       metric_key: research_and_development
@@ -2384,27 +2372,29 @@ cases:
     occurrence_pins:
     - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
       artifact_path: accession/ebay-20231231.htm
-      locator: *id002
+      locator: *id008
       concept_qname: '{http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment'
     accounting_basis:
       state: confirmed
       value: us_gaap
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator: *id002
+        locator: *id003
+      rationale: us-gaap:UseOfEstimates — conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0001065088
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator: *id002
+        locator: *id004
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation and Basis of Presentation
     sign_interpretation:
       state: confirmed
       value: compatible
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
-        locator: *id002
+        locator: *id008
   evidence_capabilities:
   - capability: extraction_receipt
     capability_state: unsupported
@@ -2416,14 +2406,20 @@ cases:
     - link_qname
     - arc_qname
     required_phase: M1A
-  - capability: dimension_selection_policy
-    capability_state: unsupported
-    access_path: null
-    required_phase: M1A
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 18
+  source_occurrences:
+  - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
+    artifact_path: accession/ebay-20231231.htm
+    locator:
+      scheme: unqualified_id
+      value: f-715
+    concept_qname: '{http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment'
+  - artifact_sha256: 75d81938377db187698c9db5749e156567f9ac258154f7f9fd50ec23e0e7f341
+    artifact_path: accession/ebay-20231231_lab.xml
+    locator: *id009
+    concept_qname: '{http://www.ebay.com/20231231}DisposalGroupIncludingDiscontinuedOperationProductDevelopment'
 - case_id: walmart_fy2024_revenues_broader_than_revenue_contract
   contract_ref:
     metric_key: revenue
@@ -2478,8 +2474,7 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 10
-- case_id: walmart_fy2024_cash_excluding_restricted_conflict
+- case_id: walmart_fy2024_cash_excluding_restricted_accuracy_review
   contract_ref:
     metric_key: cash_excluding_restricted_cash
     definition_hash_scheme: metric-v2
@@ -2504,29 +2499,31 @@ cases:
     relation: exact
     source_concept: '{http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue'
     source_meaning: US-GAAP cash and cash equivalents at carrying value (unrestricted cash line).
-    contract_fit: Concept meaning fits cash_excluding_restricted_cash, but multiple undimensional values
-      conflict for the same instant.
+    contract_fit: Concept meaning fits cash_excluding_restricted_cash; two undimensional occurrences differ
+      in accuracy metadata (rounding-compatible), requiring accuracy review.
   review_assessment:
     declaration_definition:
       capability_state: available
       inspected_scope: definition/disclosure for {http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue
       method: taxonomy + statement review
-      evidence_pins: &id003
+      evidence_pins: &id010
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: &id004
+        locator: &id011
           scheme: unqualified_id
           value: f-171
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: &id005
+        locator: &id012
           scheme: unqualified_id
           value: f-492
-      conclusion: Declaration/disclosure supports the stated source meaning.
+      conclusion: Declaration/documentation for {http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue
+        supports the stated source meaning; label alone is insufficient — definition/disclosure evidence
+        reviewed.
       reviewer: m0-reviewer
     fact_usage:
       capability_state: available
       inspected_scope: representative facts and period/unit/dimension usage
       method: offline extraction / iXBRL inspection
-      evidence_pins: *id003
+      evidence_pins: *id010
       conclusion: Fact usage inspected for the named report.
       reviewer: m0-reviewer
     network_resources:
@@ -2541,22 +2538,31 @@ cases:
       capability_state: available
       inspected_scope: contrary concepts and contract fit
       method: manual contrary search
-      evidence_pins: *id003
-      conclusion: Exact concept fit, but duplicate undimensional values block a single published value.
+      evidence_pins: *id010
+      conclusion: Exact concept fit; differing decimals/scale yield rounding-compatible amounts — accuracy
+        review required, not conflicting_values.
       reviewer: m0-reviewer
   expected:
-    state: conflict
-    reason: 'Multiple undimensional CashAndCashEquivalentsAtCarryingValue values at 2024-01-31: [''9867000000'',
-      ''9900000000''].'
-  source_occurrences: &id006
+    state: review_required
+    reason: Same undimensional CashAndCashEquivalentsAtCarryingValue at 2024-01-31 with differing accuracy
+      metadata (decimals=-6/scale=6 → 9867000000 vs decimals=-8/scale=9 → 9900000000); values are rounding-consistent
+      — accuracy review required, not conflicting_values.
+    reason_code: accuracy_review_required
+  source_occurrences: &id013
   - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
     artifact_path: accession/wmt-20240131.htm
-    locator: *id004
+    locator: *id011
     concept_qname: '{http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue'
+    decimals: '-6'
+    scale: '6'
+    normalized_value: '9867000000'
   - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
     artifact_path: accession/wmt-20240131.htm
-    locator: *id005
+    locator: *id012
     concept_qname: '{http://fasb.org/us-gaap/2023}CashAndCashEquivalentsAtCarryingValue'
+    decimals: '-8'
+    scale: '9'
+    normalized_value: '9900000000'
   qualification:
     contract_ref:
       metric_key: cash_excluding_restricted_cash
@@ -2570,26 +2576,28 @@ cases:
       payload_hash: 67380495711cd3526f1b4850d80aa04323eacb847a15f91a89fd54b486f07570
       relative_bundle_dir: bundles/0000104169/0000104169-24-000056/d77e7138fd9d434287fcc57a1f626217
     extraction_receipt: null
-    occurrence_pins: *id006
+    occurrence_pins: *id013
     accounting_basis:
       state: confirmed
       value: us_gaap
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: *id004
+        locator: *id005
+      rationale: us-gaap:UseOfEstimates — prepared in conformity with U.S. GAAP
     entity_basis:
       state: confirmed
       value: consolidated
       entity: http://www.sec.gov/CIK|0000104169
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: *id004
+        locator: *id006
+      rationale: us-gaap:ConsolidationPolicyTextBlock — Principles of Consolidation
     sign_interpretation:
       state: confirmed
       value: compatible
       evidence_pins:
       - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
-        locator: *id004
+        locator: *id011
   evidence_capabilities:
   - capability: extraction_receipt
     capability_state: unsupported
@@ -2604,7 +2612,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 14
 - case_id: walmart_fy2024_rnd_missing
   contract_ref:
     metric_key: research_and_development
@@ -2634,8 +2641,28 @@ cases:
     contract_fit: Missingness is not zero; no source concept asserted.
   expected:
     state: missing
-    reason: Reviewed search of undimensional facts found no R&D expense concept for Walmart FY2024; absence
-      must not be coerced to 0.
+    reason: Reviewed bounded search found no undimensional ResearchAndDevelopmentExpense (or issuer-extension
+      R&D analogue) for Walmart FY2024; absence must not be coerced to 0.
+    assessment:
+      inspected_scope: Walmart FY2024 10-K report 0000104169-24-000056; undimensional monetary facts and
+        concept inventory for ResearchAndDevelopmentExpense / ProductDevelopment / issuer-extension R&D
+        analogues; consolidated duration 2023-02-01/2024-01-31.
+      method: Offline undimensional fact inventory from ReportExtraction outputs plus manual concept-name
+        search in iXBRL for R&D / product-development expense labels.
+      evidence_pins:
+      - artifact_sha256: b5d34a19ec27cb80ddda8d5140ccdaa8454bb2ba5ad4720667887238c55c0e09
+        artifact_path: accession/wmt-20240131.htm
+        locator:
+          scheme: unqualified_id
+          value: f-484
+        note: 'Search-scope anchor: consolidation/policy disclosure in same report; no matching R&D fact
+          occurrence found.'
+      limits: Search limited to undimensional facts in this single report and explicit R&D/product-development
+        concept names; dimensional or differently labeled R&D-like amounts were not accepted as the consolidated
+        R&D slot. Empty SQL alone is not treated as proof — this records the bounded search that was performed.
+      conclusion: Adequate bounded negative search supports assessed absence of an undimensional R&D expense
+        concept for this slot; not a zero value.
+      reviewer: m0-reviewer
   evidence_capabilities:
   - capability: extraction_receipt
     capability_state: unsupported
@@ -2650,7 +2677,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 8
 - case_id: ebay_10ka_amendment_revenue_review
   contract_ref:
     metric_key: revenue
@@ -2661,7 +2687,7 @@ cases:
     cik: 0001065088
   report:
     accession: 0001065088-24-000094
-    report_key: bundle-payload:4e4e022ed28022dc5c9033e15cc27b040fff05a5447157a636ba6079d875403a
+    report_key: 1d1f3ae3e717dfde48210616562e6452b0f1c8d9a5d6c9de24dd25189443161d
     bundle_ref:
       opaque_id: 4928759a51134b689a184581c8fb0687
       payload_hash: 4e4e022ed28022dc5c9033e15cc27b040fff05a5447157a636ba6079d875403a
@@ -2697,7 +2723,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 9
 - case_id: jpm_2024q2_revenue_bank_generalization_counterexample
   contract_ref:
     metric_key: revenue
@@ -2708,7 +2733,7 @@ cases:
     cik: 0000019617
   report:
     accession: 0000019617-24-000453
-    report_key: bundle-payload:54aadbdbd93988e8b642c76d7d60c526582c1cdcc9c8a9581967b7346205e10b
+    report_key: e9570ef1c7f1cea4f408b099b63e6c7ca08e5cc967e2ce39ad61432b2c07856e
     bundle_ref:
       opaque_id: c6d6249a11d3480a840c5f5530a63733
       payload_hash: 54aadbdbd93988e8b642c76d7d60c526582c1cdcc9c8a9581967b7346205e10b
@@ -2745,7 +2770,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 11
 - case_id: ko_2024q2_segment_revenue_narrower_ytd_counterexample
   contract_ref:
     metric_key: revenue
@@ -2756,7 +2780,7 @@ cases:
     cik: '0000021344'
   report:
     accession: 0000021344-24-000044
-    report_key: bundle-payload:66eaf4b092ff67d0cf4c8f18b8e816da55dd38729596275f79ea0a2f28679117
+    report_key: 01f5231c5d2d8f5e06fd7a71b037d91b1e81e3e1ecd02d9dc6d3253091161ce4
     bundle_ref:
       opaque_id: 9a4dda04384d41e49cc48d5c41255e33
       payload_hash: 66eaf4b092ff67d0cf4c8f18b8e816da55dd38729596275f79ea0a2f28679117
@@ -2782,8 +2806,13 @@ cases:
   source_occurrences:
   - artifact_sha256: 5c437e234a9d62d16e5a8b20b5e7be7dca2eab6200b7d61a133d0700a6cf3195
     artifact_path: accession/ko-20240628.htm
-    locator: null
+    locator:
+      scheme: unqualified_id
+      value: f-1417
     concept_qname: '{http://www.thecocacolacompany.com/20240628}RevenueForReportableSegments'
+    note: Dimensional reportable-segment occurrence (EuropeMiddleEastAfricaMember), context c-351, period
+      2024-03-30/2024-06-28 — illustrates narrower segment cut vs consolidated revenue (case slot uses
+      calendar labels; KO fiscal dates apply).
   evidence_capabilities:
   - capability: extraction_receipt
     capability_state: unsupported
@@ -2798,7 +2827,6 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 12
 - case_id: ebay_fy2023_restricted_cash_fv_related_not_exact
   contract_ref:
     metric_key: cash_excluding_restricted_cash
@@ -2851,4 +2879,11 @@ cases:
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
-    active_minutes: 7
+benchmark_notes:
+  extension_review: Reviewed extension candidates in the bounded six-filing corpus for the eight contracts;
+    no additional exact issuer-extension mapping was identified within the documented reviewed search
+    scope. The eBay disposal-group product-development extension is retained as a reviewed narrower extension
+    case.
+  m0_exact_vs_acceptance: relation=exact records the reviewed semantic expectation; static fixture validity
+    does not mean M2-acceptance-ready. Unresolved required profile evidence (e.g. network_resources not_assessed)
+    remains an M1A/M2 blocker.

@@ -3,7 +3,7 @@
 Captured: 2026-09-07T07:22:35Z (UTC)
 
 Role: working database (`EDGAR_DATABASE_URL` → database `edgar`) — **read-only** during inventory and backup.
-Bundle filesystem root: `EDGAR_DATA_ROOT` → `/Users/fabian/Projects/edgar/var`.
+Bundle filesystem root: `EDGAR_DATA_ROOT` → `${EDGAR_DATA_ROOT}` (local `var/` by default).
 
 ## Database (working)
 
