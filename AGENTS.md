@@ -11,8 +11,8 @@ canonical registry and mapping ledger is complete.** The M0–M4 migration is
 **adopted** ([ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md)).
 
 Current implementation remains the Phase 2B source layer plus Phase 2C registry
-until the corresponding migration phase changes it. **Current phase: M0 — in
-progress.** Do not implement M1A/M2/M3/M4 work ahead of its phase gate.
+until the corresponding migration phase changes it. **Current phase: M0 —
+complete; next: M1A.** Do not implement M2/M3/M4 work ahead of its phase gate.
 M1B/M5 require their documented evidence triggers. Phase 2A/2B/2C invariants
 remain in force until M1A/M2 modify them.
 

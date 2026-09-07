@@ -72,12 +72,11 @@ migration `0002_registry`) remain the live registry baseline.
 ## Consequences
 
 - Documentation and agent instructions treat the architecture package as the
-  **adopted target**, with **current implementation phase: M0** until M0
-  acceptance closes.
+  **adopted target**. **M0 is complete; the next implementation phase is M1A.**
 - Coding agents must not interpret “target adopted” as permission to implement
-  M1A/M2/M3/M4 ahead of the phase gate.
+  M2/M3/M4 ahead of the phase gate.
 - Phase 2B/2C behavior remains live production truth until M1A/M2 modify it.
-- The bounded financial benchmark and review profile created in M0 become the
+- The bounded financial benchmark and review profile created in M0 are the
   concrete input to M1A; architecture documents alone are insufficient.
 
 ## Alternatives considered
