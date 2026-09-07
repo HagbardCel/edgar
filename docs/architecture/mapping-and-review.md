@@ -1,6 +1,6 @@
 # Semantic contracts, mapping, and review
 
-**Status:** recommended. M2 implements the bounded form below; M5 features remain gated. No examples in this document constitute an accepted financial mapping.
+**Status:** adopted target content ([ADR 0012](../adr/0012-adopt-bounded-financial-architecture.md)). M2 implements the bounded form below; M5 features remain gated. No examples in this document constitute an accepted financial mapping.
 
 ## Define the quantity before mapping the label
 

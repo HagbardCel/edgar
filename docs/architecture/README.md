@@ -1,7 +1,7 @@
 # Independent target architecture and migration plan
 
 **Date:** 2026-09-05. **Baseline:** `536ee25002bccfb72b50e02cf8397c2e3972635d`.
-**Status:** independent recommendation for decision; no production changes or phase gate changes are made by this package. “Decision made” means this recommendation has resolved the architectural question, not that the owner has adopted it. Deferred decisions have explicit evidence triggers.
+**Status:** **Adopted target** ([ADR 0012](../adr/0012-adopt-bounded-financial-architecture.md)). M0 is the current implementation phase (in progress). D1–D9 are adopted decisions; deferred items retain their evidence triggers. This package does not claim that target behavior is already implemented—Phase 2B/2C remain live until M1A/M2 change them.
 
 This is the sole target architecture and migration package. [Documentation index](../README.md) separates it from implemented contracts and historical evidence.
 

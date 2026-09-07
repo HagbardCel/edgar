@@ -7,15 +7,21 @@ Build a reproducible, point-in-time-aware platform for SEC company filings.
 The system preserves immutable filing evidence; parses deterministic document structure and XBRL semantics; creates versioned canonical metrics; joins filings to historical securities and market outcomes; and supports reproducible quantitative and textual research.
 
 **Phase 2A is complete.** **Phase 2B source cutover is complete.** **Phase 2C
-canonical registry and mapping ledger is complete.** Do not implement
-applicability, candidate selection, or `metric_observation` until a frozen
-Phase 2D+ plan exists. Phase 2A/2B/2C invariants remain in force.
+canonical registry and mapping ledger is complete.** The M0–M4 migration is
+**adopted** ([ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md)).
+
+Current implementation remains the Phase 2B source layer plus Phase 2C registry
+until the corresponding migration phase changes it. **Current phase: M0 — in
+progress.** Do not implement M1A/M2/M3/M4 work ahead of its phase gate.
+M1B/M5 require their documented evidence triggers. Phase 2A/2B/2C invariants
+remain in force until M1A/M2 modify them.
 
 See `docs/README.md` for completed milestones and documentation authority,
-`docs/architecture/README.md` for the proposed target (not yet adopted),
+`docs/architecture/README.md` for the adopted target,
 `docs/normalization.md`,
 [ADR 0010](docs/adr/0010-curated-semantic-registry.md),
-and [ADR 0011](docs/adr/0011-source-extraction.md).
+[ADR 0011](docs/adr/0011-source-extraction.md),
+and [ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md).
 
 Optimize for:
 
@@ -38,8 +44,8 @@ Before changing code:
 1. Read this file.
 2. Read `docs/README.md` for implemented status and scope.
 3. Read `docs/architecture/README.md` and the relevant target/migration decisions.
-   The package is a recommendation until M0 adoption; documentation consolidation
-   does not freeze a Phase 2D+ implementation plan.
+   The package is the adopted target ([ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md));
+   current implementation remains Phase 2B/2C until M1A/M2 change it.
 4. Read `docs/architecture.md`, `docs/development.md`, `docs/normalization.md`, and `docs/fixture-policy.md`.
 5. Read `docs/data-model.md` and `docs/data-quality.md`.
 6. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.
@@ -47,7 +53,8 @@ Before changing code:
 8. Inspect nearest tests and interfaces.
 9. Check the git diff before editing.
 10. Keep the change within completed Phase 2A/2B/2C invariants unless the task
-    explicitly changes scope. Do not implement Phase 2D+ until its plan is frozen.
+    is the gated M-phase work that changes them. Do not implement M1A/M2/M3/M4
+    ahead of its phase gate; M1B/M5 require documented evidence triggers.
 
 Priority when requirements conflict:
 
@@ -95,12 +102,12 @@ Phase 2B is complete. Continue to maintain:
 - No Phase-1 projection/attempt tables, dual-writes, or projection CLI commands
 - Phase-1 DBs must be recreated (no in-place upgrade from deleted 0001–0004)
 
-Do not add without an explicit frozen Phase 2D+ plan:
+Do not add without the owning M-phase gate (see ADR 0012 / migration-plan):
 
-- `semantic.*` / `metric_observation` or canonical fact acceptance
-- automated mapping candidates or precedence among current rules
-- LLM auto-approval of mappings
-- SQLMesh or observation-selection policy
+- `semantic.*` / `metric_observation` or canonical fact acceptance (M3+)
+- automated mapping candidates or precedence among current rules (M2+)
+- LLM auto-approval of mappings (never for ambiguous claims)
+- SQLMesh or observation-selection policy (M3+/deferred)
 
 ---
 
@@ -388,7 +395,7 @@ selection. Later phases may add:
 - dataset exposure of mapping uncertainty
 
 No LLM may auto-approve an ambiguous mapping. Do not implement `semantic.*` or
-`metric_observation` until a frozen Phase 2D+ plan exists.
+`metric_observation` until M3 under the adopted migration (ADR 0012).
 
 ---
 

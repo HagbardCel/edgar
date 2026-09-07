@@ -1,8 +1,8 @@
 # Architectural decisions and technology
 
-**Status convention:** “Made” is the independent recommendation selected here. Adoption is M0; this document does not supersede live ADRs by itself. Each decision includes a reconsideration trigger. Deferred questions are listed separately.
+**Status convention:** “Adopted (ADR 0012)” means the owner has accepted the decision as project-governing. Live ADRs 0010/0011 remain authoritative for implemented registry/source behavior until M2/M1A change them. Each decision includes a reconsideration trigger. Deferred questions are listed separately.
 
-## D1 — Native XBRL evidence plus a small application model: made
+## D1 — Native XBRL evidence plus a small application model: adopted (ADR 0012)
 
 **Problem:** preserve meaning while supporting cross-company quantities.
 
@@ -18,7 +18,7 @@
 
 **Delivery:** M1A preserves the existing complete base-set identity and establishes receipts/integrity. Role/arcrole tables, typed-domain enrichment and full footnote persistence are case-triggered M1B additions. Required evidence can first be supplied by a bounded offline Arelle reader and retained packet. Unassessed relevance blocks the affected case; omitted SQL storage never proves irrelevance.
 
-## D2 — Direct conditional mapping to a measurement contract: made
+## D2 — Direct conditional mapping to a measurement contract: adopted (ADR 0012)
 
 **Problem:** separate source identity from comparability without multiplying decisions.
 
@@ -36,7 +36,7 @@
 
 **Review discipline:** answer “what does the source mean?” and “why does it fit this contract?” separately in one [review packet](mapping-and-review.md#two-review-questions-one-durable-claim). This preserves two reasoning obligations without requiring two independently maintained claims.
 
-## D3 — Relational semantic registry, no ontology runtime: made
+## D3 — Relational semantic registry, no ontology runtime: adopted (ADR 0012)
 
 **Problem:** searchable knowledge, explicit relations, and history for humans and AI.
 
@@ -52,7 +52,7 @@ LinkML can generate multiple schema/code representations and semantic exports. T
 
 **Reconsider when:** external collaborators require a shared semantic interchange vocabulary or actual cross-domain inference queries that cannot be maintained as simple relations. A graph visualization alone is not that trigger.
 
-## D4 — Ordinary SQL plus typed Python; no transformation platform yet: made
+## D4 — Ordinary SQL plus typed Python; no transformation platform yet: adopted (ADR 0012)
 
 **Problem:** apply mappings and select observations deterministically with useful explanations.
 
@@ -66,7 +66,7 @@ LinkML can generate multiple schema/code representations and semantic exports. T
 
 **Reconsider when:** profiling shows recurring materialized dependency/backfill management across many models, multiple environments, or datasets too large to recompute acceptably. Compare SQLMesh/dbt then using measured operational needs.
 
-## D5 — Keep replaceable source state; retain publications and knowledge: made
+## D5 — Keep replaceable source state; retain publications and knowledge: adopted (ADR 0012)
 
 **Problem:** parser fixes must not destroy evidence or invalidate historical outputs.
 
@@ -80,7 +80,7 @@ LinkML can generate multiple schema/code representations and semantic exports. T
 
 **Reconsider when:** a real consumer requires interactive simultaneous parser-version comparisons at scale or exact historical API responses that were never exported.
 
-## D6 — Explicit ownership of contracts, mapping decisions and assessment inputs: made
+## D6 — Explicit ownership of contracts, mapping decisions and assessment inputs: adopted (ADR 0012)
 
 **Problem:** assign one authority to authored meaning and expensive review history.
 
@@ -96,7 +96,7 @@ LinkML can generate multiple schema/code representations and semantic exports. T
 
 **Reconsider when:** multiple concurrent curators need an interactive contract authoring service. At that point move authoring authority explicitly, with an auditable cutover; never enable both editors.
 
-## D7 — Preserve dimensions; defer canonical dimensional rewriting: made
+## D7 — Preserve dimensions; defer canonical dimensional rewriting: adopted (ADR 0012)
 
 **Problem:** concept representation can encode economic detail either in a concept or a dimension.
 
@@ -112,7 +112,7 @@ FASB's Meta Model includes relationships addressing concept-dimensional equivale
 
 **Reconsider when:** a benchmarked query fails specifically because a proven aspect substitution is missing. Implement that substitution with residual-aspect and conflict tests before generalizing.
 
-## D8 — Explicit publication policies and multiple knowledge clocks: made
+## D8 — Explicit publication policies and multiple knowledge clocks: adopted (ADR 0012)
 
 **Problem:** as-filed, latest comparative, restated, and historically knowable values differ.
 
@@ -126,7 +126,7 @@ FASB's Meta Model includes relationships addressing concept-dimensional equivale
 
 **Reconsider when:** a user needs systematic assertion-level restatement classifications or financial-statement set coherence across versions. Add evidence-backed basis/statement-set models; do not infer them from accession order.
 
-## D9 — One pinned exact-review profile: made
+## D9 — One pinned exact-review profile: adopted (ADR 0012)
 
 **Problem:** consistent minimum evidence assessment across curators without another review system.
 

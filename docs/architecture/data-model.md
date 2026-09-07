@@ -1,6 +1,6 @@
 # Target entities, identity, and ownership
 
-**Status:** recommended logical model. Names below identify implementation destinations, not a requirement to create every optional table immediately. The mandatory path is M1A/M2/M3/M4. M1B rows below specify the grain to use if their evidence gate is activated; they are not blanket prerequisites. M5 additions have separate gates. Existing and new rows never redefine raw evidence.
+**Status:** adopted logical model ([ADR 0012](../adr/0012-adopt-bounded-financial-architecture.md)). Names below identify implementation destinations, not a requirement to create every optional table immediately. The mandatory path is M1A/M2/M3/M4. M1B rows below specify the grain to use if their evidence gate is activated; they are not blanket prerequisites. M5 additions have separate gates. Existing and new rows never redefine raw evidence.
 
 ## Identity vocabulary
 

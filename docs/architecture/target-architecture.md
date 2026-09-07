@@ -1,6 +1,6 @@
 # Target architecture
 
-**Status:** recommended target, not implemented. [Migration](migration-plan.md) defines staged delivery. Persistent grains are specified in [data model](data-model.md); [decisions](decisions.md) compares alternatives.
+**Status:** adopted target, not yet fully implemented ([ADR 0012](../adr/0012-adopt-bounded-financial-architecture.md)). [Migration](migration-plan.md) defines staged delivery. Persistent grains are specified in [data model](data-model.md); [decisions](decisions.md) compares alternatives.
 
 ## Derivation from the product
 
