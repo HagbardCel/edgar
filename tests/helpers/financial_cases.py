@@ -1,7 +1,12 @@
 """M0 financial-benchmark fixture helpers (no production selector).
 
 Validates ``fixtures/analysis/financial-benchmark.yml`` statically and derives
-the finite M1A requirements table from case-local evidence capabilities.
+benchmark-triggered M1A evidence needs from case-local evidence capabilities.
+
+``derive_m1a_requirements()`` answers which parts/readers of the authoritative
+M1A scope in ``docs/architecture/migration-plan.md`` are concretely exercised or
+blocked by these cases. It is not an M1A implementation plan and is not
+authoritative over that document.
 
 Metric-v2 hashing is implemented here for fixture validation only. Production
 ``edgar.registry.hashing`` remains metric-v1 until M2.
@@ -12,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import tomllib
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -24,16 +30,28 @@ REVIEW_PROFILE_PATH = _REPO_ROOT / "registry" / "review-profile.yml"
 METRICS_YML_PATH = _REPO_ROOT / "registry" / "metrics.yml"
 CORPUS_TOML_PATH = _REPO_ROOT / "fixtures" / "corpus.toml"
 
-CORPUS_ACCESSIONS: frozenset[str] = frozenset(
-    {
-        "0001065088-23-000006",
-        "0001065088-24-000036",
-        "0001065088-24-000094",
-        "0000104169-24-000056",
-        "0000019617-24-000453",
-        "0000021344-24-000044",
-    }
-)
+REPORT_KEY_RE = re.compile(r"^[0-9a-f]{64}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+CIK_RE = re.compile(r"^\d{10}$")
+ACCESSION_RE = re.compile(r"^\d{10}-\d{2}-\d{6}$")
+QNAME_RE = re.compile(r"^\{[^}]+\}[^/\s]+$")
+
+
+def load_corpus_accessions(path: Path = CORPUS_TOML_PATH) -> frozenset[str]:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    filings = data.get("filings")
+    if not isinstance(filings, list):
+        raise ValueError(f"corpus.toml missing filings list: {path}")
+    accessions: set[str] = set()
+    for row in filings:
+        if isinstance(row, Mapping) and isinstance(row.get("accession"), str):
+            accessions.add(row["accession"])
+    if len(accessions) != 6:
+        raise ValueError(f"expected 6 corpus accessions, got {len(accessions)}")
+    return frozenset(accessions)
+
+
+CORPUS_ACCESSIONS: frozenset[str] = load_corpus_accessions()
 
 CORE_VALUE_SLOTS: frozenset[tuple[str, str]] = frozenset(
     {
@@ -64,8 +82,11 @@ RELATION_VALUES: frozenset[str] = frozenset({"exact", "narrower", "broader", "re
 EXPECTED_STATES: frozenset[str] = frozenset(
     {"value", "missing", "conflict", "unsupported", "review_required"}
 )
-CIK_RE = re.compile(r"^\d{10}$")
-ACCESSION_RE = re.compile(r"^\d{10}-\d{2}-\d{6}$")
+EXTENSION_NAMESPACE_TOKENS: tuple[str, ...] = (
+    "ebay.com",
+    "walmart.com",
+    "thecocacolacompany",
+)
 
 DEFINITION_HASH_FIELDS: tuple[str, ...] = (
     "key",
@@ -79,6 +100,15 @@ DEFINITION_HASH_FIELDS: tuple[str, ...] = (
     "excludes",
     "accounting_basis",
     "sign_convention",
+)
+
+MISSING_ASSESSMENT_FIELDS: tuple[str, ...] = (
+    "inspected_scope",
+    "method",
+    "evidence_pins",
+    "limits",
+    "conclusion",
+    "reviewer",
 )
 
 
@@ -150,7 +180,14 @@ def load_metrics_keys(path: Path = METRICS_YML_PATH) -> set[str]:
 
 
 def derive_m1a_requirements(cases: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Aggregate case-local evidence_capabilities into a finite M1A table."""
+    """Aggregate case-local evidence_capabilities into benchmark-triggered M1A needs.
+
+    Returns the finite set of M1A evidence needs exercised or blocked by these
+    cases within the authoritative M1A scope (extraction receipts; supported
+    network identity; integrity/completeness; bounded inspector). This is a
+    case-driven delta, not an M1A implementation plan and not authoritative over
+    ``docs/architecture/migration-plan.md``.
+    """
     by_req: dict[str, dict[str, Any]] = {}
     for case in cases:
         case_id = case.get("case_id")
@@ -196,20 +233,130 @@ def _require_mapping(value: Any, *, label: str) -> dict[str, Any]:
     return value
 
 
+def _is_issuer_extension_qname(qname: str) -> bool:
+    lowered = qname.lower()
+    if "us-gaap" in lowered or "fasb.org" in lowered or "dei:" in lowered:
+        return False
+    return any(tok in lowered for tok in EXTENSION_NAMESPACE_TOKENS)
+
+
+def _contract_ref_equal(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    return (
+        left.get("metric_key") == right.get("metric_key")
+        and left.get("definition_hash_scheme") == right.get("definition_hash_scheme")
+        and left.get("definition_hash") == right.get("definition_hash")
+    )
+
+
+def _bundle_ref_equal(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    keys = ("opaque_id", "payload_hash", "relative_bundle_dir")
+    return all(left.get(k) == right.get(k) for k in keys)
+
+
+def _validate_locator_struct(locator: Any, *, label: str, errors: list[str]) -> None:
+    if not isinstance(locator, Mapping):
+        errors.append(f"{label}: locator must be a mapping")
+        return
+    scheme = locator.get("scheme")
+    value = locator.get("value")
+    if scheme not in {"unqualified_id", "xpath", "byte_range"}:
+        errors.append(f"{label}: locator.scheme invalid ({scheme!r})")
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"{label}: locator.value must be a nonempty string")
+
+
+def _validate_occurrence_struct(occ: Any, *, label: str, errors: list[str]) -> None:
+    if not isinstance(occ, Mapping):
+        errors.append(f"{label} must be a mapping")
+        return
+    if "id" in occ or "fact_id" in occ or "source_fact_id" in occ:
+        errors.append(f"{label}: must not use source.fact.id fields")
+    sha = occ.get("artifact_sha256")
+    if not isinstance(sha, str) or not SHA256_RE.match(sha):
+        errors.append(f"{label}: artifact_sha256 must be 64 lowercase hex")
+    path = occ.get("artifact_path")
+    if not isinstance(path, str) or not path or path.startswith("/"):
+        errors.append(f"{label}: artifact_path must be nonempty and bundle-relative")
+    locator = occ.get("locator")
+    if locator is None:
+        errors.append(f"{label}: locator must be non-null")
+    else:
+        _validate_locator_struct(locator, label=f"{label}.locator", errors=errors)
+    qname = occ.get("concept_qname")
+    if qname is not None and (not isinstance(qname, str) or not QNAME_RE.match(qname)):
+        errors.append(f"{label}: concept_qname must be a Clark QName when present")
+
+
+def _validate_evidence_pin_struct(pin: Any, *, label: str, errors: list[str]) -> None:
+    if not isinstance(pin, Mapping):
+        errors.append(f"{label} must be a mapping")
+        return
+    sha = pin.get("artifact_sha256")
+    if not isinstance(sha, str) or not SHA256_RE.match(sha):
+        errors.append(f"{label}: artifact_sha256 must be 64 lowercase hex")
+    locator = pin.get("locator")
+    if locator is None:
+        errors.append(f"{label}: locator must be non-null")
+    else:
+        _validate_locator_struct(locator, label=f"{label}.locator", errors=errors)
+
+
+def _validate_exact_review_assessment(
+    case_id: str,
+    assessment: Any,
+    *,
+    profile_groups: set[Any],
+    per_check_fields: Sequence[str],
+    errors: list[str],
+) -> None:
+    if not isinstance(assessment, Mapping):
+        errors.append(f"{case_id}: exact cases require review_assessment")
+        return
+    for gid in profile_groups:
+        group = assessment.get(gid)
+        if not isinstance(group, Mapping):
+            errors.append(f"{case_id}: review_assessment missing group {gid!r}")
+            continue
+        for field in per_check_fields:
+            if field not in group:
+                errors.append(
+                    f"{case_id}: review_assessment.{gid} missing required field {field!r}"
+                )
+        pins = group.get("evidence_pins")
+        if pins is None:
+            continue
+        if not isinstance(pins, list):
+            errors.append(f"{case_id}: review_assessment.{gid}.evidence_pins must be a list")
+            continue
+        for j, pin in enumerate(pins):
+            _validate_evidence_pin_struct(
+                pin, label=f"{case_id}.review_assessment.{gid}.evidence_pins[{j}]", errors=errors
+            )
+
+
 def validate_benchmark_static(
     benchmark: Mapping[str, Any],
     *,
     metrics_keys: set[str] | None = None,
     review_profile: Mapping[str, Any] | None = None,
+    corpus_accessions: frozenset[str] | None = None,
 ) -> list[str]:
-    """Return a list of validation error strings (empty if ok)."""
+    """Return a list of validation error strings (empty if ok).
+
+    Static fixture validity is not runtime evidence resolution and is not
+    M2 exact-acceptance certification.
+    """
     errors: list[str] = []
     metrics_keys = metrics_keys if metrics_keys is not None else load_metrics_keys()
     review_profile = review_profile if review_profile is not None else load_review_profile()
+    corpus_accessions = corpus_accessions if corpus_accessions is not None else CORPUS_ACCESSIONS
     profile_id = review_profile.get("profile_id")
     profile_groups = {
         g.get("id") for g in (review_profile.get("check_groups") or []) if isinstance(g, Mapping)
     }
+    per_check_fields = [
+        f for f in (review_profile.get("per_check_fields") or []) if isinstance(f, str)
+    ]
 
     if benchmark.get("benchmark_version") != 1:
         errors.append("benchmark_version must be 1")
@@ -274,7 +421,7 @@ def validate_benchmark_static(
     case_ids: set[str] = set()
     accessions_seen: set[str] = set()
     core_hits: set[tuple[str, str]] = set()
-    has_extension_exact = False
+    has_reviewed_extension = False
     has_negative_nonexact = False
     has_amendment = False
     has_jpm = False
@@ -296,8 +443,10 @@ def validate_benchmark_static(
             errors.append(f"{case_id}: contract_ref.metric_key {metric_key!r} not in contracts")
         else:
             frozen = contract_by_key[metric_key]["contract_ref"]
-            if cref.get("definition_hash") != frozen.get("definition_hash"):
-                errors.append(f"{case_id}: contract_ref digest does not match frozen contract")
+            if not _contract_ref_equal(cref, frozen):
+                errors.append(
+                    f"{case_id}: contract_ref (key/scheme/digest) does not match frozen contract"
+                )
 
         if case.get("review_profile") != profile_id:
             errors.append(f"{case_id}: review_profile must be {profile_id!r}")
@@ -313,12 +462,14 @@ def validate_benchmark_static(
             errors.append(f"{case_id}: invalid report.accession")
         else:
             accessions_seen.add(accession)
-            if accession not in CORPUS_ACCESSIONS:
+            if accession not in corpus_accessions:
                 errors.append(f"{case_id}: accession not in corpus.toml six-filing set")
-        if not report.get("bundle_ref"):
+        bundle_ref = report.get("bundle_ref")
+        if not isinstance(bundle_ref, Mapping):
             errors.append(f"{case_id}: report.bundle_ref is required")
-        if not report.get("report_key"):
-            errors.append(f"{case_id}: report.report_key is required")
+        report_key = report.get("report_key")
+        if not isinstance(report_key, str) or not REPORT_KEY_RE.match(report_key):
+            errors.append(f"{case_id}: report.report_key must be 64 lowercase hex")
 
         if accession == "0001065088-24-000094":
             has_amendment = True
@@ -360,31 +511,64 @@ def validate_benchmark_static(
                 f"{case_id}: relation must be null or one of exact|narrower|broader|related "
                 f"(got {relation!r})"
             )
-        if relation == "exact":
+
+        src = semantic.get("source_concept")
+        if relation is not None:
+            if not isinstance(src, str) or not QNAME_RE.match(src):
+                errors.append(
+                    f"{case_id}: source_concept Clark QName required when relation is not null"
+                )
             if not semantic.get("source_meaning") or not semantic.get("contract_fit"):
-                errors.append(f"{case_id}: exact cases require source_meaning and contract_fit")
-            assessment = case.get("review_assessment")
-            if not isinstance(assessment, Mapping):
-                errors.append(f"{case_id}: exact cases require review_assessment")
-            else:
-                for gid in profile_groups:
-                    if gid not in assessment:
-                        errors.append(f"{case_id}: review_assessment missing group {gid!r}")
-            src = semantic.get("source_concept")
-            if case.get("benchmark_role") == "issuer_extension_exact":
-                has_extension_exact = True
-            elif isinstance(src, str) and "us-gaap" not in src and "fasb" not in src:
-                lowered = src.lower()
-                if any(tok in lowered for tok in ("ebay.com", "walmart.com", "thecocacolacompany")):
-                    has_extension_exact = True
+                errors.append(
+                    f"{case_id}: non-null relation requires source_meaning and contract_fit"
+                )
+
+        if relation == "exact":
+            _validate_exact_review_assessment(
+                case_id,
+                case.get("review_assessment"),
+                profile_groups=profile_groups,
+                per_check_fields=per_check_fields,
+                errors=errors,
+            )
 
         if relation in {"broader", "related", "narrower"}:
             has_negative_nonexact = True
+
+        if (
+            isinstance(src, str)
+            and _is_issuer_extension_qname(src)
+            and relation in RELATION_VALUES
+            and semantic.get("source_meaning")
+            and semantic.get("contract_fit")
+        ):
+            portable_pins = list(case.get("source_occurrences") or [])
+            qual = case.get("qualification") or {}
+            if isinstance(qual, Mapping):
+                portable_pins.extend(qual.get("occurrence_pins") or [])
+            assessment = case.get("review_assessment") or {}
+            if isinstance(assessment, Mapping):
+                for group in assessment.values():
+                    if isinstance(group, Mapping):
+                        portable_pins.extend(group.get("evidence_pins") or [])
+            if any(isinstance(p, Mapping) for p in portable_pins):
+                has_reviewed_extension = True
+            else:
+                errors.append(
+                    f"{case_id}: reviewed issuer-extension case requires ≥1 portable evidence pin"
+                )
 
         expected = _require_mapping(case.get("expected"), label=f"{case_id}.expected")
         state = expected.get("state")
         if state not in EXPECTED_STATES:
             errors.append(f"{case_id}: invalid expected.state {state!r}")
+
+        occs = case.get("source_occurrences") or []
+        if isinstance(occs, list):
+            for j, occ in enumerate(occs):
+                _validate_occurrence_struct(
+                    occ, label=f"{case_id}.source_occurrences[{j}]", errors=errors
+                )
 
         if state == "value":
             if relation != "exact":
@@ -395,21 +579,8 @@ def validate_benchmark_static(
                 errors.append(f"{case_id}: value state requires expected.value")
             if not case.get("rendered_evidence"):
                 errors.append(f"{case_id}: value state requires rendered_evidence")
-            occs = case.get("source_occurrences") or []
             if not isinstance(occs, list) or len(occs) < 1:
                 errors.append(f"{case_id}: value state requires ≥1 source_occurrence")
-            else:
-                for j, occ in enumerate(occs):
-                    if not isinstance(occ, Mapping):
-                        errors.append(f"{case_id}: source_occurrences[{j}] must be mapping")
-                        continue
-                    if "id" in occ or "fact_id" in occ or "source_fact_id" in occ:
-                        errors.append(f"{case_id}: source_occurrences must not use source.fact.id")
-                    path = occ.get("artifact_path")
-                    if isinstance(path, str) and path.startswith("/"):
-                        errors.append(
-                            f"{case_id}: artifact_path must be bundle-relative, not absolute"
-                        )
             if (
                 isinstance(metric_key, str)
                 and isinstance(accession, str)
@@ -424,26 +595,100 @@ def validate_benchmark_static(
         elif state == "missing":
             if not expected.get("reason"):
                 errors.append(f"{case_id}: missing state requires reason")
+            assessment = expected.get("assessment")
+            if not isinstance(assessment, Mapping):
+                errors.append(
+                    f"{case_id}: missing state requires expected.assessment "
+                    "(benchmark-local negative-search record)"
+                )
+            else:
+                for field in MISSING_ASSESSMENT_FIELDS:
+                    if field not in assessment:
+                        errors.append(f"{case_id}: expected.assessment missing field {field!r}")
+                pins = assessment.get("evidence_pins")
+                if not isinstance(pins, list) or not pins:
+                    errors.append(
+                        f"{case_id}: expected.assessment.evidence_pins must be a nonempty list"
+                    )
+                else:
+                    for j, pin in enumerate(pins):
+                        _validate_evidence_pin_struct(
+                            pin,
+                            label=f"{case_id}.expected.assessment.evidence_pins[{j}]",
+                            errors=errors,
+                        )
         elif state == "unsupported":
             if not expected.get("reason"):
                 errors.append(f"{case_id}: unsupported state requires reason")
-            caps = case.get("evidence_capabilities") or []
-            if not any(
-                isinstance(c, Mapping) and c.get("capability_state") == "unsupported" for c in caps
-            ):
-                # allow semantic unsupported without capability gap
-                pass
         elif state == "review_required":
             if not expected.get("reason"):
                 errors.append(f"{case_id}: review_required state requires reason")
 
+        for cap in case.get("evidence_capabilities") or []:
+            if not isinstance(cap, Mapping):
+                continue
+            if (
+                cap.get("capability") == "dimension_selection_policy"
+                and cap.get("required_phase") == "M1A"
+            ):
+                errors.append(
+                    f"{case_id}: dimension_selection_policy must not be an M1A capability"
+                )
+
         qual = case.get("qualification")
+        if state == "value":
+            if not isinstance(qual, Mapping):
+                errors.append(f"{case_id}: expected.state=value requires qualification")
+            else:
+                for conclusion_name in (
+                    "accounting_basis",
+                    "entity_basis",
+                    "sign_interpretation",
+                ):
+                    conclusion = qual.get(conclusion_name)
+                    if not isinstance(conclusion, Mapping):
+                        errors.append(f"{case_id}: value requires qualification.{conclusion_name}")
+                        continue
+                    if conclusion.get("state") != "confirmed":
+                        errors.append(
+                            f"{case_id}: value requires {conclusion_name}.state=confirmed "
+                            f"(got {conclusion.get('state')!r})"
+                        )
+                    if not conclusion.get("evidence_pins"):
+                        errors.append(
+                            f"{case_id}: confirmed {conclusion_name} requires evidence_pins"
+                        )
+
         if isinstance(qual, Mapping):
             if qual.get("extraction_receipt") is not None:
                 errors.append(f"{case_id}: M0 qualification.extraction_receipt must be null")
+            q_cref = qual.get("contract_ref")
+            if isinstance(q_cref, Mapping) and not _contract_ref_equal(q_cref, cref):
+                errors.append(f"{case_id}: qualification.contract_ref != case.contract_ref")
+            q_report = qual.get("report_ref")
+            if isinstance(q_report, Mapping) and (
+                q_report.get("accession") != accession or q_report.get("report_key") != report_key
+            ):
+                errors.append(
+                    f"{case_id}: qualification.report_ref must equal enclosing case report"
+                )
+            q_bundle = qual.get("bundle_ref")
+            if (
+                isinstance(q_bundle, Mapping)
+                and isinstance(bundle_ref, Mapping)
+                and not _bundle_ref_equal(q_bundle, bundle_ref)
+            ):
+                errors.append(
+                    f"{case_id}: qualification.bundle_ref must equal enclosing case bundle_ref"
+                )
             pins = qual.get("occurrence_pins")
             if not isinstance(pins, list):
                 errors.append(f"{case_id}: qualification.occurrence_pins must be a list")
+            else:
+                for j, occ in enumerate(pins):
+                    _validate_occurrence_struct(
+                        occ, label=f"{case_id}.qualification.occurrence_pins[{j}]", errors=errors
+                    )
             for conclusion_name in ("accounting_basis", "entity_basis", "sign_interpretation"):
                 conclusion = qual.get(conclusion_name)
                 if (
@@ -452,7 +697,13 @@ def validate_benchmark_static(
                     and not conclusion.get("evidence_pins")
                 ):
                     errors.append(f"{case_id}: confirmed {conclusion_name} requires evidence_pins")
-            # extraction_receipt gap pairing
+                if isinstance(conclusion, Mapping):
+                    for j, pin in enumerate(conclusion.get("evidence_pins") or []):
+                        _validate_evidence_pin_struct(
+                            pin,
+                            label=f"{case_id}.qualification.{conclusion_name}.evidence_pins[{j}]",
+                            errors=errors,
+                        )
             caps = case.get("evidence_capabilities") or []
             has_receipt_gap = any(
                 isinstance(c, Mapping)
@@ -465,10 +716,9 @@ def validate_benchmark_static(
                     f"{case_id}: qualification requires extraction_receipt M1A capability gap"
                 )
 
-    extras = accessions_seen - CORPUS_ACCESSIONS
+    extras = accessions_seen - corpus_accessions
     if extras:
         errors.append(f"cases reference non-corpus accessions: {sorted(extras)}")
-    # not all six must appear if review is bounded, but plan requires JPM, KO, amendment covered
     if not has_amendment:
         errors.append("missing eBay amendment case (0001065088-24-000094)")
     if not has_jpm:
@@ -477,6 +727,11 @@ def validate_benchmark_static(
         errors.append("missing Coca-Cola counterexample case")
     if not has_negative_nonexact:
         errors.append("missing reviewed negative/non-exact benchmark case")
+    if not has_reviewed_extension:
+        errors.append(
+            "missing reviewed issuer-extension case "
+            "(extension QName + relation + source_meaning + contract_fit + portable pin)"
+        )
 
     replacements = benchmark.get("core_value_slot_replacements") or []
     effective_core = set(core_hits)
@@ -495,10 +750,9 @@ def validate_benchmark_static(
                 and isinstance(new_key, str)
                 and isinstance(new_acc, str)
             ):
-                effective_core.add((orig_key, orig_acc))  # count as addressed
+                effective_core.add((orig_key, orig_acc))
     missing_core = CORE_VALUE_SLOTS - effective_core
     if missing_core and not replacements:
-        # allow explicit documentation of replacements only
         errors.append(
             "nine core value slots incomplete: "
             + ", ".join(f"{m}@{a}" for m, a in sorted(missing_core))
@@ -511,21 +765,6 @@ def validate_benchmark_static(
                 + ", ".join(f"{m}@{a}" for m, a in sorted(still))
             )
 
-    # extension exact is soft-checked; if none found, error
-    # Look explicitly for tags
-    for raw in cases:
-        if not isinstance(raw, Mapping):
-            continue
-        sem = raw.get("semantic_expectation") or {}
-        if (
-            isinstance(sem, Mapping)
-            and sem.get("relation") == "exact"
-            and raw.get("benchmark_role") == "issuer_extension_exact"
-        ):
-            has_extension_exact = True
-    if not has_extension_exact:
-        errors.append("missing issuer-extension exact benchmark case")
-
     return errors
 
 
@@ -537,6 +776,7 @@ __all__ = [
     "REVIEW_PROFILE_PATH",
     "derive_m1a_requirements",
     "load_benchmark",
+    "load_corpus_accessions",
     "load_metrics_keys",
     "load_review_profile",
     "metric_v2_definition_hash",
