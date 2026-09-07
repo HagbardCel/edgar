@@ -332,6 +332,37 @@ def _validate_evidence_pin_struct(pin: Any, *, label: str, errors: list[str]) ->
         _validate_locator_struct(locator, label=f"{label}.locator", errors=errors)
 
 
+def _validate_present_review_assessment_pins(
+    case_id: str,
+    assessment: Any,
+    *,
+    errors: list[str],
+) -> None:
+    """Structurally validate evidence_pins on any present review_assessment group.
+
+    Does not require the full exact-review profile; exact cases add that separately.
+    """
+    if assessment is None:
+        return
+    if not isinstance(assessment, Mapping):
+        errors.append(f"{case_id}: review_assessment must be a mapping when present")
+        return
+    for gid, group in assessment.items():
+        if not isinstance(group, Mapping):
+            errors.append(f"{case_id}: review_assessment.{gid} must be a mapping")
+            continue
+        pins = group.get("evidence_pins")
+        if pins is None:
+            continue
+        if not isinstance(pins, list):
+            errors.append(f"{case_id}: review_assessment.{gid}.evidence_pins must be a list")
+            continue
+        for j, pin in enumerate(pins):
+            _validate_evidence_pin_struct(
+                pin, label=f"{case_id}.review_assessment.{gid}.evidence_pins[{j}]", errors=errors
+            )
+
+
 def _validate_exact_review_assessment(
     case_id: str,
     assessment: Any,
@@ -544,8 +575,10 @@ def validate_benchmark_static(
             )
 
         src = semantic.get("source_concept")
+        if src is not None and (not isinstance(src, str) or not QNAME_RE.match(src)):
+            errors.append(f"{case_id}: source_concept must be a valid Clark QName when non-null")
         if relation is not None:
-            if not isinstance(src, str) or not QNAME_RE.match(src):
+            if src is None:
                 errors.append(
                     f"{case_id}: source_concept Clark QName required when relation is not null"
                 )
@@ -553,6 +586,10 @@ def validate_benchmark_static(
                 errors.append(
                     f"{case_id}: non-null relation requires source_meaning and contract_fit"
                 )
+
+        _validate_present_review_assessment_pins(
+            case_id, case.get("review_assessment"), errors=errors
+        )
 
         if relation == "exact":
             _validate_exact_review_assessment(

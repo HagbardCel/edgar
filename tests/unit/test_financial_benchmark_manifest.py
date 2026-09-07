@@ -170,7 +170,25 @@ def test_parent_ni_and_walmart_cash_not_false_exact() -> None:
         c for c in benchmark["cases"] if c["case_id"] == "ebay_fy2023_net_income_parent_value"
     )
     assert parent["semantic_expectation"]["relation"] is None
+    assert parent["semantic_expectation"]["source_concept"] == (
+        "{http://fasb.org/us-gaap/2023}NetIncomeLoss"
+    )
     assert parent["expected"]["state"] == "review_required"
+    parent_occ = {
+        (o.get("locator") or {}).get("value") for o in parent.get("source_occurrences") or []
+    }
+    assert "f-165" in parent_occ
+    parent_pins: set[str] = set()
+    for group in (parent.get("review_assessment") or {}).values():
+        if not isinstance(group, dict):
+            continue
+        for pin in group.get("evidence_pins") or []:
+            value = (pin.get("locator") or {}).get("value")
+            if isinstance(value, str):
+                parent_pins.add(value)
+    assert "f-497" in parent_pins
+    assert parent_pins & {"f-1034", "f-1035"}
+
     cash = next(
         c
         for c in benchmark["cases"]
@@ -178,6 +196,18 @@ def test_parent_ni_and_walmart_cash_not_false_exact() -> None:
     )
     assert cash["semantic_expectation"]["relation"] is None
     assert cash["expected"]["state"] == "review_required"
+    assert "reason_code" not in cash["expected"]
+    cash_occ = {(o.get("locator") or {}).get("value") for o in cash.get("source_occurrences") or []}
+    assert cash_occ >= {"f-171", "f-492"}
+    cash_pins: set[str] = set()
+    for group in (cash.get("review_assessment") or {}).values():
+        if not isinstance(group, dict):
+            continue
+        for pin in group.get("evidence_pins") or []:
+            value = (pin.get("locator") or {}).get("value")
+            if isinstance(value, str):
+                cash_pins.add(value)
+    assert "f-489" in cash_pins
 
 
 def test_ko_period_is_fiscal_not_calendar_approx() -> None:
@@ -273,6 +303,95 @@ def test_occurrence_requires_concept_qname() -> None:
         review_profile=load_review_profile(),
     )
     assert any("concept_qname" in e and case["case_id"] in e for e in errors)
+
+
+@pytest.mark.parametrize("pin_list", ["source_occurrences", "qualification.occurrence_pins"])
+def test_occurrence_qname_required_on_both_pin_lists(pin_list: str) -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = _value_case(mutated)
+    if pin_list == "source_occurrences":
+        target = case["source_occurrences"][0]
+    else:
+        target = case["qualification"]["occurrence_pins"][0]
+    del target["concept_qname"]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("concept_qname" in e and case["case_id"] in e for e in errors)
+
+
+def test_unexplained_not_assessed_declaration_requires_capability_gap() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = next(
+        c
+        for c in mutated["cases"]
+        if c.get("semantic_expectation", {}).get("relation") == "exact"
+        and (c.get("review_assessment") or {})
+        .get("declaration_definition", {})
+        .get("capability_state")
+        == "not_assessed"
+        and any(
+            isinstance(cap, dict) and cap.get("capability") == "official_taxonomy_evidence"
+            for cap in c.get("evidence_capabilities") or []
+        )
+    )
+    case["evidence_capabilities"] = [
+        cap
+        for cap in case.get("evidence_capabilities") or []
+        if not (
+            isinstance(cap, dict)
+            and cap.get("capability")
+            in {
+                "official_taxonomy_evidence",
+                "taxonomy_declaration_or_definition_disclosure",
+            }
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any(
+        "declaration_definition" in e and "not_assessed" in e and case["case_id"] in e
+        for e in errors
+    )
+
+
+def test_null_relation_rejects_invalid_source_concept_qname() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = next(
+        c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_net_income_parent_value"
+    )
+    case["semantic_expectation"]["source_concept"] = "bad QName"
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("source_concept" in e and case["case_id"] in e for e in errors)
+
+
+def test_nonexact_review_assessment_rejects_malformed_evidence_pin() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = next(
+        c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_net_income_parent_value"
+    )
+    case["review_assessment"]["contrary_evidence_contract_fit"]["evidence_pins"] = [
+        {"artifact_sha256": "not-a-sha", "locator": {"scheme": "unqualified_id", "value": "f-497"}}
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("evidence_pins" in e and case["case_id"] in e for e in errors)
 
 
 def test_available_declaration_rejects_measurement_only_pin() -> None:
