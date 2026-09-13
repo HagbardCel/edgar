@@ -1,13 +1,18 @@
 # Architecture
 
-**Status:** Phase 2B V2 source cutover (post Phase 2A registry).
+Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+
+**Status:** Phase 2C canonical registry and mapping ledger (on the Phase 2B
+`source.*` baseline).
 
 ## Mission
 
 Preserve immutable SEC filing evidence, extract deterministic document structure
 and XBRL semantics into `source.*`, and enable offline replay. Canonical metric
-observations remain deferred (Phase 2C+). Curated metric definitions and mapping
-rules are Git-authoritative ([ADR 0010](adr/0010-curated-semantic-registry.md)).
+**definitions** live in Git `registry/metrics.yml`; mapping **decisions** live
+in `registry.mapping_assertion`. Canonical metric observations remain deferred
+(Phase 2D+). See [`normalization.md`](normalization.md) and
+[ADR 0010](adr/0010-curated-semantic-registry.md).
 
 Persistence detail: [`docs/data-model.md`](data-model.md). Source extraction
 decision: [ADR 0011](adr/0011-source-extraction.md). Historical Phase-1 projection
@@ -39,7 +44,8 @@ Rules:
 ## Production flow
 
 The **immutable FilingBundle** is the offline boundary; PostgreSQL holds
-**`source.*` only** after extract:
+**`source.*` extraction evidence** and, separately, the **`registry.*`**
+semantic ledger:
 
 ```text
 SEC → Acquisition → Immutable FilingBundle (filesystem)
@@ -47,7 +53,9 @@ SEC → Acquisition → Immutable FilingBundle (filesystem)
                      ├─ document blocks/sections
                      └─ atomic persist_extraction → source.*
                                       ↓
-                    metrics/mappings (Git registry; explain on source.*)
+                    registry (YAML metrics; mapping_assertion ledger)
+                                      ↓
+                         live affected-fact query on source.*
 ```
 
 Rules at the offline boundary:
@@ -61,8 +69,8 @@ Rules at the offline boundary:
   instance or IXDS).
 
 Live CLI path: `edgar filings retrieve` → `catalog` / `extract` →
-`metrics` / `mappings`. Phase-1 `xbrl project` / `documents project` commands
-are removed.
+`registry` / `metrics` / `mappings`. Phase-1 `xbrl project` / `documents project`
+commands are removed.
 
 ## Storage
 
@@ -71,15 +79,16 @@ Laptop-first design ([ADR 0001](adr/0001-postgres-and-filesystem.md),
 
 | Concern | Choice |
 | --- | --- |
-| Structured evidence | Local PostgreSQL schema `source` |
+| Structured evidence | Local PostgreSQL schemas `source` and `registry` |
 | Immutable bytes | Content-addressed filesystem (`objects/sha256/{aa}/{sha256}`) |
 | Payload snapshot | `payload_hash` under the applicable payload-hash contract |
 | Replay contract | Explicit canonical URI → bundle artifact bindings |
-| Metric registry | Git `semantic-registry/` |
+| Canonical metrics | Git `registry/metrics.yml` (mirrored to `registry.canonical_metric`) |
+| Mapping decisions | PostgreSQL `registry.mapping_assertion` |
 
 Phase-1 public-schema catalog/projection tables are **not** created by
 `alembic upgrade head`. Existing Phase-1 databases must be recreated
-(baseline revision `0001_source_v2`).
+(baseline revision `0001_source_v2`, then `0002_registry`).
 
 ## Acquisition outline
 
@@ -95,7 +104,8 @@ CIK + accession
 
 ## Related docs
 
-- [`data-model.md`](data-model.md) — `source.*` grains
+- [`data-model.md`](data-model.md) — `source.*` and `registry.*` grains
+- [`normalization.md`](normalization.md) — canonical metrics and mapping ledger
 - [`data-quality.md`](data-quality.md) — quality / fail-closed posture
 - [`development.md`](development.md) — local DB, migrations, tests
 - [`fixture-policy.md`](fixture-policy.md)

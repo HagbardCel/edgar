@@ -1,14 +1,14 @@
 # Data model (V2 `source.*`)
 
-**Status:** Authoritative conceptual persistence model after Phase 2B source
-cutover.
+Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
 
-Physical DDL is frozen in Alembic revision `0001_source_v2` as self-contained
-`op.create_table` / index / constraint ops (no import of application metadata).
-`src/edgar/db/source_schema.py` is the live SQLAlchemy Core metadata used by
-persistence; later edits there require a new revision and must not change the
-historical meaning of `0001`. Fresh `alembic upgrade head` creates **only**
-`source.*` — no Phase-1 public-schema projection/catalog tables.
+**Status:** Authoritative conceptual persistence model after Phase 2C.
+
+Physical DDL is frozen in Alembic revisions `0001_source_v2` (`source.*`) and
+`0002_registry` (`registry.*`) as self-contained `op.create_table` / index /
+constraint ops (no import of application metadata). Fresh `alembic upgrade head`
+creates **`source.*` and `registry.*`** — no Phase-1 public-schema
+projection/catalog tables.
 
 Related:
 
@@ -18,10 +18,11 @@ Related:
 - Offline replay / URI bindings: [ADR 0007](adr/0007-manifest-only-replay-uri-bindings.md)
 - Immutable raw layer: [ADR 0002](adr/0002-immutable-raw-layer.md)
 - Curated registry: [ADR 0010](adr/0010-curated-semantic-registry.md)
+- Normalization: [`normalization.md`](normalization.md)
 
 Filesystem FilingBundles remain the offline bytes + replay contract. PostgreSQL
 holds durable catalog identity and regenerable extraction evidence under
-`source`.
+`source`, plus the canonical-metric mirror and mapping ledger under `registry`.
 
 ---
 
@@ -118,11 +119,35 @@ document-scoped under `source`, not a separate projection identity table.
 
 ---
 
-## 5. Mapping evidence (not stored mappings)
+## 5. Registry (canonical metrics and mapping ledger)
 
-Explain resolves Git mapping pins (`accession` + expanded QName) against
-`source.concept_declaration` via every matching `source.xbrl_report` for that
-filing. No PostgreSQL registry tables in Phase 2A/2B.
+Ownership: YAML is definition authority; PostgreSQL stores the mirror and the
+append-only mapping history. See [`normalization.md`](normalization.md).
+
+```text
+registry.canonical_metric
+  key                  # PK; Git metric identity
+  name, kind, statement, period_type, value_kind, unit_dimension
+  definition, includes, excludes, definition_hash, synced_at
+  grain: one row per canonical metric key
+  regenerable: yes (edgar registry sync)
+  ownership: YAML mirror only; never stores mapping decisions
+
+registry.mapping_assertion
+  id                   # bigint identity; revision identity
+  supersedes_id        # unique; NULL for roots
+  source_concept_id    # UUID FK → source.concept.id ON DELETE RESTRICT
+  target_metric_key    # FK → canonical_metric.key ON DELETE RESTRICT
+  target_definition_hash
+  relation, scope_kind, issuer_cik, valid_from, valid_to
+  status, method, rationale, evidence, created_at, created_by
+  grain: one immutable revision
+  regenerable: no
+  ownership: RegistryService INSERT+SELECT only
+```
+
+Issuer FK is `issuer_cik → source.issuer.cik`. Claim identity (concept, metric,
+hash, relation, scope, interval) is copied onto every successor.
 
 ---
 

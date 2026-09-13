@@ -1,7 +1,7 @@
 """PostgreSQL package: engines, source catalog/extraction, schema metadata."""
 
 from edgar.db.engine import create_db_engine
-from edgar.db.schema import ALL_TABLES, SOURCE_TABLES, metadata
+from edgar.db.schema import ALL_TABLES, REGISTRY_TABLES, SOURCE_TABLES, metadata
 from edgar.db.source import (
     PersistExtractionResult,
     SourceCatalogConflict,
@@ -13,6 +13,7 @@ from edgar.db.source import (
 
 __all__ = [
     "ALL_TABLES",
+    "REGISTRY_TABLES",
     "PersistExtractionResult",
     "SOURCE_TABLES",
     "SourceCatalogConflict",

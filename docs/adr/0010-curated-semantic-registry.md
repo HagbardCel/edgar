@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted (lean Phase 2A); amended 2026-08-16 for V2 `source.*` evidence provenance
+Accepted (lean Phase 2A); amended 2026-08-16 for V2 `source.*` evidence provenance;
+amended 2026-08-17 for Phase 2C mapping-ledger supersession
 
 ## Context
 
@@ -29,3 +30,25 @@ This ADR refines the storage-authority detail in [ADR 0006](0006-regenerable-par
 - Registry changes are reviewed as JSON diffs with deterministic `registry_hash`.
 - Evidence portability is verified by resolving accession + QName against `source.*` for any local catalog/extract of that filing (multi-report filings return every matching report).
 - Applicability, candidate selection, and overlapping-rule precedence remain deferred past the source cutover.
+
+## Amendment (Phase 2C, 2026-08-17)
+
+Phase 2A Git mapping-rules were **live mapping authority**. Phase 2C **supersedes**
+that live path; it does not rewrite the original 2A decision as if PostgreSQL
+had always owned mappings.
+
+1. **Metric-definition authority remains Git**, now via `registry/metrics.yml`
+   rather than `semantic-registry/metric-definitions.json`. PostgreSQL
+   `registry.canonical_metric` is a synchronized mirror, not an independent
+   definition store. `propose`/`accept` fail unless YAML and the mirror match
+   on all mirrored fields.
+
+2. **Mapping-decision authority is `registry.mapping_assertion`.** Append-only
+   revisions replace Git `mapping-rules.json` as the live mapping store.
+   `semantic-registry/` is retained only as a historical archive.
+
+3. **CLI:** `edgar metrics list|show` reads YAML. `edgar mappings …` reads and
+   writes the ledger. `mappings explain` is removed.
+
+4. Observation selection, `metric_observation`, and 2D publication remain out
+   of scope. See [`docs/normalization.md`](../normalization.md).

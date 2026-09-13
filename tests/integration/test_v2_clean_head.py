@@ -1,4 +1,4 @@
-"""Clean-DB gate: fresh alembic upgrade head creates only source.* tables."""
+"""Clean-DB gate: fresh alembic upgrade head creates source.* and registry.*."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import Engine, create_engine, select, text
 
+from edgar.db import registry_schema as reg
 from edgar.db import source_schema as src
 from edgar.db.source import catalog_source_filing
 from edgar.domain.bundle import (
@@ -72,6 +73,22 @@ def test_v2_clean_head_source_schema_only(engine: Engine) -> None:
         expected = {table.name for table in src.SOURCE_TABLES}
         assert source_tables == expected
 
+        registry_exists = conn.execute(
+            text("SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = 'registry')")
+        ).scalar_one()
+        assert registry_exists is True
+
+        registry_tables = {
+            row[0]
+            for row in conn.execute(
+                text(
+                    "SELECT tablename FROM pg_tables WHERE schemaname = 'registry' "
+                    "ORDER BY tablename"
+                )
+            )
+        }
+        assert registry_tables == {table.name for table in reg.REGISTRY_TABLES}
+
         for name in _ABSENT_PUBLIC_TABLES:
             present = conn.execute(
                 text("SELECT to_regclass(:q)"),
@@ -80,7 +97,7 @@ def test_v2_clean_head_source_schema_only(engine: Engine) -> None:
             assert present is None, f"legacy table still present: public.{name}"
 
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert revision == "0001_source_v2"
+        assert revision == "0002_registry"
 
 
 def test_v2_clean_head_catalog_smoke(engine: Engine, tmp_path: Path) -> None:

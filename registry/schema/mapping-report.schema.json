@@ -1,0 +1,729 @@
+{
+  "$defs": {
+    "AffectedFactSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "accession_count": {
+          "title": "Accession Count",
+          "type": "integer"
+        },
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "issuer_count": {
+          "title": "Issuer Count",
+          "type": "integer"
+        },
+        "shown": {
+          "title": "Shown",
+          "type": "integer"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "count",
+        "shown",
+        "truncated",
+        "accession_count",
+        "issuer_count"
+      ],
+      "title": "AffectedFactSummary",
+      "type": "object"
+    },
+    "DimensionMemberView": {
+      "additionalProperties": false,
+      "properties": {
+        "context_element": {
+          "title": "Context Element",
+          "type": "string"
+        },
+        "dimension": {
+          "title": "Dimension",
+          "type": "string"
+        },
+        "member": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Member"
+        },
+        "member_kind": {
+          "title": "Member Kind",
+          "type": "string"
+        },
+        "typed_member": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Typed Member"
+        }
+      },
+      "required": [
+        "dimension",
+        "member_kind",
+        "context_element"
+      ],
+      "title": "DimensionMemberView",
+      "type": "object"
+    },
+    "MappingAssertionView": {
+      "additionalProperties": false,
+      "description": "One immutable mapping assertion revision.",
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "created_by": {
+          "title": "Created By",
+          "type": "string"
+        },
+        "evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MappingEvidenceItem"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "is_current": {
+          "title": "Is Current",
+          "type": "boolean"
+        },
+        "method": {
+          "enum": [
+            "curated",
+            "deterministic_rule",
+            "lexical_candidate",
+            "structural_candidate",
+            "model_candidate",
+            "human_review"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "relation": {
+          "enum": [
+            "exact",
+            "narrower",
+            "broader",
+            "related"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/MappingScopeView"
+        },
+        "source_concept": {
+          "title": "Source Concept",
+          "type": "string"
+        },
+        "source_concept_id": {
+          "format": "uuid",
+          "title": "Source Concept Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "accepted",
+            "rejected"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "supersedes_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Supersedes Id"
+        },
+        "target_definition_hash": {
+          "title": "Target Definition Hash",
+          "type": "string"
+        },
+        "target_metric_key": {
+          "title": "Target Metric Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "is_current",
+        "source_concept_id",
+        "source_concept",
+        "target_metric_key",
+        "target_definition_hash",
+        "relation",
+        "scope",
+        "status",
+        "method",
+        "created_at",
+        "created_by"
+      ],
+      "title": "MappingAssertionView",
+      "type": "object"
+    },
+    "MappingEvidenceItem": {
+      "additionalProperties": false,
+      "description": "Structured evidence snapshot. Must not persist unstable source fact ids.",
+      "properties": {
+        "accessions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Accessions",
+          "type": "array"
+        },
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "kind": {
+          "enum": [
+            "taxonomy_identity",
+            "label",
+            "documentation",
+            "data_type",
+            "period_type",
+            "balance",
+            "presentation_path",
+            "calculation_relationship",
+            "definition_relationship",
+            "unit_usage",
+            "dimension_usage",
+            "historical_consistency",
+            "value_reconciliation",
+            "human_analysis",
+            "model_analysis"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        }
+      },
+      "required": [
+        "kind",
+        "data"
+      ],
+      "title": "MappingEvidenceItem",
+      "type": "object"
+    },
+    "MappingFactView": {
+      "additionalProperties": false,
+      "description": "Live source fact occurrence. ``fact_id`` is current-extraction identity only.",
+      "properties": {
+        "accession": {
+          "title": "Accession",
+          "type": "string"
+        },
+        "dimensions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DimensionMemberView"
+          },
+          "title": "Dimensions",
+          "type": "array"
+        },
+        "fact_id": {
+          "title": "Fact Id",
+          "type": "integer"
+        },
+        "is_nil": {
+          "title": "Is Nil",
+          "type": "boolean"
+        },
+        "issuer_cik": {
+          "title": "Issuer Cik",
+          "type": "string"
+        },
+        "period_end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period End"
+        },
+        "period_instant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period Instant"
+        },
+        "period_kind": {
+          "title": "Period Kind",
+          "type": "string"
+        },
+        "period_start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period Start"
+        },
+        "raw_lexical_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Lexical Value"
+        },
+        "report_period_end": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Report Period End"
+        },
+        "resolved_numeric": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Numeric"
+        },
+        "resolved_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Text"
+        },
+        "resolved_value_kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Value Kind"
+        },
+        "source_document": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Document"
+        },
+        "source_locator": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Locator"
+        },
+        "unit_measures": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/UnitMeasureView"
+          },
+          "title": "Unit Measures",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fact_id",
+        "accession",
+        "issuer_cik",
+        "period_kind",
+        "is_nil"
+      ],
+      "title": "MappingFactView",
+      "type": "object"
+    },
+    "MappingScopeView": {
+      "additionalProperties": false,
+      "properties": {
+        "issuer_cik": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issuer Cik"
+        },
+        "kind": {
+          "enum": [
+            "global",
+            "issuer"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "MappingScopeView",
+      "type": "object"
+    },
+    "SourceConceptView": {
+      "additionalProperties": false,
+      "properties": {
+        "clark_qname": {
+          "title": "Clark Qname",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "local_name": {
+          "title": "Local Name",
+          "type": "string"
+        },
+        "namespace_uri": {
+          "title": "Namespace Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "namespace_uri",
+        "local_name",
+        "clark_qname"
+      ],
+      "title": "SourceConceptView",
+      "type": "object"
+    },
+    "TargetMetricView": {
+      "additionalProperties": false,
+      "description": "Current YAML metric contract compared against the assertion hash.",
+      "properties": {
+        "definition": {
+          "title": "Definition",
+          "type": "string"
+        },
+        "definition_hash": {
+          "title": "Definition Hash",
+          "type": "string"
+        },
+        "excludes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Excludes",
+          "type": "array"
+        },
+        "includes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Includes",
+          "type": "array"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "kind": {
+          "const": "reported",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "period_type": {
+          "enum": [
+            "instant",
+            "duration"
+          ],
+          "title": "Period Type",
+          "type": "string"
+        },
+        "statement": {
+          "enum": [
+            "income_statement",
+            "balance_sheet",
+            "cash_flow",
+            "per_share",
+            "shares"
+          ],
+          "title": "Statement",
+          "type": "string"
+        },
+        "unit_dimension": {
+          "enum": [
+            "monetary",
+            "shares",
+            "monetary_per_share"
+          ],
+          "title": "Unit Dimension",
+          "type": "string"
+        },
+        "value_kind": {
+          "const": "numeric",
+          "title": "Value Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "kind",
+        "statement",
+        "period_type",
+        "value_kind",
+        "unit_dimension",
+        "definition",
+        "includes",
+        "excludes",
+        "definition_hash"
+      ],
+      "title": "TargetMetricView",
+      "type": "object"
+    },
+    "UnitMeasureView": {
+      "additionalProperties": false,
+      "properties": {
+        "measure": {
+          "title": "Measure",
+          "type": "string"
+        },
+        "ordinal": {
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "side": {
+          "title": "Side",
+          "type": "string"
+        }
+      },
+      "required": [
+        "side",
+        "ordinal",
+        "measure"
+      ],
+      "title": "UnitMeasureView",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Inspection report for a named assertion revision (never auto-resolved).",
+  "properties": {
+    "affected_fact_summary": {
+      "$ref": "#/$defs/AffectedFactSummary"
+    },
+    "affected_facts": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/MappingFactView"
+      },
+      "title": "Affected Facts",
+      "type": "array"
+    },
+    "current_revision_id": {
+      "title": "Current Revision Id",
+      "type": "integer"
+    },
+    "definition_changed": {
+      "title": "Definition Changed",
+      "type": "boolean"
+    },
+    "evidence": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/MappingEvidenceItem"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "history": {
+      "items": {
+        "$ref": "#/$defs/MappingAssertionView"
+      },
+      "title": "History",
+      "type": "array"
+    },
+    "is_current": {
+      "title": "Is Current",
+      "type": "boolean"
+    },
+    "mapping": {
+      "$ref": "#/$defs/MappingAssertionView"
+    },
+    "mirror_out_of_sync": {
+      "title": "Mirror Out Of Sync",
+      "type": "boolean"
+    },
+    "rationale": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rationale"
+    },
+    "scope": {
+      "$ref": "#/$defs/MappingScopeView"
+    },
+    "source_concept": {
+      "$ref": "#/$defs/SourceConceptView"
+    },
+    "target_metric": {
+      "$ref": "#/$defs/TargetMetricView"
+    },
+    "yaml_definition_hash": {
+      "title": "Yaml Definition Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "mapping",
+    "is_current",
+    "current_revision_id",
+    "source_concept",
+    "target_metric",
+    "yaml_definition_hash",
+    "definition_changed",
+    "mirror_out_of_sync",
+    "scope",
+    "history",
+    "affected_fact_summary"
+  ],
+  "title": "MappingReport",
+  "type": "object"
+}

@@ -14,6 +14,7 @@ dependencies = [
     "psycopg[binary]>=3",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    "pyyaml>=6.0.3",
     "sqlalchemy>=2",
     "typer>=0.15.0",
 ]
@@ -23,6 +24,7 @@ edgar = "edgar.cli:app"
 
 [project.optional-dependencies]
 dev = [
+    "hypothesis>=6.0.0",
     "pytest>=8.0.0",
     "ruff>=0.9.0",
     "pyright>=1.1.0",
@@ -54,3 +56,8 @@ markers = [
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
 include = ["src", "scripts"]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.165.10",
+]

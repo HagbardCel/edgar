@@ -26,6 +26,7 @@ check:
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run pyright
+	uv run edgar registry validate
 	uv run pytest -q -m "not database and not network"
 	EDGAR_TEST_DATABASE_URL="$(EDGAR_TEST_DATABASE_URL)" \
 	  uv run pytest -q -m "database and not network"

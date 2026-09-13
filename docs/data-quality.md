@@ -1,5 +1,7 @@
 # Data quality
 
+Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+
 **Status:** Operational posture for V2 source extraction.
 
 ## Principles
@@ -31,6 +33,6 @@ Every persisted `source.*` extraction row traces to:
 
 ## What quality does *not* mean
 
-- Automatic acceptance of canonical metrics (`metric_observation` is Phase 2C+).
+- Automatic acceptance of canonical metrics (observation selection remains Phase 2D+, unimplemented).
 - LLM auto-approval of ambiguous mapping rules.
 - Ambient cache or network fetches during offline extract.
