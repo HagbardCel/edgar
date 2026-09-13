@@ -1,6 +1,11 @@
 # Data model (V2 `source.*`)
 
-Documentation scope: this file describes the implemented baseline. Proposed changes are in the [target package](architecture/README.md); see the [documentation index](README.md) for status and authority.
+Documentation scope: this file describes the **implemented baseline**. Forward
+target grains for later phases are described in
+[architecture/data-model.md](architecture/data-model.md); those grains are
+**not** claimed to exist in the live database until M1A/M2 implement them.
+See [ADR 0012](adr/0012-adopt-bounded-financial-architecture.md) and the
+[documentation index](README.md) for status and authority.
 
 **Status:** Authoritative conceptual persistence model after Phase 2C.
 

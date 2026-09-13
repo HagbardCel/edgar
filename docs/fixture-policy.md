@@ -29,7 +29,13 @@ Repository commits:
 ```text
 fixtures/corpus.toml
 fixtures/manifests/   # frozen Slice-0 evidence hashes (one accession)
+fixtures/analysis/    # reviewed analysis/benchmark manifests and M0 reports
 ```
+
+`fixtures/analysis/` contains small reviewed analysis/benchmark manifests and M0 reports
+(for example `financial-benchmark.yml`, `m0-inventory.md`, `m0-restore-report.md`).
+It does not contain complete filing bundles or copied SEC source artifacts. Full
+FilingBundles remain outside Git under `EDGAR_DATA_ROOT`.
 
 Acquire corpus bundles with:
 

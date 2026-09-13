@@ -1,0 +1,76 @@
+# Exact-review profile: reported-financial-exact-v1
+#
+# Git-authored checklist for exact mapping acceptance (ADR 0012 / D9).
+# M0 freezes this profile. M2 validates assessments against it. M3 consumes it.
+# Case-specific additions may strengthen checks; they must never waive these groups.
+#
+# Capability states (per check): available | assessed_absent | not_assessed | unsupported
+# Conditional relevance (when applicable): relevant | not_relevant | unknown
+# not_assessed must never be treated as assessed_absent.
+
+profile_id: reported-financial-exact-v1
+version: 1
+purpose: >
+  Minimum evidence that must be assessed before a source concept can support an
+  exact published value for a reported US-GAAP measurement contract under
+  sign_convention=reported.
+
+accounting_basis: us_gaap
+sign_convention: reported
+
+check_groups:
+  - id: declaration_definition
+    title: Declaration and source definition/disclosure
+    required: true
+    description: >
+      Located declaration and affirmative definition/disclosure evidence supporting
+      source meaning; a label alone is insufficient.
+
+  - id: fact_usage
+    title: Representative facts, period type, unit and dimension usage
+    required: true
+    description: >
+      Inspect bounded examples plus usage inventory for the claimed reports;
+      preserve scope, counts and truncation, including explicit dimension absence.
+
+  - id: network_resources
+    title: Presentation, calculation, references and fact footnotes
+    required: true
+    description: >
+      Record availability and assess relevance to this claim; search results or
+      justified assessed absence, not an empty SQL table. Relevance may be
+      relevant | not_relevant | unknown.
+
+  - id: contrary_evidence_contract_fit
+    title: Contrary evidence and contract fit
+    required: true
+    description: >
+      Record searches, limits, competing interpretations, both source-meaning and
+      contract-fit rationale sections, and accounting/sign conclusions.
+
+per_check_fields:
+  - capability_state
+  - inspected_scope
+  - method
+  - evidence_pins
+  - conclusion
+  - reviewer
+  # optional when the check is conditional:
+  # - relevance
+  # - rationale
+
+qualification_conclusions:
+  - accounting_basis
+  - entity_basis
+  - sign_interpretation
+
+notes:
+  - >
+    Required affirmative evidence cannot pass merely because the corresponding
+    storage is absent (capability_state=unsupported or not_assessed).
+  - >
+    extraction_receipt binding is part of the future qualification contract;
+    M0 records extraction_receipt as null with an explicit M1A capability gap.
+  - >
+    persisted_link_arc_qnames (link_qname, arc_qname) are an M1A repair when
+    network identity is required for review.

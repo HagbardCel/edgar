@@ -1,6 +1,6 @@
 # Documentation
 
-The [target architecture package](architecture/README.md) is the single forward plan. It is an independent recommendation, revised after external feedback; implementation adoption and the benchmark remain M0 work. Consolidating documents does not authorize Phase 2D+ implementation or change current source/ledger invariants.
+The [target architecture package](architecture/README.md) is the **adopted** forward plan ([ADR 0012](adr/0012-adopt-bounded-financial-architecture.md)). **Current implementation phase: M0 — complete; next: M1A.** Phase 2B/2C remain live production behavior until M1A/M2 change them. Consolidating documents does not authorize later-phase implementation ahead of its gate.
 
 ## What is implemented
 
@@ -24,7 +24,7 @@ Current production truth is the code, tests and implemented contracts above. The
 - **Phase 2A:** the Git JSON semantic registry closed with 20 historical v1 contracts and three reviewed real-corpus rules. `semantic-registry/` is now an archive, never production authority. Do not infer current ledger contents from those rules.
 - **Phase 2B:** FilingBundle → `filings catalog|extract` → native `ReportExtraction` → `source.*` is the sole live source path. `0001_source_v2` replaced the old baseline. No dual writes or projection-attempt tables. Phase-1 databases cannot upgrade through the deleted migration lineage; see development guidance, with explicit authorization before resetting user data.
 - **Phase 2C:** `registry/metrics.yml` authors current contracts; `registry.canonical_metric` mirrors them; `registry.mapping_assertion` records append-only decisions (`0002_registry`). Propose/accept require YAML/mirror agreement and definition-hash checks; rejected is terminal; affected facts are queried live. The inspected YAML has 39 metrics. Constructed-fixture coverage includes validate → sync → propose → accept → export; this is not financial observation selection.
-- **Next:** the [M0–M4 migration](architecture/migration-plan.md) is proposed. No applicability/selection or canonical financial observation publication is implemented. Current Phase 2A/2B/2C invariants remain in force until an adopted implementation scope explicitly changes them.
+- **Adopted target:** [M0–M4 migration](architecture/migration-plan.md) via [ADR 0012](adr/0012-adopt-bounded-financial-architecture.md). **M0 is complete** (adoption, inventory/restore proof, bounded benchmark, review profile, static validation). No applicability/selection or canonical financial observation publication is implemented. Current Phase 2A/2B/2C invariants remain in force until M1A/M2 explicitly change them. **Next phase: M1A.**
 
 ## Plans and evidence
 
