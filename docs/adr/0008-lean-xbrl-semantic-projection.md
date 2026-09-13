@@ -1,7 +1,16 @@
 # ADR 0008: Lean XBRL semantic projection
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0011](0011-source-extraction.md)
 - **Date:** 2026-08-07
+- **Superseded:** 2026-08-16
+
+## Supersession note
+
+Production persistence identity moved from public-schema `semantic_projection` /
+`document_projection` (attempt + config-fingerprint lifecycle) to V2 `source.*`
+extraction ([ADR 0011](0011-source-extraction.md)). Adapter-boundary rules,
+effective networks, fail-closed diagnostics, and Decimal fidelity below remain
+historically authoritative for the Arelle extraction design.
 
 ## Context
 

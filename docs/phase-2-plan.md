@@ -1,6 +1,6 @@
-# Phase 2 plan (lean Phase 2A)
+# Phase 2 plan
 
-## Scope
+## Phase 2A — complete (Git registry)
 
 Git-authoritative semantic registry:
 
@@ -20,21 +20,33 @@ CLI:
 - `edgar metrics list|show`
 - `edgar mappings list|export|explain`
 
-## Out of scope (Phase 2A)
-
-- PostgreSQL registry materialization / sync
-- Scope-based applicability and candidate fact selection (Phase 2B)
-- `metric_observation` acceptance (Phase 2C)
-
-## Phase 2A exit gate — complete
+### Phase 2A exit gate — complete
 
 - 20 v1 metric contracts are Git-authoritative.
-- Three Fabian-reviewed real-corpus rules are authoritative at Phase 2A close-out:
-  - `map-us-gaap-cash-and-cash-equivalents-equivalent` (`equivalent` / global; accession `0001065088-24-000036`)
-  - `map-us-gaap-cash-restricted-combined-broader-than` (`broader_than` / global; accession `0001065088-24-000036`)
-  - `map-us-gaap-interest-income-expense-net-incompatible-operating-revenue` (`incompatible` / global; accession `0000019617-24-000453`)
-- Every authoritative evidence pin resolves against a complete `arelle-semantic-v2`, ordinal-0 projection.
+- Three Fabian-reviewed real-corpus rules are authoritative at Phase 2A close-out.
 - Registry definitions and rules remain Git-only.
 - No registry PostgreSQL tables, migrations, sync mechanism, or serialization-version framework were introduced.
 
-Phase 1 prerequisite: `diagnostic-policy-v2` and `arelle-semantic-v2` extended faithful representation of the Phase-1D corpus so complete projections could serve as Phase-2A evidence.
+## Phase 2B — complete (source cutover)
+
+Cut over live persistence from Phase-1 public projection/catalog tables to V2
+`source.*`:
+
+- Alembic baseline `0001_source_v2` creates only `source.*`
+- Live path: FilingBundle → `filings catalog|extract` → `source.*`
+- Mapping explain remounted on `source.*` evidence pins
+- Phase-1 projection packages, attempt tables, and dual-write removed
+
+### Out of scope for Phase 2B (deferred to Phase 2C+)
+
+Formerly sketched as “Phase 2B applicability”:
+
+- Scope-based applicability in explain
+- Candidate fact selection / overlapping-rule precedence
+- PostgreSQL registry materialization
+- `metric_observation` acceptance (Phase 2C)
+
+## Next
+
+Phase 2C+ planning: observations, applicability, and research datasets — only
+after a frozen plan.

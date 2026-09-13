@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from edgar.corpus_acceptance import (
-    CorpusProjection,
+    CorpusSourceFiling,
     evaluate_class_a_requirements,
     is_standard_taxonomy_namespace,
     parse_us_gaap_taxonomy_year,
@@ -249,44 +249,30 @@ industry_group = "tech"
 
 
 def test_evaluate_class_a_counts_actual_forms_not_roles() -> None:
-    projections = (
-        CorpusProjection(
+    filings = (
+        CorpusSourceFiling(
             role="base_10k",
             company="Wrong Co",
             cik="0000000001",
             accession="0000000001-00-000001",
             form="10-Q",
             industry_group="tech",
-            bundle_id=1,
-            semantic_projection_id=1,
-            document_projection_id=1,
+            filing_id=1,
         ),
-        CorpusProjection(
+        CorpusSourceFiling(
             role="second_10k",
             company="Real 10-K",
             cik="0000000002",
             accession="0000000002-00-000001",
             form="10-K",
             industry_group="retail",
-            bundle_id=2,
-            semantic_projection_id=2,
-            document_projection_id=2,
+            filing_id=2,
         ),
     )
-    empty = {
-        "used_extension_concept_count": 1,
-        "dimension_count": 1,
-        "distinct_presentation_role_count": 2,
-        "has_taxonomy_transition": True,
-    }
-    result = evaluate_class_a_requirements(
-        projections,
-        extension=empty,
-        dimensions=empty,
-        presentation_roles=empty,
-        taxonomy=empty,
-    )
+    result = evaluate_class_a_requirements(filings)
     assert result["checks"]["two_10k"] is False
+    assert result["checks"]["two_10q"] is False
+    assert result["checks"]["multiple_industries"] is True
 
 
 def test_is_standard_taxonomy_namespace_uses_hostname() -> None:

@@ -162,7 +162,10 @@ Slice 0: acquisition/replay spike
 
 Phase 1B and Phase 1C may proceed in parallel only after Phase 1A produces a valid immutable filing bundle. Durable retrieval is the input dependency for both parser tracks.
 
-Parser outputs are versioned, regenerable materializations of immutable filing bundles. Curated review and mapping decisions are Git-authoritative source data under `semantic-registry/` (see ADR 0010), not PostgreSQL registry tables.
+Parser outputs are versioned, regenerable extractions into `source.*` from
+immutable filing bundles. Curated review and mapping decisions are
+Git-authoritative under `semantic-registry/` (see ADR 0010), not PostgreSQL
+registry tables.
 
 Amendment filings use a directed `amends` relationship (see ADR 0005); they do not supersede the original filing as a whole.
 
@@ -844,4 +847,5 @@ Post–PR #4 filesystem acquisition:
 5. ~~Document blocks and regulatory sections (PR #7 / Phase 1C).~~
 6. ~~Diverse acceptance corpus; retire Slice-0 executable machinery while retaining frozen evidence + minimal immutability guard (PR #10 / Phase 1D).~~
 7. ~~Phase 2A: define the 20 v1 metric contracts and establish the Git-authoritative curated mapping registry with reviewed real-corpus evidence (PR #11).~~
-8. Phase 2B planning/preparation: freeze applicability, candidate selection, and overlapping-rule precedence before implementation.
+8. ~~Phase 2B: V2 `source.*` cutover (catalog/extract live path; Alembic `0001_source_v2`; projection lifecycle removed).~~
+9. Phase 2C+ planning: freeze applicability, candidate selection, overlapping-rule precedence, and `metric_observation` before implementation.

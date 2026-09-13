@@ -118,10 +118,6 @@ def _sample_rule(*, snapshot: dict[str, object] | None = None) -> dict[str, obje
         else {"observations": ["first", "second"]},
         "evidence": {
             "accession_number": "0001065088-24-000036",
-            "bundle_fingerprint": "a" * 64,
-            "projection_version": "arelle-semantic-v1",
-            "arelle_version": "2.43.1",
-            "semantic_config_fingerprint": "b" * 64,
             "concept": {
                 "namespace_uri": "http://example.com/x",
                 "local_name": "Revenue",
@@ -265,10 +261,6 @@ def test_predecessor_chain_order(tmp_path: Path) -> None:
     concept = {"namespace_uri": "http://example.com/x", "local_name": "Revenue"}
     evidence = {
         "accession_number": "0001065088-24-000036",
-        "bundle_fingerprint": "a" * 64,
-        "projection_version": "arelle-semantic-v1",
-        "arelle_version": "2.43.1",
-        "semantic_config_fingerprint": "b" * 64,
         "concept": concept,
     }
 

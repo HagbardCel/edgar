@@ -15,7 +15,7 @@ from edgar.db.mapping_evidence import (
     MappingEvidenceError,
     enrich_pinned_evidence,
     enrichment_to_payload,
-    resolve_pinned_concept,
+    resolve_source_concept_pins,
 )
 from edgar.metrics.export import export_registry_audit, mapping_rule_audit_payload
 from edgar.metrics.registry import (
@@ -184,11 +184,11 @@ class MetricRegistryService:
         engine = self._require_engine()
         with engine.connect() as conn:
             try:
-                pinned = resolve_pinned_concept(conn, rule.evidence)
+                pins = resolve_source_concept_pins(conn, rule.evidence)
                 self._assert_issuer_period_evidence(
-                    rule, report_period_end=pinned.report_period_end
+                    rule, report_period_end=pins[0].report_period_end
                 )
-                enrichment = enrich_pinned_evidence(conn, pinned)
+                enrichment = enrich_pinned_evidence(conn, pins)
                 enrichment_payload = enrichment_to_payload(enrichment)
             except MappingEvidenceError as exc:
                 raise MappingEvidenceError(

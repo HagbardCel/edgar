@@ -1,7 +1,7 @@
 """Pure helpers for offline replay result normalization (ADR 0009).
 
 Shared by :mod:`edgar.xbrl.replay` and semantic projection so one offline
-worker load can feed both closure faithfulness and semantic materialization.
+worker load can feed both closure faithfulness and semantic extraction.
 """
 
 from __future__ import annotations

@@ -359,6 +359,17 @@ def make_minimal_semantic_bundle(store: ObjectStore) -> FilingBundle:
     return _bundle_from_parts(store=store, instance_bytes=INSTANCE, schema_bytes=SCHEMA)
 
 
+def make_datetime_instant_bundle(store: ObjectStore, *, lexical: str) -> FilingBundle:
+    """Ordinary XBRL instance whose instant period is the given filed lexical form."""
+    needle = b"<xbrli:instant>2024-12-31</xbrli:instant>"
+    replacement = f"<xbrli:instant>{lexical}</xbrli:instant>".encode()
+    if needle not in INSTANCE:
+        raise ValueError("expected date-only instant in INSTANCE fixture")
+    return _bundle_from_parts(
+        store=store, instance_bytes=INSTANCE.replace(needle, replacement), schema_bytes=SCHEMA
+    )
+
+
 def make_unit_order_bundle(store: ObjectStore) -> FilingBundle:
     """Unit numerator measures filed out of expanded-QName order."""
     return _bundle_from_parts(store=store, instance_bytes=INSTANCE_UNIT_ORDER, schema_bytes=SCHEMA)

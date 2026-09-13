@@ -87,7 +87,7 @@ def mapping_rule_markdown(payload: dict[str, Any]) -> str:
         json.dumps(payload["evidence_snapshot"], indent=2, sort_keys=True),
         "```",
         "",
-        "## Pinned projection evidence",
+        "## Pinned source evidence",
         "",
         "```json",
         json.dumps(payload["evidence"], indent=2, sort_keys=True),
@@ -114,11 +114,14 @@ def mapping_rule_markdown(payload: dict[str, Any]) -> str:
         )
     if "pinned_evidence_enrichment" in payload:
         enrichment = payload["pinned_evidence_enrichment"]
+        reports = enrichment.get("reports") or []
+        total_facts = sum(len(r.get("fact_occurrences") or []) for r in reports)
         lines.extend(
             [
                 "## Pinned evidence enrichment",
                 "",
-                f"Facts in pinned projection: {len(enrichment.get('fact_occurrences', []))}",
+                f"Reports matching pin: {len(reports)}",
+                f"Total fact occurrences across reports: {total_facts}",
                 "",
                 "```json",
                 json.dumps(enrichment, indent=2, sort_keys=True),
