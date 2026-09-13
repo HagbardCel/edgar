@@ -1972,8 +1972,8 @@ cases:
     source_meaning: Prior exact treatment assumed the undimensional NetIncomeLoss occurrence was parent-attributable.
       Re-review found no affirmative parent-attribution presentation or evidence establishing that NetIncomeLoss
       excludes noncontrolling interests. The consolidation policy states that minority interests are recorded as
-      noncontrolling interests. The MinorityInterest occurrences found in the filing are dimensioned to the Adevinta
-      equity-method-investee context and therefore do not establish consolidated eBay NCI.
+      noncontrolling interests. The 2023 MinorityInterest occurrence inspected is dimensioned to the Adevinta
+      equity-method-investee context and therefore does not establish consolidated eBay NCI.
     contract_fit: Whether NetIncomeLoss satisfies net_income_attributable_to_parent remains materially unresolved;
       nothing affirmatively establishes parent attribution.
   review_assessment:
@@ -2036,7 +2036,7 @@ cases:
     required_phase: M1A
   review:
     reviewer: m0-reviewer
-    reviewed_at: '2026-09-07'
+    reviewed_at: '2026-09-13'
 - case_id: ebay_fy2023_cash_excluding_restricted_value
   contract_ref:
     metric_key: cash_excluding_restricted_cash
