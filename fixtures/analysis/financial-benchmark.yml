@@ -1969,12 +1969,13 @@ cases:
   semantic_expectation:
     relation: null
     source_concept: '{http://fasb.org/us-gaap/2023}NetIncomeLoss'
-    source_meaning: Prior exact claim treated undimensional NetIncomeLoss as parent-attributable; re-review
-      found no affirmative parent-attribution presentation or NCI-none equivalence. Consolidation policy
-      records minority interests as NCI, and NCI balance-sheet amounts exist — absence of an NCI P&L line
-      does not prove NetIncomeLoss equals net income attributable to eBay Inc./parent.
-    contract_fit: Whether NetIncomeLoss satisfies net_income_attributable_to_parent remains materially
-      unresolved without affirmative parent-attribution evidence.
+    source_meaning: Prior exact treatment assumed the undimensional NetIncomeLoss occurrence was parent-attributable.
+      Re-review found no affirmative parent-attribution presentation or evidence establishing that NetIncomeLoss
+      excludes noncontrolling interests. The consolidation policy states that minority interests are recorded as
+      noncontrolling interests. The MinorityInterest occurrences found in the filing are dimensioned to the Adevinta
+      equity-method-investee context and therefore do not establish consolidated eBay NCI.
+    contract_fit: Whether NetIncomeLoss satisfies net_income_attributable_to_parent remains materially unresolved;
+      nothing affirmatively establishes parent attribution.
   review_assessment:
     fact_usage:
       capability_state: available
@@ -1991,8 +1992,8 @@ cases:
       reviewer: m0-reviewer
     contrary_evidence_contract_fit:
       capability_state: available
-      inspected_scope: ConsolidationPolicyTextBlock (f-497) and MinorityInterest balance-sheet evidence
-        (f-1034); NCI P&L attribution lines
+      inspected_scope: ConsolidationPolicyTextBlock (f-497); MinorityInterest search including f-1034
+        (Adevinta-dimensional); undimensioned consolidated NCI and NCI P&L attribution lines
       method: Closed-world offline iXBRL disclosure + occurrence review
       evidence_pins:
       - artifact_sha256: 91df8d3960f2859cc83f464b561731e75c0f5e79955861805eefd57535af84ec
@@ -2003,9 +2004,11 @@ cases:
         locator:
           scheme: unqualified_id
           value: f-1034
-      conclusion: Consolidation policy records minority interests as NCI, and MinorityInterest amounts
-        exist (f-1034 at 2023-09-30). NCI evidence makes absence-based parent-attribution inference
-        from NetIncomeLoss unsafe; it does not itself prove a broader relation.
+      conclusion: The filing's consolidation policy contemplates noncontrolling interests (f-497). The only
+        MinorityInterest occurrence inspected for 2023, f-1034, is dimensioned to Adevinta and is not evidence of
+        an undimensioned consolidated NCI balance. No affirmative parent-attribution evidence was identified.
+        Accordingly, absence of an NCI P&L line cannot establish that NetIncomeLoss equals parent-attributable
+        net income; the relation remains unresolved.
       reviewer: m0-reviewer
   expected:
     state: review_required
