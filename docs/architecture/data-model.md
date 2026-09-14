@@ -122,6 +122,8 @@ Notices contain `publication_ref`, `reason_code`, human reason, `cause_refs[]`, 
 
 ## Later structures: decided boundaries, deferred implementation
 
+Named publication-critical M1A cases may inspect an explicitly pinned official taxonomy package directly as an external evidence packet ([ADR 0013](../adr/0013-publication-critical-taxonomy-evidence.md)), without introducing a package index. The package index below remains deferred until repeated cross-release use justifies it.
+
 | Structure | Required grain if introduced | Trigger |
 |---|---|---|
 | Official taxonomy package index | Package/version/artifact digest + scoped declarations/edges; reuse QName identities | Repeated evidence inspection needs material absent from filing DTS |

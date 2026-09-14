@@ -53,17 +53,65 @@ def load_corpus_accessions(path: Path = CORPUS_TOML_PATH) -> frozenset[str]:
 
 CORPUS_ACCESSIONS: frozenset[str] = load_corpus_accessions()
 
-CORE_VALUE_SLOTS: frozenset[tuple[str, str]] = frozenset(
+# Sole authority for the nine M3 core value slots and their canonical cases.
+CORE_VALUE_SLOT_CASE_IDS: dict[tuple[str, str], str] = {
+    ("revenue", "0001065088-23-000006"): "ebay_fy2022_revenue_value",
+    ("total_assets", "0001065088-23-000006"): "ebay_fy2022_total_assets_value",
+    ("operating_cash_flow", "0001065088-23-000006"): "ebay_fy2022_operating_cash_flow_value",
+    ("revenue", "0001065088-24-000036"): "ebay_fy2023_revenue_value",
+    ("total_assets", "0001065088-24-000036"): "ebay_fy2023_total_assets_value",
+    ("operating_cash_flow", "0001065088-24-000036"): "ebay_fy2023_operating_cash_flow_value",
+    ("revenue", "0000104169-24-000056"): "walmart_fy2024_revenue_value",
+    ("total_assets", "0000104169-24-000056"): "walmart_fy2024_total_assets_value",
+    ("operating_cash_flow", "0000104169-24-000056"): "walmart_fy2024_operating_cash_flow_value",
+}
+
+CORE_VALUE_SLOTS: frozenset[tuple[str, str]] = frozenset(CORE_VALUE_SLOT_CASE_IDS)
+
+# Three initial annual reports for the M3 non-vacuous value target.
+CORE_VALUE_ACCESSIONS: frozenset[str] = frozenset(accession for _, accession in CORE_VALUE_SLOTS)
+
+# Frozen annual report shape authority for the three M3 annual accessions.
+# Independent of mutable benchmark case contents; keys must match CORE_VALUE_ACCESSIONS.
+CORE_ANNUAL_REPORT_SHAPES: dict[str, dict[str, Any]] = {
+    "0001065088-23-000006": {
+        "periods": frozenset(
+            {
+                ("duration", "2022-01-01", "2022-12-31"),
+                ("instant", "2022-12-31"),
+            }
+        ),
+        "unit": "USD",
+        "scope": "consolidated",
+    },
+    "0001065088-24-000036": {
+        "periods": frozenset(
+            {
+                ("duration", "2023-01-01", "2023-12-31"),
+                ("instant", "2023-12-31"),
+            }
+        ),
+        "unit": "USD",
+        "scope": "consolidated",
+    },
+    "0000104169-24-000056": {
+        "periods": frozenset(
+            {
+                ("duration", "2023-02-01", "2024-01-31"),
+                ("instant", "2024-01-31"),
+            }
+        ),
+        "unit": "USD",
+        "scope": "consolidated",
+    },
+}
+
+REPLACEMENT_ENTRY_KEYS = frozenset(
     {
-        ("revenue", "0001065088-23-000006"),
-        ("revenue", "0001065088-24-000036"),
-        ("revenue", "0000104169-24-000056"),
-        ("total_assets", "0001065088-23-000006"),
-        ("total_assets", "0001065088-24-000036"),
-        ("total_assets", "0000104169-24-000056"),
-        ("operating_cash_flow", "0001065088-23-000006"),
-        ("operating_cash_flow", "0001065088-24-000036"),
-        ("operating_cash_flow", "0000104169-24-000056"),
+        "original_metric_key",
+        "original_accession",
+        "replacement_case_id",
+        "rationale",
     }
 )
 
@@ -184,9 +232,12 @@ def derive_m1a_requirements(cases: Sequence[Mapping[str, Any]]) -> list[dict[str
 
     Returns the finite set of M1A evidence needs exercised or blocked by these
     cases within the authoritative M1A scope (extraction receipts; supported
-    network identity; integrity/completeness; bounded inspector). This is a
-    case-driven delta, not an M1A implementation plan and not authoritative over
-    ``docs/architecture/migration-plan.md``.
+    network identity; integrity/completeness; bounded inspector; and bounded
+    external official-taxonomy evidence for named publication-critical cases
+    per ADR 0013). This is a case-driven delta, not an M1A implementation plan
+    and not authoritative over ``docs/architecture/migration-plan.md``.
+    Package indexing and generalized taxonomy continuity remain M5 and are not
+    implied by an ``official_taxonomy_evidence`` capability in this delta.
     """
     by_req: dict[str, dict[str, Any]] = {}
     for case in cases:
@@ -396,6 +447,298 @@ def _validate_exact_review_assessment(
             )
 
 
+def _period_signature(period: Mapping[str, Any]) -> tuple[str, ...] | None:
+    """Normalize a slot.period mapping to a comparable signature tuple."""
+    ptype = period.get("type")
+    if ptype == "duration":
+        start, end = period.get("start"), period.get("end")
+        if isinstance(start, str) and isinstance(end, str):
+            return ("duration", start, end)
+        return None
+    if ptype == "instant":
+        instant = period.get("instant")
+        if isinstance(instant, str):
+            return ("instant", instant)
+        return None
+    return None
+
+
+def _slot_matches_core_report_shape(
+    accession: str,
+    slot: Mapping[str, Any],
+    label: str,
+    errors: list[str],
+) -> bool:
+    """Return whether slot period/unit/scope match the frozen core report shape."""
+    shape = CORE_ANNUAL_REPORT_SHAPES.get(accession)
+    if shape is None:
+        errors.append(f"{label}: no frozen core report shape for accession {accession!r}")
+        return False
+
+    period = slot.get("period")
+    if not isinstance(period, Mapping):
+        errors.append(f"{label}: period does not match frozen core report shape")
+        return False
+
+    sig = _period_signature(period)
+    ok = True
+
+    if sig not in shape["periods"]:
+        errors.append(f"{label}: period {sig!r} does not match frozen core report shape")
+        ok = False
+
+    if slot.get("unit") != shape["unit"]:
+        errors.append(
+            f"{label}: unit {slot.get('unit')!r} does not match frozen "
+            f"core report shape {shape['unit']!r}"
+        )
+        ok = False
+
+    if slot.get("scope") != shape["scope"]:
+        errors.append(
+            f"{label}: scope {slot.get('scope')!r} does not match frozen "
+            f"core report shape {shape['scope']!r}"
+        )
+        ok = False
+
+    return ok
+
+
+def _validate_canonical_core_slots(
+    cases_by_id: Mapping[str, Mapping[str, Any]],
+    *,
+    errors: list[str],
+) -> set[tuple[str, str]]:
+    """Validate the nine frozen canonical slot definitions and return live value hits.
+
+    Canonical metric/accession/period/unit/scope remain frozen even when a case is
+    downgraded and satisfied through a replacement. Changing the target slot itself
+    requires explicitly reopening the M0 benchmark.
+    """
+    core_hits: set[tuple[str, str]] = set()
+
+    for pair, case_id in CORE_VALUE_SLOT_CASE_IDS.items():
+        metric_key, accession = pair
+        case = cases_by_id.get(case_id)
+        if case is None:
+            errors.append(f"missing canonical CORE_VALUE_SLOT case {case_id!r}")
+            continue
+
+        cref = case.get("contract_ref")
+        report = case.get("report")
+        if (
+            not isinstance(cref, Mapping)
+            or cref.get("metric_key") != metric_key
+            or not isinstance(report, Mapping)
+            or report.get("accession") != accession
+        ):
+            errors.append(
+                f"{case_id}: canonical CORE_VALUE_SLOT identity does not match "
+                f"{metric_key}@{accession}"
+            )
+            continue
+
+        slot = case.get("slot")
+        if not isinstance(slot, Mapping):
+            errors.append(f"{case_id}: canonical case missing slot")
+            continue
+
+        shape_ok = _slot_matches_core_report_shape(
+            accession,
+            slot,
+            f"{case_id}: canonical core slot",
+            errors,
+        )
+
+        expected = case.get("expected")
+        if shape_ok and isinstance(expected, Mapping) and expected.get("state") == "value":
+            core_hits.add(pair)
+
+    return core_hits
+
+
+def _validate_core_value_slot_replacements(
+    replacements: Any,
+    *,
+    cases_by_id: Mapping[str, Mapping[str, Any]],
+    core_hits: set[tuple[str, str]],
+    contract_by_key: Mapping[str, Mapping[str, Any]],
+    errors: list[str],
+) -> set[tuple[str, str]]:
+    """Validate named core-slot replacements; return effective core coverage.
+
+    Schema (single format)::
+
+        original_metric_key / original_accession / replacement_case_id / rationale
+
+    Replacement identity is derived from the resolved case. A replacement must
+    be a distinct non-core annual value pairing from one of the three M3 annual
+    reports (accession in ``CORE_VALUE_ACCESSIONS`` with period/unit/scope
+    matching the frozen ``CORE_ANNUAL_REPORT_SHAPES`` authority). The canonical
+    original case must still exist and must no longer be ``state=value``.
+    """
+    effective_core = set(core_hits)
+    if not isinstance(replacements, list):
+        errors.append("core_value_slot_replacements must be a list")
+        return effective_core
+
+    seen_originals: set[tuple[str, str]] = set()
+    seen_replacement_ids: set[str] = set()
+    seen_replacement_identities: set[tuple[str, str, tuple[str, ...]]] = set()
+
+    for i, rep in enumerate(replacements):
+        label = f"core_value_slot_replacements[{i}]"
+        if not isinstance(rep, Mapping):
+            errors.append(f"{label}: must be a mapping")
+            continue
+
+        extra = set(rep) - REPLACEMENT_ENTRY_KEYS
+        if extra:
+            rendered = sorted(repr(key) for key in extra)
+            errors.append(f"{label}: unexpected fields: {rendered}")
+            continue
+
+        orig_key = rep.get("original_metric_key")
+        orig_acc = rep.get("original_accession")
+        repl_id = rep.get("replacement_case_id")
+        rationale = rep.get("rationale")
+
+        missing_fields = [
+            name
+            for name, val in (
+                ("original_metric_key", orig_key),
+                ("original_accession", orig_acc),
+                ("replacement_case_id", repl_id),
+                ("rationale", rationale),
+            )
+            if not isinstance(val, str)
+        ]
+        if missing_fields:
+            errors.append(f"{label}: missing or non-string fields: {missing_fields}")
+            continue
+
+        assert isinstance(orig_key, str)
+        assert isinstance(orig_acc, str)
+        assert isinstance(repl_id, str)
+        assert isinstance(rationale, str)
+
+        if not rationale.strip():
+            errors.append(f"{label}: rationale must be a nonempty string")
+            continue
+
+        original = (orig_key, orig_acc)
+        if original not in CORE_VALUE_SLOTS:
+            errors.append(
+                f"{label}: original ({orig_key!r}, {orig_acc!r}) is not a CORE_VALUE_SLOT"
+            )
+            continue
+        if original in seen_originals:
+            errors.append(f"{label}: duplicate original CORE_VALUE_SLOT {orig_key}@{orig_acc}")
+            continue
+        seen_originals.add(original)
+
+        if not ACCESSION_RE.match(orig_acc):
+            errors.append(f"{label}: invalid original_accession {orig_acc!r}")
+            continue
+
+        original_case_id = CORE_VALUE_SLOT_CASE_IDS[original]
+        original_case = cases_by_id.get(original_case_id)
+        if original_case is None:
+            errors.append(f"{label}: canonical original case {original_case_id!r} is missing")
+            continue
+
+        original_expected = original_case.get("expected")
+        if isinstance(original_expected, Mapping) and original_expected.get("state") == "value":
+            errors.append(
+                f"{label}: original canonical case {original_case_id!r} "
+                "is still state=value; replacement is not applicable"
+            )
+            continue
+
+        if repl_id in seen_replacement_ids:
+            errors.append(f"{label}: replacement_case_id {repl_id!r} already used")
+            continue
+        seen_replacement_ids.add(repl_id)
+
+        resolved = cases_by_id.get(repl_id)
+        if resolved is None:
+            errors.append(f"{label}: replacement_case_id {repl_id!r} not found in cases")
+            continue
+
+        expected = resolved.get("expected")
+        if not isinstance(expected, Mapping) or expected.get("state") != "value":
+            errors.append(f"{label}: replacement case {repl_id!r} must have expected.state=value")
+            continue
+
+        cref = resolved.get("contract_ref")
+        report = resolved.get("report")
+        slot = resolved.get("slot")
+        if not isinstance(cref, Mapping) or not isinstance(report, Mapping):
+            errors.append(f"{label}: replacement case {repl_id!r} missing contract_ref/report")
+            continue
+
+        repl_key = cref.get("metric_key")
+        repl_acc = report.get("accession")
+        if not isinstance(repl_key, str) or not isinstance(repl_acc, str):
+            errors.append(
+                f"{label}: replacement case {repl_id!r} must have string metric_key/accession"
+            )
+            continue
+
+        if repl_key not in contract_by_key:
+            errors.append(f"{label}: replacement metric_key {repl_key!r} is not a frozen contract")
+            continue
+        frozen = contract_by_key[repl_key]["contract_ref"]
+        if not _contract_ref_equal(cref, frozen):
+            errors.append(
+                f"{label}: replacement case {repl_id!r} contract_ref does not match frozen contract"
+            )
+            continue
+
+        if repl_acc not in CORE_VALUE_ACCESSIONS:
+            errors.append(
+                f"{label}: replacement accession {repl_acc!r} is not one of the three "
+                "M3 annual CORE_VALUE_ACCESSIONS"
+            )
+            continue
+
+        if (repl_key, repl_acc) in CORE_VALUE_SLOTS:
+            errors.append(
+                f"{label}: replacement {repl_key}@{repl_acc} is itself a CORE_VALUE_SLOT "
+                "(must be a distinct non-core annual pairing)"
+            )
+            continue
+
+        if not isinstance(slot, Mapping):
+            errors.append(f"{label}: replacement case {repl_id!r} missing slot")
+            continue
+        if not _slot_matches_core_report_shape(
+            repl_acc,
+            slot,
+            f"{label}: replacement case {repl_id!r}",
+            errors,
+        ):
+            continue
+
+        period = slot["period"]
+        assert isinstance(period, Mapping)
+        sig = _period_signature(period)
+        assert sig is not None
+
+        replacement_identity = (repl_key, repl_acc, sig)
+        if replacement_identity in seen_replacement_identities:
+            errors.append(
+                f"{label}: replacement pairing {repl_key}@{repl_acc} "
+                f"with period {sig!r} already used"
+            )
+            continue
+        seen_replacement_identities.add(replacement_identity)
+
+        effective_core.add(original)
+
+    return effective_core
+
+
 def validate_benchmark_static(
     benchmark: Mapping[str, Any],
     *,
@@ -481,8 +824,8 @@ def validate_benchmark_static(
         return errors
 
     case_ids: set[str] = set()
+    cases_by_id: dict[str, Mapping[str, Any]] = {}
     accessions_seen: set[str] = set()
-    core_hits: set[tuple[str, str]] = set()
     has_reviewed_extension = False
     has_negative_nonexact = False
     has_amendment = False
@@ -498,6 +841,7 @@ def validate_benchmark_static(
         if case_id in case_ids:
             errors.append(f"duplicate case_id {case_id!r}")
         case_ids.add(case_id)
+        cases_by_id[case_id] = case
 
         cref = _require_mapping(case.get("contract_ref"), label=f"{case_id}.contract_ref")
         metric_key = cref.get("metric_key")
@@ -694,12 +1038,6 @@ def validate_benchmark_static(
                 errors.append(f"{case_id}: value state requires rendered_evidence")
             if not isinstance(occs, list) or len(occs) < 1:
                 errors.append(f"{case_id}: value state requires ≥1 source_occurrence")
-            if (
-                isinstance(metric_key, str)
-                and isinstance(accession, str)
-                and (metric_key, accession) in CORE_VALUE_SLOTS
-            ):
-                core_hits.add((metric_key, accession))
         elif state == "conflict":
             if not case.get("source_occurrences"):
                 errors.append(f"{case_id}: conflict state requires occurrence pins")
@@ -846,37 +1184,26 @@ def validate_benchmark_static(
             "(extension QName + relation + source_meaning + contract_fit + portable pin)"
         )
 
-    replacements = benchmark.get("core_value_slot_replacements") or []
-    effective_core = set(core_hits)
-    if isinstance(replacements, list):
-        for rep in replacements:
-            if not isinstance(rep, Mapping):
-                continue
-            orig_key = rep.get("original_metric_key")
-            orig_acc = rep.get("original_accession")
-            new_key = rep.get("replacement_metric_key")
-            new_acc = rep.get("replacement_accession")
-            if (
-                isinstance(orig_key, str)
-                and isinstance(orig_acc, str)
-                and (orig_key, orig_acc) in CORE_VALUE_SLOTS
-                and isinstance(new_key, str)
-                and isinstance(new_acc, str)
-            ):
-                effective_core.add((orig_key, orig_acc))
+    raw_replacements = benchmark.get("core_value_slot_replacements", [])
+    core_hits = _validate_canonical_core_slots(cases_by_id, errors=errors)
+    effective_core = _validate_core_value_slot_replacements(
+        raw_replacements,
+        cases_by_id=cases_by_id,
+        core_hits=core_hits,
+        contract_by_key=contract_by_key,
+        errors=errors,
+    )
     missing_core = CORE_VALUE_SLOTS - effective_core
-    if missing_core and not replacements:
+    if missing_core and (not isinstance(raw_replacements, list) or len(raw_replacements) == 0):
         errors.append(
             "nine core value slots incomplete: "
             + ", ".join(f"{m}@{a}" for m, a in sorted(missing_core))
         )
     elif missing_core:
-        still = CORE_VALUE_SLOTS - effective_core
-        if still:
-            errors.append(
-                "nine core value slots incomplete even after replacements: "
-                + ", ".join(f"{m}@{a}" for m, a in sorted(still))
-            )
+        errors.append(
+            "nine core value slots incomplete even after replacements: "
+            + ", ".join(f"{m}@{a}" for m, a in sorted(missing_core))
+        )
 
     return errors
 
@@ -884,6 +1211,9 @@ def validate_benchmark_static(
 __all__ = [
     "BENCHMARK_PATH",
     "CORPUS_ACCESSIONS",
+    "CORE_ANNUAL_REPORT_SHAPES",
+    "CORE_VALUE_ACCESSIONS",
+    "CORE_VALUE_SLOT_CASE_IDS",
     "CORE_VALUE_SLOTS",
     "EIGHT_QUANTITY_KEYS",
     "REVIEW_PROFILE_PATH",

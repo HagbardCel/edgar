@@ -560,11 +560,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -715,11 +716,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1015,11 +1017,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1170,11 +1173,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1472,11 +1476,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1627,11 +1632,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1781,11 +1787,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -1936,11 +1943,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -2331,11 +2339,12 @@ cases:
     required_phase: M1A
   - capability: official_taxonomy_evidence
     capability_state: unsupported
-    required_phase: M5
+    required_phase: M1A
     reason: Required affirmative US-GAAP concept definition/documentation is confirmed absent from the
-      resolved filing DTS under closed-world offline replay of this verified FilingBundle (no ambient
-      Arelle cache/package/network fallback). Records an unmet case-specific future gate for exact acceptance
-      only; does not activate or implement M5 as the next project phase.
+      resolved filing DTS under closed-world offline replay. Bounded pinned official taxonomy package
+      inspection in isolation (external evidence packet, not filing DTS mutation) is
+      publication-critical for this named benchmark case (M1A), not deferred M5 continuity
+      infrastructure.
   review:
     reviewer: m0-reviewer
     reviewed_at: '2026-09-07'
@@ -2903,9 +2912,12 @@ benchmark_notes:
     case.
   m0_exact_vs_acceptance: relation=exact records the reviewed semantic expectation for the source concept;
     successful static validation does not mean the case is M2-acceptance-ready. Unresolved required profile
-    evidence (e.g. declaration_definition not_assessed, network_resources not_assessed, or official_taxonomy_evidence)
-    remains an M1A/M2/M5 blocker as classified. required_phase:M5 documents a case-specific unmet future
-    gate only and does not activate M5 as the next mandatory project phase.
+    evidence (e.g. declaration_definition not_assessed, network_resources not_assessed) blocks exact
+    acceptance until resolved. For the nine named cases where declaration_definition is not_assessed
+    because affirmative definition/documentation is absent from the filing DTS, official_taxonomy_evidence
+    is publication-critical M1A scope (bounded pinned official packages inspected in isolation as external
+    evidence packets). M5 retains broader taxonomy continuity, cross-release comparison, and optional
+    package indexing — not these named release-blocking evidence gaps.
   core_value_slot_policy: If honest re-review would downgrade any CORE_VALUE_SLOT from expected.state=value,
     M0 must record a named replacement pairing or reopen completion — never weaken CORE_VALUE_SLOTS merely
     to keep validation green. Parent-NI and Walmart-cash re-reviews in this follow-up are outside the
