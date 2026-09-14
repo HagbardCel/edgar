@@ -8,6 +8,7 @@ import pytest
 
 from tests.helpers.financial_cases import (
     CORE_VALUE_ACCESSIONS,
+    CORE_VALUE_SLOT_CASE_IDS,
     CORE_VALUE_SLOTS,
     CORPUS_ACCESSIONS,
     EIGHT_QUANTITY_KEYS,
@@ -93,21 +94,24 @@ def test_current_m0_benchmark_has_all_nine_original_core_value_slots() -> None:
     If M0 is explicitly reopened and a replacement is adopted, this frozen-state
     assertion must change with that reviewed benchmark decision.
     """
-    benchmark = load_benchmark()
-    hits: set[tuple[str, str]] = set()
-    for case in benchmark["cases"]:
-        if case.get("expected", {}).get("state") != "value":
-            continue
-        key = case["contract_ref"]["metric_key"]
-        accession = case["report"]["accession"]
-        if (key, accession) in CORE_VALUE_SLOTS:
-            hits.add((key, accession))
-    assert hits == CORE_VALUE_SLOTS
+    assert len(CORE_VALUE_SLOT_CASE_IDS) == 9
+    assert len(set(CORE_VALUE_SLOT_CASE_IDS.values())) == 9
     assert {
         "0001065088-23-000006",
         "0001065088-24-000036",
         "0000104169-24-000056",
     } == CORE_VALUE_ACCESSIONS
+    assert frozenset(CORE_VALUE_SLOT_CASE_IDS) == CORE_VALUE_SLOTS
+
+    benchmark = load_benchmark()
+    cases_by_id = {c["case_id"]: c for c in benchmark["cases"]}
+    for pair, case_id in CORE_VALUE_SLOT_CASE_IDS.items():
+        case = cases_by_id[case_id]
+        assert (
+            case["contract_ref"]["metric_key"],
+            case["report"]["accession"],
+        ) == pair
+        assert case["expected"]["state"] == "value"
 
 
 def test_value_cases_have_confirmed_economic_qualifications() -> None:
@@ -700,3 +704,151 @@ def test_core_value_slot_replacement_rejects_malformed_entry() -> None:
         review_profile=load_review_profile(),
     )
     assert any("must be a list" in e for e in errors)
+
+
+def test_noncanonical_value_case_cannot_satisfy_downgraded_core_slot() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = next(c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_revenue_value")
+    clone = copy.deepcopy(original)
+    clone["case_id"] = "mutated_noncanonical_ebay_fy2023_revenue_clone"
+    mutated["cases"].append(clone)
+    _downgrade_core_slot(mutated, "ebay_fy2023_revenue_value")
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("nine core value slots incomplete" in e for e in errors)
+    assert any("revenue@0001065088-24-000036" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_duplicate_resolved_pairing() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    first = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    second = _downgrade_core_slot(mutated, "ebay_fy2023_revenue_value")
+    donor = next(
+        c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_operating_income_value"
+    )
+    clone_a = copy.deepcopy(donor)
+    clone_a["case_id"] = "mutated_oi_donor_a"
+    clone_b = copy.deepcopy(donor)
+    clone_b["case_id"] = "mutated_oi_donor_b"
+    mutated["cases"].extend([clone_a, clone_b])
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(original_case=first, replacement_case_id=clone_a["case_id"]),
+        _replacement_entry(original_case=second, replacement_case_id=clone_b["case_id"]),
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("already used" in e and "period" in e for e in errors)
+
+
+def test_core_value_slot_replacement_cannot_expand_annual_periods_via_extra_core_pair_case() -> (
+    None
+):
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    # Extra case shares a CORE pair but uses a comparative period — must not
+    # widen the annual-period allowlist.
+    poison = next(c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_revenue_value")
+    poison_clone = copy.deepcopy(poison)
+    poison_clone["case_id"] = "mutated_extra_core_pair_comparative_period"
+    poison_clone["expected"] = {
+        "state": "review_required",
+        "reason": "mutated fixture: comparative period must not expand annual allowlist",
+    }
+    poison_clone["semantic_expectation"]["relation"] = None
+    poison_clone["slot"]["period"] = {
+        "type": "duration",
+        "start": "2022-01-01",
+        "end": "2022-12-31",
+    }
+    mutated["cases"].append(poison_clone)
+
+    donor = next(
+        c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_operating_income_value"
+    )
+    comparative_donor = copy.deepcopy(donor)
+    comparative_donor["case_id"] = "mutated_oi_using_poisoned_comparative_period"
+    comparative_donor["slot"]["period"] = {
+        "type": "duration",
+        "start": "2022-01-01",
+        "end": "2022-12-31",
+    }
+    mutated["cases"].append(comparative_donor)
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id=comparative_donor["case_id"],
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("frozen annual period" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_unknown_fields() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    entry = _replacement_entry(
+        original_case=original,
+        replacement_case_id="ebay_fy2023_operating_income_value",
+    )
+    entry["replacement_metric_key"] = "operating_income"
+    entry["replacement_accession"] = "0001065088-24-000036"
+    mutated["core_value_slot_replacements"] = [entry]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("unexpected fields" in e for e in errors)
+    assert any("replacement_metric_key" in e for e in errors)
+    assert any("replacement_accession" in e for e in errors)
+
+
+def test_core_value_slot_replacement_requires_canonical_original_case() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = next(c for c in mutated["cases"] if c["case_id"] == "ebay_fy2022_revenue_value")
+    mutated["cases"] = [c for c in mutated["cases"] if c["case_id"] != "ebay_fy2022_revenue_value"]
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id="ebay_fy2023_operating_income_value",
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("canonical original case" in e and "ebay_fy2022_revenue_value" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_replacement_when_original_is_still_value() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = next(c for c in mutated["cases"] if c["case_id"] == "ebay_fy2022_revenue_value")
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id="ebay_fy2023_operating_income_value",
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("still state=value" in e and "not applicable" in e for e in errors)
