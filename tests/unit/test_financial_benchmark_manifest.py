@@ -7,6 +7,7 @@ import copy
 import pytest
 
 from tests.helpers.financial_cases import (
+    CORE_VALUE_ACCESSIONS,
     CORE_VALUE_SLOTS,
     CORPUS_ACCESSIONS,
     EIGHT_QUANTITY_KEYS,
@@ -18,6 +19,18 @@ from tests.helpers.financial_cases import (
     metric_v2_definition_hash,
     validate_benchmark_static,
 )
+
+NAMED_OFFICIAL_TAXONOMY_CASES = {
+    "ebay_fy2022_total_assets_value",
+    "ebay_fy2022_operating_cash_flow_value",
+    "ebay_fy2023_total_assets_value",
+    "ebay_fy2023_operating_cash_flow_value",
+    "walmart_fy2024_total_assets_value",
+    "walmart_fy2024_operating_cash_flow_value",
+    "ebay_fy2023_operating_income_value",
+    "ebay_fy2023_rnd_value",
+    "ebay_fy2023_cash_ppe_purchases_value",
+}
 
 
 def _value_case(benchmark: dict) -> dict:
@@ -73,7 +86,13 @@ def test_cases_cover_corpus_roles() -> None:
     assert accessions == CORPUS_ACCESSIONS
 
 
-def test_nine_core_value_slots_present() -> None:
+def test_current_m0_benchmark_has_all_nine_original_core_value_slots() -> None:
+    """Live M0 benchmark currently requires no replacements.
+
+    Replacement behavior is tested separately through mutated fixture copies.
+    If M0 is explicitly reopened and a replacement is adopted, this frozen-state
+    assertion must change with that reviewed benchmark decision.
+    """
     benchmark = load_benchmark()
     hits: set[tuple[str, str]] = set()
     for case in benchmark["cases"]:
@@ -84,6 +103,11 @@ def test_nine_core_value_slots_present() -> None:
         if (key, accession) in CORE_VALUE_SLOTS:
             hits.add((key, accession))
     assert hits == CORE_VALUE_SLOTS
+    assert {
+        "0001065088-23-000006",
+        "0001065088-24-000036",
+        "0000104169-24-000056",
+    } == CORE_VALUE_ACCESSIONS
 
 
 def test_value_cases_have_confirmed_economic_qualifications() -> None:
@@ -113,7 +137,33 @@ def test_no_dimension_selection_policy_in_m1a_delta() -> None:
             assert cap.get("capability") != "dimension_selection_policy"
     reqs = derive_m1a_requirements(benchmark["cases"])
     assert "dimension_selection_policy" not in {r["requirement"] for r in reqs}
-    assert "official_taxonomy_evidence" not in {r["requirement"] for r in reqs}
+
+
+def test_official_taxonomy_evidence_is_m1a_for_named_cases() -> None:
+    benchmark = load_benchmark()
+    reqs = derive_m1a_requirements(benchmark["cases"])
+    ote = {r["requirement"]: r for r in reqs}["official_taxonomy_evidence"]
+    assert ote["required_phase"] == "M1A"
+    assert set(ote["blocked_cases"]) == NAMED_OFFICIAL_TAXONOMY_CASES
+
+
+def test_core_value_slots_do_not_gate_publication_evidence_at_m5() -> None:
+    benchmark = load_benchmark()
+    for case in benchmark["cases"]:
+        key = case.get("contract_ref", {}).get("metric_key")
+        accession = case.get("report", {}).get("accession")
+        if (key, accession) not in CORE_VALUE_SLOTS:
+            continue
+        for cap in case.get("evidence_capabilities") or []:
+            if (
+                isinstance(cap, dict)
+                and cap.get("capability") == "official_taxonomy_evidence"
+                and cap.get("required_phase") == "M5"
+            ):
+                raise AssertionError(
+                    f"{case['case_id']}: CORE_VALUE_SLOT must not gate "
+                    "official_taxonomy_evidence at M5"
+                )
 
 
 def test_derive_m1a_requirements_is_benchmark_triggered_delta() -> None:
@@ -419,3 +469,234 @@ def test_available_declaration_rejects_measurement_only_pin() -> None:
         review_profile=load_review_profile(),
     )
     assert any("distinct" in e and case["case_id"] in e for e in errors)
+
+
+def _downgrade_core_slot(benchmark: dict, case_id: str) -> dict:
+    case = next(c for c in benchmark["cases"] if c["case_id"] == case_id)
+    case["expected"] = {
+        "state": "review_required",
+        "reason": "mutated fixture: original core slot downgraded for replacement tests",
+    }
+    case["semantic_expectation"]["relation"] = None
+    return case
+
+
+def _replacement_entry(
+    *,
+    original_case: dict,
+    replacement_case_id: str,
+    rationale: str = "Reviewed alternative annual pairing for mutated fixture test.",
+) -> dict:
+    return {
+        "original_metric_key": original_case["contract_ref"]["metric_key"],
+        "original_accession": original_case["report"]["accession"],
+        "replacement_case_id": replacement_case_id,
+        "rationale": rationale,
+    }
+
+
+def test_core_value_slot_replacement_rejects_bogus_replacement() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id="does_not_exist_as_a_benchmark_case",
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("does_not_exist_as_a_benchmark_case" in e for e in errors)
+    assert any("incomplete even after replacements" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_non_value_replacement() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id="walmart_fy2024_rnd_missing",
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("walmart_fy2024_rnd_missing" in e and "expected.state=value" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_core_slot_recycling() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id="walmart_fy2024_total_assets_value",
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("CORE_VALUE_SLOT" in e and "non-core" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_non_annual_corpus_case() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    donor = next(
+        c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_operating_income_value"
+    )
+    jpm = copy.deepcopy(donor)
+    jpm["case_id"] = "mutated_jpm_annual_like_value_for_replacement_test"
+    jpm["issuer"] = {"cik": "0000019617"}
+    jpm["report"]["accession"] = "0000019617-24-000453"
+    jpm["report"]["report_key"] = "e9570ef1c7f1cea4f408b099b63e6c7ca08e5cc967e2ce39ad61432b2c07856e"
+    jpm["report"]["bundle_ref"] = {
+        "opaque_id": "c6d6249a11d3480a840c5f5530a63733",
+        "payload_hash": "54aadbdbd93988e8b642c76d7d60c526582c1cdcc9c8a9581967b7346205e10b",
+        "relative_bundle_dir": (
+            "bundles/0000019617/0000019617-24-000453/c6d6249a11d3480a840c5f5530a63733"
+        ),
+    }
+    jpm["qualification"]["report_ref"]["accession"] = "0000019617-24-000453"
+    jpm["qualification"]["report_ref"]["report_key"] = jpm["report"]["report_key"]
+    jpm["qualification"]["bundle_ref"] = copy.deepcopy(jpm["report"]["bundle_ref"])
+    mutated["cases"].append(jpm)
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id=jpm["case_id"],
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("CORE_VALUE_ACCESSIONS" in e or "three M3 annual" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_non_annual_slot_in_annual_filing() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    donor = next(
+        c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_operating_income_value"
+    )
+    comparative = copy.deepcopy(donor)
+    comparative["case_id"] = "mutated_ebay_fy2023_oi_comparative_period"
+    # Keep annual accession, but use a non-target comparative duration.
+    comparative["slot"]["period"] = {
+        "type": "duration",
+        "start": "2022-01-01",
+        "end": "2022-12-31",
+    }
+    mutated["cases"].append(comparative)
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id=comparative["case_id"],
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("frozen annual period" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_reused_replacement_case() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    first = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    second = _downgrade_core_slot(mutated, "ebay_fy2023_revenue_value")
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=first,
+            replacement_case_id="ebay_fy2023_operating_income_value",
+        ),
+        _replacement_entry(
+            original_case=second,
+            replacement_case_id="ebay_fy2023_operating_income_value",
+        ),
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("already used" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_empty_rationale() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id="ebay_fy2023_operating_income_value",
+            rationale="   ",
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("rationale" in e for e in errors)
+
+
+def test_core_value_slot_replacement_accepts_valid_pairing() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id="ebay_fy2023_operating_income_value",
+            rationale=(
+                "Mutated fixture: substitute a reviewed non-core annual operating-income "
+                "pairing from an initial annual report after downgrading the original slot."
+            ),
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert errors == []
+
+
+def test_core_value_slot_replacement_rejects_malformed_entry() -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    mutated["core_value_slot_replacements"] = ["not-a-mapping"]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("must be a mapping" in e for e in errors)
+
+    mutated["core_value_slot_replacements"] = {"bad": "type"}
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("must be a list" in e for e in errors)
