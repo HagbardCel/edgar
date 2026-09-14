@@ -7,6 +7,7 @@ import copy
 import pytest
 
 from tests.helpers.financial_cases import (
+    CORE_ANNUAL_REPORT_SHAPES,
     CORE_VALUE_ACCESSIONS,
     CORE_VALUE_SLOT_CASE_IDS,
     CORE_VALUE_SLOTS,
@@ -102,6 +103,7 @@ def test_current_m0_benchmark_has_all_nine_original_core_value_slots() -> None:
         "0000104169-24-000056",
     } == CORE_VALUE_ACCESSIONS
     assert frozenset(CORE_VALUE_SLOT_CASE_IDS) == CORE_VALUE_SLOTS
+    assert frozenset(CORE_ANNUAL_REPORT_SHAPES) == CORE_VALUE_ACCESSIONS
 
     benchmark = load_benchmark()
     cases_by_id = {c["case_id"]: c for c in benchmark["cases"]}
@@ -112,6 +114,16 @@ def test_current_m0_benchmark_has_all_nine_original_core_value_slots() -> None:
             case["report"]["accession"],
         ) == pair
         assert case["expected"]["state"] == "value"
+        accession = case["report"]["accession"]
+        shape = CORE_ANNUAL_REPORT_SHAPES[accession]
+        period = case["slot"]["period"]
+        if period["type"] == "duration":
+            sig = ("duration", period["start"], period["end"])
+        else:
+            sig = ("instant", period["instant"])
+        assert sig in shape["periods"]
+        assert case["slot"]["unit"] == shape["unit"]
+        assert case["slot"]["scope"] == shape["scope"]
 
 
 def test_value_cases_have_confirmed_economic_qualifications() -> None:
@@ -618,7 +630,7 @@ def test_core_value_slot_replacement_rejects_non_annual_slot_in_annual_filing() 
         metrics_keys=load_metrics_keys(),
         review_profile=load_review_profile(),
     )
-    assert any("frozen annual period" in e for e in errors)
+    assert any("period" in e and "frozen" in e for e in errors)
 
 
 def test_core_value_slot_replacement_rejects_reused_replacement_case() -> None:
@@ -793,7 +805,7 @@ def test_core_value_slot_replacement_cannot_expand_annual_periods_via_extra_core
         metrics_keys=load_metrics_keys(),
         review_profile=load_review_profile(),
     )
-    assert any("frozen annual period" in e for e in errors)
+    assert any("period" in e and "frozen" in e for e in errors)
 
 
 def test_core_value_slot_replacement_rejects_unknown_fields() -> None:
@@ -852,3 +864,61 @@ def test_core_value_slot_replacement_rejects_replacement_when_original_is_still_
         review_profile=load_review_profile(),
     )
     assert any("still state=value" in e and "not applicable" in e for e in errors)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("period", {"type": "duration", "start": "2022-01-01", "end": "2022-12-31"}),
+        ("unit", "EUR"),
+        ("scope", "some_segment"),
+    ],
+)
+def test_canonical_core_slot_rejects_shape_drift(field: str, value: object) -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = next(c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_revenue_value")
+    case["slot"][field] = value
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any(field in e and "frozen" in e for e in errors)
+    assert any(
+        "nine core value slots incomplete" in e and "revenue@0001065088-24-000036" in e
+        for e in errors
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("unit", "EUR"),
+        ("scope", "some_segment"),
+    ],
+)
+def test_core_value_slot_replacement_rejects_wrong_unit_or_scope(field: str, value: object) -> None:
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    donor = next(
+        c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_operating_income_value"
+    )
+    bad_donor = copy.deepcopy(donor)
+    bad_donor["case_id"] = f"mutated_donor_bad_{field}"
+    bad_donor["slot"][field] = value
+    mutated["cases"].append(bad_donor)
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id=bad_donor["case_id"],
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any(field in e and "frozen" in e for e in errors)
+    assert any("incomplete even after replacements" in e for e in errors)
