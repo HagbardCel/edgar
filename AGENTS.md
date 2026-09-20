@@ -9,6 +9,9 @@ The system preserves immutable filing evidence; parses deterministic document st
 **Phase 2A is complete.** **Phase 2B source cutover is complete.** **Phase 2C
 canonical registry and mapping ledger is complete.** The M0–M4 migration is
 **adopted** ([ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md)).
+[ADR 0013](docs/adr/0013-publication-critical-taxonomy-evidence.md) clarifies
+that bounded official-taxonomy evidence required by named M0 benchmark cases is
+M1A scope; generalized taxonomy continuity remains M5.
 
 Current implementation remains the Phase 2B source layer plus Phase 2C registry
 until the corresponding migration phase changes it. **Current phase: M0 —
@@ -21,7 +24,8 @@ See `docs/README.md` for completed milestones and documentation authority,
 `docs/normalization.md`,
 [ADR 0010](docs/adr/0010-curated-semantic-registry.md),
 [ADR 0011](docs/adr/0011-source-extraction.md),
-and [ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md).
+[ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md),
+and [ADR 0013](docs/adr/0013-publication-critical-taxonomy-evidence.md).
 
 Optimize for:
 
