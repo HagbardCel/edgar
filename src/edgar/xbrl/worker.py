@@ -47,7 +47,7 @@ from edgar.xbrl.arelle_env import (
 from edgar.xbrl.network_guard import NetworkDeniedError, NetworkGuard, deny_inet_sockets
 from edgar.xbrl.uri import UriIdentityError, normalize_uri
 
-WORKER_PROTOCOL_VERSION = "arelle-worker-v1"
+WORKER_PROTOCOL_VERSION = "arelle-worker-v2"
 WORKER_MODULE = "edgar.xbrl.worker"
 
 IXDS_PLUGIN = "inlineXbrlDocumentSet"
@@ -87,6 +87,7 @@ class WorkerJob:
     workspace_parent: Path | None = None
     user_agent: str | None = None
     operation: WorkerOperation = "load"
+    semantic_config: dict[str, Any] | None = None
 
     @property
     def offline(self) -> bool:
@@ -105,6 +106,12 @@ class WorkerJob:
             raise ValueError(f"unknown worker operation: {operation!r}")
         if operation == "extract" and mode != "offline":
             raise ValueError("extract requires mode=offline")
+        semantic_config = data.get("semantic_config")
+        if operation == "extract":
+            if not isinstance(semantic_config, dict):
+                raise ValueError("extract requires semantic_config object")
+        elif semantic_config is not None:
+            raise ValueError("semantic_config is only valid for extract jobs")
         bindings = [WorkerBinding.from_dict(b) for b in data.get("uri_bindings") or ()]
         for uri, entry in (data.get("uri_objects") or {}).items():
             bindings.append(
@@ -124,6 +131,7 @@ class WorkerJob:
             workspace_parent=Path(parent) if parent else None,
             user_agent=data.get("user_agent"),
             operation=operation,  # type: ignore[arg-type]
+            semantic_config=dict(semantic_config) if isinstance(semantic_config, dict) else None,
         )
 
 
@@ -138,6 +146,7 @@ class LoadOutcome:
     diagnostic_records: list[dict[str, Any]] = field(default_factory=list)
     extraction_payload: dict[str, Any] | None = None
     semantic_extraction_errors: list[str] = field(default_factory=list)
+    effective_semantic_config: dict[str, Any] | None = None
     engine_version: str = "unknown"
 
 
@@ -543,9 +552,13 @@ def _run_load(
         ):
             try:
                 from edgar.domain.bundle import UriBinding
+                from edgar.xbrl.config import SemanticConfig
                 from edgar.xbrl.extract import SemanticExtractionError, extract_report_extraction
                 from edgar.xbrl.source_wire import report_extraction_to_dict
 
+                assert job.semantic_config is not None
+                active_config = SemanticConfig.from_dict(job.semantic_config)
+                outcome.effective_semantic_config = active_config.to_dict()
                 uri_bindings = tuple(
                     UriBinding(
                         document_uri=b.document_uri,
@@ -562,6 +575,7 @@ def _run_load(
                     uri_bindings=uri_bindings,
                     report_input=job.report_input,
                     engine_version=outcome.engine_version,
+                    config=active_config,
                 )
                 outcome.extraction_payload = report_extraction_to_dict(data)
                 outcome.diagnostic_records = []
@@ -632,6 +646,7 @@ def run_job(job: WorkerJob, channel: WorkerChannel | None = None) -> dict[str, A
     if job.operation == "extract":
         result["extraction_payload"] = outcome.extraction_payload
         result["semantic_extraction_errors"] = outcome.semantic_extraction_errors
+        result["effective_semantic_config"] = outcome.effective_semantic_config
     return result
 
 

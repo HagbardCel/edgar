@@ -16,10 +16,18 @@ from edgar.db.source import (
     catalog_source_filing,
     persist_extraction,
 )
+from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
+from edgar.provenance import gather_dependency_lock_sha256, gather_implementation_identity
 from edgar.storage.bundles import BundleRepository, validate_published_bundle_path
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.closure import DEFAULT_WORKER_TIMEOUT_SECONDS
-from edgar.xbrl.source_extract import extract_filing
+from edgar.xbrl.extraction_receipt import (
+    build_bundle_ref,
+    build_extraction_receipt,
+    verify_extraction_config_chain,
+)
+from edgar.xbrl.source_extract import extract_filing_with_outcomes
+from edgar.xbrl.worker import WORKER_PROTOCOL_VERSION
 
 
 class SourceExtractError(RuntimeError):
@@ -97,13 +105,57 @@ class SourceExtractService:
                 raise SourceExtractError(str(exc)) from exc
 
         try:
-            extraction = extract_filing(
+            filing_outcome = extract_filing_with_outcomes(
                 bundle,
                 self._store,
                 timeout_seconds=self._timeout_seconds,
             )
         except Exception as exc:  # noqa: BLE001 — any extract failure skips replacement
             raise SourceExtractError(str(exc)) from exc
+
+        extraction = filing_outcome.extraction
+        implementation = gather_implementation_identity()
+        lock_sha = gather_dependency_lock_sha256()
+        bundle_ref = build_bundle_ref(
+            data_root=self._settings.edgar_data_root,
+            bundle_dir=bundle_dir,
+            bundle=bundle,
+        )
+        persistable_reports: list[PersistableReport] = []
+        for report_outcome in filing_outcome.report_outcomes:
+            report = report_outcome.report
+            worker = report_outcome.worker
+            semantic_config = worker.effective_semantic_config
+            verify_extraction_config_chain(
+                job_semantic_config=semantic_config,
+                worker_effective_semantic_config=semantic_config,
+                receipt_semantic_config=semantic_config,
+                worker_protocol_version=str(worker.raw_result.get("protocol_version") or ""),
+                expected_worker_protocol_version=WORKER_PROTOCOL_VERSION,
+                receipt_worker_protocol_version=WORKER_PROTOCOL_VERSION,
+            )
+            receipt = build_extraction_receipt(
+                bundle_ref=bundle_ref,
+                report_input=report.report_input,
+                semantic_config=semantic_config,
+                arelle_version=worker.arelle_version,
+                worker_protocol_version=WORKER_PROTOCOL_VERSION,
+                implementation=implementation,
+                dependency_lock_sha256=lock_sha,
+            )
+            persistable_reports.append(
+                PersistableReport(
+                    report=report,
+                    extraction_receipt=receipt,
+                    upstream_inventory=None,
+                )
+            )
+        persistable = PersistableFilingExtraction(
+            reports=tuple(persistable_reports),
+            document_blocks=extraction.document_blocks,
+            filing_sections=extraction.filing_sections,
+            issues=extraction.issues,
+        )
 
         report_probes = tuple(
             ReportCompletenessProbe(
@@ -133,7 +185,7 @@ class SourceExtractService:
         try:
             with engine.begin() as conn:
                 persist = persist_extraction(
-                    conn, filing_id=catalog.filing_id, extraction=extraction
+                    conn, filing_id=catalog.filing_id, extraction=persistable
                 )
         except PersistExtractionError as exc:
             raise SourceExtractError(str(exc)) from exc

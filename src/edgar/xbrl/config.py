@@ -8,7 +8,7 @@ identity field.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -110,6 +110,31 @@ class SemanticConfig:
                 raise ValueError(f"{name} must be sorted for stable policy")
             if len(set(values)) != len(values):
                 raise ValueError(f"{name} contains duplicates")
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> SemanticConfig:
+        """Deserialize extraction policy; keys must match :meth:`to_dict`."""
+        return build_semantic_config(
+            fact_lexical_version=str(data["fact_lexical_version"]),
+            element_locator_version=str(data["element_locator_version"]),
+            xml_fragment_version=str(data["xml_fragment_version"]),
+            diagnostic_policy_version=str(data["diagnostic_policy_version"]),
+            complete_compatible_diagnostics=data.get("complete_compatible_diagnostics"),
+            presentation_arcroles=data.get("presentation_arcroles", PRESENTATION_ARCROLES),
+            calculation_arcroles=data.get("calculation_arcroles", CALCULATION_ARCROLES),
+            definition_arcroles=data.get("definition_arcroles", DEFINITION_ARCROLES),
+            resource_arcroles=data.get("resource_arcroles", RESOURCE_ARCROLES),
+            excluded_arcroles=data.get("excluded_arcroles", EXCLUDED_ARCROLES),
+            deferred_arcroles=data.get("deferred_arcroles", DEFERRED_ARCROLES),
+            custom_definition_link_arcroles_supported=bool(
+                data.get("custom_definition_link_arcroles_supported", True)
+            ),
+            reported_dimensions_only=bool(data.get("reported_dimensions_only", True)),
+            non_dimensional_context_policy=str(
+                data.get("non_dimensional_context_policy", "incomplete")
+            ),
+            item_facts_only=bool(data.get("item_facts_only", True)),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {

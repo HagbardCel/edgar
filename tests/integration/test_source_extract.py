@@ -24,6 +24,7 @@ from edgar.ingestion.payload import compute_payload_hash
 from edgar.ingestion.source_extract import SourceExtractService
 from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
+from edgar.xbrl.extraction_receipt import RECEIPT_VERSION, ExtractionReceipt
 from edgar.xbrl.source_documents import extract_documents_for_filing
 from edgar.xbrl.source_extract import extract_filing
 from tests.helpers.database import reset_test_database, test_database_url, truncate_all_tables
@@ -136,6 +137,17 @@ def test_source_extract_service_end_to_end(engine: Engine, tmp_path: Path) -> No
     second = service.extract_published_bundle(published.bundle_dir)
     assert second.catalog_reused is True
     assert second.persist.fact_count == result.persist.fact_count
+
+    with engine.connect() as conn:
+        receipt_row = conn.execute(
+            select(src.source_xbrl_report.c.extraction_receipt).where(
+                src.source_xbrl_report.c.filing_id == result.filing_id
+            )
+        ).scalar_one()
+    assert receipt_row is not None
+    receipt = ExtractionReceipt.from_dict(receipt_row)
+    assert receipt.receipt_version == RECEIPT_VERSION
+    assert receipt.semantic_config
 
 
 def test_document_parity_matches_parser_output(tmp_path: Path) -> None:

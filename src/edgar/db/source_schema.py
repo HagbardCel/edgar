@@ -118,6 +118,7 @@ source_xbrl_report = Table(
     Column("arelle_version", Text, nullable=False),
     Column("extracted_at", DateTime(timezone=True), nullable=False),
     Column("arelle_item_fact_count", Integer, nullable=False),
+    Column("extraction_receipt", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="xbrl_report_pkey"),
     ForeignKeyConstraint(
         ["filing_id"],

@@ -219,6 +219,12 @@ def run_worker_process(
             f"worker exited without a result (returncode={process.returncode}): "
             f"{''.join(stderr_lines)[-2000:]}"
         )
+    result_version = result.get("protocol_version")
+    if result_version != WORKER_PROTOCOL_VERSION:
+        raise WorkerProtocolError(
+            f"worker result protocol_version mismatch: expected {WORKER_PROTOCOL_VERSION!r}, "
+            f"got {result_version!r}"
+        )
     return WorkerRun(
         result=result,
         returncode=process.returncode,

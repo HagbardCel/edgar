@@ -13,10 +13,13 @@ from typing import Any
 from edgar.domain.bundle import FilingBundle, XbrlReportInput
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.closure import DEFAULT_WORKER_TIMEOUT_SECONDS, run_worker_process
+from edgar.xbrl.config import SemanticConfig, build_semantic_config
+from edgar.xbrl.extraction_receipt import ReceiptValidationError, verify_extraction_config_chain
 from edgar.xbrl.records import SemanticIssueRecord
 from edgar.xbrl.replay_normalize import NormalizedReplayView, normalize_replay_for_bundle
 from edgar.xbrl.source_records import ReportExtraction
 from edgar.xbrl.source_wire import SourceWireError, report_extraction_from_dict
+from edgar.xbrl.worker import WORKER_PROTOCOL_VERSION
 
 
 class SourceExtractWorkerError(RuntimeError):
@@ -46,6 +49,7 @@ class OfflineExtractResult:
     replay: NormalizedReplayView
     arelle_version: str
     raw_result: dict[str, Any]
+    effective_semantic_config: dict[str, Any]
 
 
 def _deny_fetch(uri: str) -> dict[str, Any]:
@@ -61,6 +65,7 @@ def run_offline_extract(
     store: ObjectStore,
     *,
     report_input: XbrlReportInput | dict[str, Any] | None = None,
+    semantic_config: SemanticConfig | dict[str, Any] | None = None,
     python_executable: str = sys.executable,
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
 ) -> OfflineExtractResult:
@@ -72,12 +77,20 @@ def run_offline_extract(
     selected: XbrlReportInput | dict[str, Any]
     selected = report_input if report_input is not None else bundle.report_inputs[0]
     report_payload = dict(selected) if isinstance(selected, dict) else selected.to_dict()
+    if semantic_config is None:
+        config = build_semantic_config()
+    elif isinstance(semantic_config, SemanticConfig):
+        config = semantic_config
+    else:
+        config = SemanticConfig.from_dict(semantic_config)
+    config_payload = config.to_dict()
     job = {
         "mode": "offline",
         "operation": "extract",
         "report_input": report_payload,
         "object_store_root": str(store.data_root),
         "uri_bindings": [binding.to_dict() for binding in bundle.uri_bindings],
+        "semantic_config": config_payload,
     }
     try:
         run = run_worker_process(
@@ -158,6 +171,43 @@ def run_offline_extract(
             arelle_version=arelle_version,
         )
 
+    effective = result.get("effective_semantic_config")
+    if not isinstance(effective, dict):
+        raise SourceExtractWorkerError(
+            "source extraction worker missing effective_semantic_config",
+            replay=replay,
+            issues=(
+                SemanticIssueRecord(
+                    severity="fatal",
+                    code="SOURCE_EXTRACTION_CONFIG_MISSING",
+                    message="worker result missing effective_semantic_config",
+                ),
+            ),
+            arelle_version=arelle_version,
+        )
+    try:
+        verify_extraction_config_chain(
+            job_semantic_config=config_payload,
+            worker_effective_semantic_config=effective,
+            receipt_semantic_config=config_payload,
+            worker_protocol_version=str(result.get("protocol_version") or ""),
+            expected_worker_protocol_version=WORKER_PROTOCOL_VERSION,
+            receipt_worker_protocol_version=WORKER_PROTOCOL_VERSION,
+        )
+    except ReceiptValidationError as exc:
+        raise SourceExtractWorkerError(
+            str(exc),
+            replay=replay,
+            issues=(
+                SemanticIssueRecord(
+                    severity="fatal",
+                    code="SOURCE_EXTRACTION_CONFIG_MISMATCH",
+                    message=str(exc),
+                ),
+            ),
+            arelle_version=arelle_version,
+        ) from exc
+
     try:
         report = report_extraction_from_dict(payload)
     except SourceWireError as exc:
@@ -179,4 +229,5 @@ def run_offline_extract(
         replay=replay,
         arelle_version=str(arelle_version or report.arelle_version),
         raw_result=dict(result),
+        effective_semantic_config=SemanticConfig.from_dict(effective).to_dict(),
     )
