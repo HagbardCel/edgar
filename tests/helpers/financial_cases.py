@@ -71,10 +71,21 @@ CORE_VALUE_SLOTS: frozenset[tuple[str, str]] = frozenset(CORE_VALUE_SLOT_CASE_ID
 # Three initial annual reports for the M3 non-vacuous value target.
 CORE_VALUE_ACCESSIONS: frozenset[str] = frozenset(accession for _, accession in CORE_VALUE_SLOTS)
 
-# Frozen annual report shape authority for the three M3 annual accessions.
-# Independent of mutable benchmark case contents; keys must match CORE_VALUE_ACCESSIONS.
-CORE_ANNUAL_REPORT_SHAPES: dict[str, dict[str, Any]] = {
+# Frozen annual-report identity and slot-shape authority for the three M3 annual
+# accessions. Independent of mutable benchmark case contents; keys must match
+# CORE_VALUE_ACCESSIONS. Freezes issuer/report/bundle metadata and annual shape —
+# not occurrence-pin membership in FilingBundle inventory (M1A).
+CORE_ANNUAL_REPORTS: dict[str, dict[str, Any]] = {
     "0001065088-23-000006": {
+        "issuer_cik": "0001065088",
+        "report_key": "c4b9b600baeb8de3ede6e59fd68b4ada8a44f1a4dc9693c8c08687b7266994b3",
+        "bundle_ref": {
+            "opaque_id": "5afc286194184728930b372fdc602777",
+            "payload_hash": "5ab98bd4f4030d70430a444e8a148f0cf6d3d8b24e5b1ddf131d62a7a5b92f76",
+            "relative_bundle_dir": (
+                "bundles/0001065088/0001065088-23-000006/5afc286194184728930b372fdc602777"
+            ),
+        },
         "periods": frozenset(
             {
                 ("duration", "2022-01-01", "2022-12-31"),
@@ -85,6 +96,15 @@ CORE_ANNUAL_REPORT_SHAPES: dict[str, dict[str, Any]] = {
         "scope": "consolidated",
     },
     "0001065088-24-000036": {
+        "issuer_cik": "0001065088",
+        "report_key": "5df33cea53528659979435c5020dafa9ebb5e36daa8539340ee539c80edb68c7",
+        "bundle_ref": {
+            "opaque_id": "87aa60a1382a41709ec8cbdfd5c83490",
+            "payload_hash": "96ae41f1730dfd79972d2cd0f33290db3ef95576fb562f586343576fb7478662",
+            "relative_bundle_dir": (
+                "bundles/0001065088/0001065088-24-000036/87aa60a1382a41709ec8cbdfd5c83490"
+            ),
+        },
         "periods": frozenset(
             {
                 ("duration", "2023-01-01", "2023-12-31"),
@@ -95,6 +115,15 @@ CORE_ANNUAL_REPORT_SHAPES: dict[str, dict[str, Any]] = {
         "scope": "consolidated",
     },
     "0000104169-24-000056": {
+        "issuer_cik": "0000104169",
+        "report_key": "d9389fd167b4599d899ff7b6c03bb9942acfe8d4bc5445909ec6ea3f98ec9036",
+        "bundle_ref": {
+            "opaque_id": "d77e7138fd9d434287fcc57a1f626217",
+            "payload_hash": "67380495711cd3526f1b4850d80aa04323eacb847a15f91a89fd54b486f07570",
+            "relative_bundle_dir": (
+                "bundles/0000104169/0000104169-24-000056/d77e7138fd9d434287fcc57a1f626217"
+            ),
+        },
         "periods": frozenset(
             {
                 ("duration", "2023-02-01", "2024-01-31"),
@@ -463,41 +492,83 @@ def _period_signature(period: Mapping[str, Any]) -> tuple[str, ...] | None:
     return None
 
 
-def _slot_matches_core_report_shape(
+def _case_matches_frozen_core_annual_report(
     accession: str,
+    issuer: Any,
+    report: Any,
     slot: Mapping[str, Any],
     label: str,
     errors: list[str],
 ) -> bool:
-    """Return whether slot period/unit/scope match the frozen core report shape."""
-    shape = CORE_ANNUAL_REPORT_SHAPES.get(accession)
-    if shape is None:
-        errors.append(f"{label}: no frozen core report shape for accession {accession!r}")
+    """Return whether issuer/report/slot match the frozen core annual-report authority.
+
+    Collects ordinary mismatches (issuer, accession, report_key, bundle, period,
+    unit, scope). Returns early only on structural failures that block further
+    checks. Does not resolve occurrence pins against FilingBundle inventory.
+    """
+    authority = CORE_ANNUAL_REPORTS.get(accession)
+    if authority is None:
+        errors.append(f"{label}: no frozen core annual report for accession {accession!r}")
         return False
 
-    period = slot.get("period")
-    if not isinstance(period, Mapping):
-        errors.append(f"{label}: period does not match frozen core report shape")
+    if not isinstance(issuer, Mapping):
+        errors.append(f"{label}: issuer does not match frozen core annual report")
+        return False
+    if not isinstance(report, Mapping):
+        errors.append(f"{label}: report does not match frozen core annual report")
         return False
 
-    sig = _period_signature(period)
     ok = True
 
-    if sig not in shape["periods"]:
-        errors.append(f"{label}: period {sig!r} does not match frozen core report shape")
-        ok = False
-
-    if slot.get("unit") != shape["unit"]:
+    if issuer.get("cik") != authority["issuer_cik"]:
         errors.append(
-            f"{label}: unit {slot.get('unit')!r} does not match frozen "
-            f"core report shape {shape['unit']!r}"
+            f"{label}: issuer.cik {issuer.get('cik')!r} does not match frozen "
+            f"core annual report {authority['issuer_cik']!r}"
         )
         ok = False
 
-    if slot.get("scope") != shape["scope"]:
+    if report.get("accession") != accession:
+        errors.append(
+            f"{label}: report.accession {report.get('accession')!r} does not match "
+            f"frozen core annual report accession {accession!r}"
+        )
+        ok = False
+
+    if report.get("report_key") != authority["report_key"]:
+        errors.append(
+            f"{label}: report_key {report.get('report_key')!r} does not match frozen "
+            f"core annual report"
+        )
+        ok = False
+
+    bundle_ref = report.get("bundle_ref")
+    if not isinstance(bundle_ref, Mapping) or not _bundle_ref_equal(
+        bundle_ref, authority["bundle_ref"]
+    ):
+        errors.append(f"{label}: bundle_ref does not match frozen core annual report")
+        ok = False
+
+    period = slot.get("period")
+    if not isinstance(period, Mapping):
+        errors.append(f"{label}: period does not match frozen core annual report")
+        ok = False
+    else:
+        sig = _period_signature(period)
+        if sig not in authority["periods"]:
+            errors.append(f"{label}: period {sig!r} does not match frozen core annual report")
+            ok = False
+
+    if slot.get("unit") != authority["unit"]:
+        errors.append(
+            f"{label}: unit {slot.get('unit')!r} does not match frozen "
+            f"core annual report {authority['unit']!r}"
+        )
+        ok = False
+
+    if slot.get("scope") != authority["scope"]:
         errors.append(
             f"{label}: scope {slot.get('scope')!r} does not match frozen "
-            f"core report shape {shape['scope']!r}"
+            f"core annual report {authority['scope']!r}"
         )
         ok = False
 
@@ -511,9 +582,9 @@ def _validate_canonical_core_slots(
 ) -> set[tuple[str, str]]:
     """Validate the nine frozen canonical slot definitions and return live value hits.
 
-    Canonical metric/accession/period/unit/scope remain frozen even when a case is
-    downgraded and satisfied through a replacement. Changing the target slot itself
-    requires explicitly reopening the M0 benchmark.
+    Canonical metric/accession/issuer/report_key/bundle/period/unit/scope remain
+    frozen even when a case is downgraded and satisfied through a replacement.
+    Changing the target slot itself requires explicitly reopening the M0 benchmark.
     """
     core_hits: set[tuple[str, str]] = set()
 
@@ -543,15 +614,17 @@ def _validate_canonical_core_slots(
             errors.append(f"{case_id}: canonical case missing slot")
             continue
 
-        shape_ok = _slot_matches_core_report_shape(
+        report_ok = _case_matches_frozen_core_annual_report(
             accession,
+            case.get("issuer"),
+            report,
             slot,
             f"{case_id}: canonical core slot",
             errors,
         )
 
         expected = case.get("expected")
-        if shape_ok and isinstance(expected, Mapping) and expected.get("state") == "value":
+        if report_ok and isinstance(expected, Mapping) and expected.get("state") == "value":
             core_hits.add(pair)
 
     return core_hits
@@ -573,9 +646,10 @@ def _validate_core_value_slot_replacements(
 
     Replacement identity is derived from the resolved case. A replacement must
     be a distinct non-core annual value pairing from one of the three M3 annual
-    reports (accession in ``CORE_VALUE_ACCESSIONS`` with period/unit/scope
-    matching the frozen ``CORE_ANNUAL_REPORT_SHAPES`` authority). The canonical
-    original case must still exist and must no longer be ``state=value``.
+    reports (accession in ``CORE_VALUE_ACCESSIONS`` with issuer/report_key/
+    bundle_ref and period/unit/scope matching the frozen ``CORE_ANNUAL_REPORTS``
+    authority). The canonical original case must still exist and must no longer
+    be ``state=value``.
     """
     effective_core = set(core_hits)
     if not isinstance(replacements, list):
@@ -712,8 +786,10 @@ def _validate_core_value_slot_replacements(
         if not isinstance(slot, Mapping):
             errors.append(f"{label}: replacement case {repl_id!r} missing slot")
             continue
-        if not _slot_matches_core_report_shape(
+        if not _case_matches_frozen_core_annual_report(
             repl_acc,
+            resolved.get("issuer"),
+            report,
             slot,
             f"{label}: replacement case {repl_id!r}",
             errors,
@@ -1211,7 +1287,7 @@ def validate_benchmark_static(
 __all__ = [
     "BENCHMARK_PATH",
     "CORPUS_ACCESSIONS",
-    "CORE_ANNUAL_REPORT_SHAPES",
+    "CORE_ANNUAL_REPORTS",
     "CORE_VALUE_ACCESSIONS",
     "CORE_VALUE_SLOT_CASE_IDS",
     "CORE_VALUE_SLOTS",

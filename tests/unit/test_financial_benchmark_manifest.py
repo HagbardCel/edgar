@@ -7,7 +7,7 @@ import copy
 import pytest
 
 from tests.helpers.financial_cases import (
-    CORE_ANNUAL_REPORT_SHAPES,
+    CORE_ANNUAL_REPORTS,
     CORE_VALUE_ACCESSIONS,
     CORE_VALUE_SLOT_CASE_IDS,
     CORE_VALUE_SLOTS,
@@ -103,7 +103,7 @@ def test_current_m0_benchmark_has_all_nine_original_core_value_slots() -> None:
         "0000104169-24-000056",
     } == CORE_VALUE_ACCESSIONS
     assert frozenset(CORE_VALUE_SLOT_CASE_IDS) == CORE_VALUE_SLOTS
-    assert frozenset(CORE_ANNUAL_REPORT_SHAPES) == CORE_VALUE_ACCESSIONS
+    assert frozenset(CORE_ANNUAL_REPORTS) == CORE_VALUE_ACCESSIONS
 
     benchmark = load_benchmark()
     cases_by_id = {c["case_id"]: c for c in benchmark["cases"]}
@@ -115,15 +115,21 @@ def test_current_m0_benchmark_has_all_nine_original_core_value_slots() -> None:
         ) == pair
         assert case["expected"]["state"] == "value"
         accession = case["report"]["accession"]
-        shape = CORE_ANNUAL_REPORT_SHAPES[accession]
+        authority = CORE_ANNUAL_REPORTS[accession]
+        assert case["issuer"]["cik"] == authority["issuer_cik"]
+        assert case["report"]["report_key"] == authority["report_key"]
+        expected_bundle = authority["bundle_ref"]
+        actual_bundle = case["report"]["bundle_ref"]
+        for key in ("opaque_id", "payload_hash", "relative_bundle_dir"):
+            assert actual_bundle[key] == expected_bundle[key]
         period = case["slot"]["period"]
         if period["type"] == "duration":
             sig = ("duration", period["start"], period["end"])
         else:
             sig = ("instant", period["instant"])
-        assert sig in shape["periods"]
-        assert case["slot"]["unit"] == shape["unit"]
-        assert case["slot"]["scope"] == shape["scope"]
+        assert sig in authority["periods"]
+        assert case["slot"]["unit"] == authority["unit"]
+        assert case["slot"]["scope"] == authority["scope"]
 
 
 def test_value_cases_have_confirmed_economic_qualifications() -> None:
@@ -922,3 +928,78 @@ def test_core_value_slot_replacement_rejects_wrong_unit_or_scope(field: str, val
     )
     assert any(field in e and "frozen" in e for e in errors)
     assert any("incomplete even after replacements" in e for e in errors)
+
+
+def test_core_value_slot_replacement_rejects_cross_filing_provenance_masquerade() -> None:
+    """FY2023 donor cannot credit an FY2022 slot by relabeling accession/period only."""
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    original = _downgrade_core_slot(mutated, "ebay_fy2022_revenue_value")
+    donor = next(
+        c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_operating_income_value"
+    )
+    masquerade = copy.deepcopy(donor)
+    masquerade["case_id"] = "mutated_fy2023_oi_masquerading_as_fy2022"
+    fy2022_accession = "0001065088-23-000006"
+    masquerade["report"]["accession"] = fy2022_accession
+    masquerade["qualification"]["report_ref"]["accession"] = fy2022_accession
+    masquerade["slot"]["period"] = {
+        "type": "duration",
+        "start": "2022-01-01",
+        "end": "2022-12-31",
+    }
+    # Leave FY2023 report_key, bundle_ref, pins, and occurrences untouched.
+    mutated["cases"].append(masquerade)
+    mutated["core_value_slot_replacements"] = [
+        _replacement_entry(
+            original_case=original,
+            replacement_case_id=masquerade["case_id"],
+        )
+    ]
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("frozen" in e for e in errors)
+    assert any(
+        "incomplete even after replacements" in e and "revenue@0001065088-23-000006" in e
+        for e in errors
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "report_key",
+        "bundle_ref",
+        "issuer",
+    ],
+)
+def test_canonical_core_slot_rejects_report_provenance_drift(mutation: str) -> None:
+    """Internally consistent report identity still must match frozen annual authority."""
+    benchmark = load_benchmark()
+    mutated = copy.deepcopy(benchmark)
+    case = next(c for c in mutated["cases"] if c["case_id"] == "ebay_fy2023_revenue_value")
+
+    if mutation == "report_key":
+        wrong = "a" * 64
+        case["report"]["report_key"] = wrong
+        case["qualification"]["report_ref"]["report_key"] = wrong
+    elif mutation == "bundle_ref":
+        wrong_bundle = copy.deepcopy(CORE_ANNUAL_REPORTS["0001065088-23-000006"]["bundle_ref"])
+        case["report"]["bundle_ref"] = copy.deepcopy(wrong_bundle)
+        case["qualification"]["bundle_ref"] = copy.deepcopy(wrong_bundle)
+    else:
+        case["issuer"] = {"cik": "0000104169"}
+
+    errors = validate_benchmark_static(
+        mutated,
+        metrics_keys=load_metrics_keys(),
+        review_profile=load_review_profile(),
+    )
+    assert any("frozen" in e for e in errors)
+    assert any(
+        "nine core value slots incomplete" in e and "revenue@0001065088-24-000036" in e
+        for e in errors
+    )
