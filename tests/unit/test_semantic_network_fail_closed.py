@@ -13,6 +13,7 @@ from edgar.xbrl.extract import (
     _Extraction,
 )
 from edgar.xbrl.records import ExpandedQName, SourceLocator
+from tests.helpers.linkbase_qnames import PRESENTATION_ARC, PRESENTATION_LINK
 
 
 def _extraction() -> _Extraction:
@@ -31,6 +32,8 @@ def test_missing_arc_element_is_incoherent_for_concept_network() -> None:
             network_type="presentation",
             arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
             link_role_uri="http://example.com/role",
+            link_qname=PRESENTATION_LINK,
+            arc_qname=PRESENTATION_ARC,
             declared=declared,
             extraction=extraction,
         )
@@ -70,6 +73,8 @@ def test_endpoint_family_mismatch_is_incoherent(monkeypatch) -> None:  # noqa: A
             network_type="presentation",
             arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
             link_role_uri="http://example.com/role",
+            link_qname=PRESENTATION_LINK,
+            arc_qname=PRESENTATION_ARC,
             declared=declared,
             extraction=extraction,
         )

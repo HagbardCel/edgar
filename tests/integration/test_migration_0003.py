@@ -73,7 +73,7 @@ def test_0003_upgrade_downgrade_reupgrade(engine: Engine) -> None:
     assert _revision(engine) == "0002_registry"
     assert not _column_exists(engine, "extraction_receipt")
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0003_m1a_extraction_receipt")
     assert _revision(engine) == "0003_m1a_extraction_receipt"
     assert _column_exists(engine, "extraction_receipt")
     assert _is_nullable_jsonb(engine)
@@ -82,10 +82,9 @@ def test_0003_upgrade_downgrade_reupgrade(engine: Engine) -> None:
     assert _revision(engine) == "0002_registry"
     assert not _column_exists(engine, "extraction_receipt")
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0003_m1a_extraction_receipt")
     assert _revision(engine) == "0003_m1a_extraction_receipt"
     assert _column_exists(engine, "extraction_receipt")
 
-    # Already at head: second upgrade is a no-op.
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0003_m1a_extraction_receipt")
     assert _revision(engine) == "0003_m1a_extraction_receipt"

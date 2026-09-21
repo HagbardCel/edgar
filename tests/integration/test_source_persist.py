@@ -50,6 +50,7 @@ from edgar.xbrl.source_records import (
 )
 from tests.helpers.database import reset_test_database, test_database_url, truncate_all_tables
 from tests.helpers.extraction_receipt import wrap_filing_extraction
+from tests.helpers.linkbase_qnames import LABEL_ARC, LABEL_LINK, PRESENTATION_ARC, PRESENTATION_LINK
 
 pytestmark = pytest.mark.database
 
@@ -810,6 +811,8 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
                 concept=_qname("Revenue"),
                 link_role_uri="http://example.com/role/Statement",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                link_qname=LABEL_LINK,
+                arc_qname=LABEL_ARC,
                 text="Revenue",
                 source_order=0,
                 language="en",
@@ -846,6 +849,8 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
                 network_type="presentation",
                 link_role_uri="http://example.com/role/Income",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
+                link_qname=PRESENTATION_LINK,
+                arc_qname=PRESENTATION_ARC,
                 source_concept=_qname("Revenue"),
                 target_concept=_qname("Assets"),
                 source_document_relative_path=_DOC_PATH,
@@ -893,6 +898,14 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
                 src.source_concept_label.c.resource_role_uri,
                 src.source_concept_label.c.source_document_id,
                 src.source_concept_label.c.arc_source_document_id,
+                src.source_concept_label.c.link_qname,
+                src.source_concept_label.c.arc_qname,
+            )
+        ).one()
+        persisted_rel = conn.execute(
+            select(
+                src.source_relationship.c.link_qname,
+                src.source_relationship.c.arc_qname,
             )
         ).one()
     assert rel[0] == doc_id
@@ -908,6 +921,10 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
     assert label[2] == "http://www.xbrl.org/2003/role/label"
     assert label[3] == doc_id
     assert label[4] == doc_id
+    assert label[5] == LABEL_LINK.clark
+    assert label[6] == LABEL_ARC.clark
+    assert persisted_rel[0] == PRESENTATION_LINK.clark
+    assert persisted_rel[1] == PRESENTATION_ARC.clark
 
 
 def test_persist_missing_document_path_keeps_prior_snapshot(engine: Engine, tmp_path: Path) -> None:
@@ -939,6 +956,8 @@ def test_persist_missing_document_path_keeps_prior_snapshot(engine: Engine, tmp_
                 network_type="presentation",
                 link_role_uri="http://example.com/role/Income",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
+                link_qname=PRESENTATION_LINK,
+                arc_qname=PRESENTATION_ARC,
                 source_concept=_qname("Revenue"),
                 target_concept=_qname("Revenue"),
                 source_document_relative_path="missing.xml",

@@ -79,9 +79,11 @@ source.concept_declaration   # report-scoped declaration of a concept
   source_document_id, source_locator   # optional paired provenance
 source.concept_label
   link_role_uri, arcrole_uri, resource_role_uri, order_value, source_order
+  link_qname, arc_qname   # Clark TEXT; named CHECK both-NULL or both non-empty
   source_document_id / source_locator           # resource element
   arc_source_document_id / arc_locator          # arc concept → resource
 source.concept_reference     # same URI + resource/arc provenance grain as labels
+  link_qname, arc_qname   # Clark TEXT; named CHECK both-NULL or both non-empty
 source.context
   instant_lexical / start_lexical / end_lexical   # filed XML text (source of truth)
   instant_at / start_at / end_at                  # optional timestamptz; offset-aware only
@@ -91,6 +93,9 @@ source.context_dimension / source.unit
 source.fact                  # one row per source occurrence (source_order)
 source.relationship          # effective presentation / calculation / definition
   source_document_id, source_locator
+  link_qname, arc_qname   # Clark TEXT from the Arelle exact base-set key
+                         # CHECK ck_source_relationship_link_arc_qname:
+                         # both NULL (pre-M1A-2 rows) or both non-empty
 source.extraction_issue      # filing- and/or report-scoped diagnostics
 ```
 
@@ -98,7 +103,11 @@ Grain notes:
 
 - Facts, relationships, labels, and references are unique on `(report_id, source_order)`.
 - Label/reference `link_role_uri`, `arcrole_uri`, and `resource_role_uri` are
-  distinct; they are never collapsed.
+  distinct; they are never collapsed. Supported associations also persist Clark
+  `link_qname` and `arc_qname` (same both-NULL-or-both-non-empty CHECK names
+  `ck_source_concept_label_link_arc_qname` /
+  `ck_source_concept_reference_link_arc_qname`). Pre-M1A-2 rows may have both
+  QName columns NULL; new extractions always write both.
 - Paired provenance: a locator is stored only with a catalogued document path
   (DTO build resolves FilingBundle URI → `logical_path`; persist resolves path →
   `source.document`). Missing Arelle locators store both path and locator as NULL.

@@ -24,12 +24,13 @@ from edgar.xbrl.records import (
     PeriodType,
     ResolvedValueKind,
     ValueStatus,
+    _assert_identity_qname,
 )
 
-EXTRACTOR_VERSION = "source-extract-v3"
+EXTRACTOR_VERSION = "source-extract-v4"
 
 #: Wire schema for worker ``extraction_payload`` (not identity).
-SOURCE_RECORDS_SCHEMA_VERSION = 2
+SOURCE_RECORDS_SCHEMA_VERSION = 3
 
 LocatorScheme = Literal["xml_id", "unqualified_id", "expanded_element_path"]
 
@@ -126,6 +127,8 @@ class ConceptLabelRecord:
     concept: ExpandedQName
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     text: str
     source_order: int
     language: str | None = None
@@ -145,6 +148,8 @@ class ConceptLabelRecord:
             raise ValueError("source_order must be >= 0")
         if self.order_value is not None and not self.order_value.is_finite():
             raise ValueError(f"order_value must be finite: {self.order_value!r}")
+        _assert_identity_qname(self.link_qname, what="concept label link_qname")
+        _assert_identity_qname(self.arc_qname, what="concept label arc_qname")
         _assert_locator_implies_path(
             self.source_document_relative_path,
             self.source_locator,
@@ -164,6 +169,8 @@ class ConceptReferenceRecord:
     concept: ExpandedQName
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     source_order: int
     reference_parts: tuple[ReferencePartRecord, ...] = ()
     resource_role_uri: str | None = None
@@ -182,6 +189,8 @@ class ConceptReferenceRecord:
             raise ValueError("source_order must be >= 0")
         if self.order_value is not None and not self.order_value.is_finite():
             raise ValueError(f"order_value must be finite: {self.order_value!r}")
+        _assert_identity_qname(self.link_qname, what="concept reference link_qname")
+        _assert_identity_qname(self.arc_qname, what="concept reference arc_qname")
         _assert_locator_implies_path(
             self.source_document_relative_path,
             self.source_locator,
@@ -333,6 +342,8 @@ class RelationshipRecord:
     network_type: NetworkType
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     source_concept: ExpandedQName
     target_concept: ExpandedQName
     order_value: Decimal | None = None
@@ -353,6 +364,8 @@ class RelationshipRecord:
         for label, value in (("order_value", self.order_value), ("weight", self.weight)):
             if value is not None and not value.is_finite():
                 raise ValueError(f"{label} must be finite: {value!r}")
+        _assert_identity_qname(self.link_qname, what="relationship link_qname")
+        _assert_identity_qname(self.arc_qname, what="relationship arc_qname")
         _assert_locator_implies_path(
             self.source_document_relative_path,
             self.source_locator,

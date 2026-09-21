@@ -48,7 +48,7 @@ All source table definitions are in [source_schema.py](../../src/edgar/db/source
 | `source.unit` | Filed unit | Report + source unit ID | Evidence; KEEP |
 | `source.unit_measure` | Numerator/denominator measure occurrence | Unit + side + ordinal | Evidence; KEEP expanded QName and multiplicity |
 | `source.fact` | One item-fact occurrence | Report + source order; local bigint | Evidence; KEEP, never deduplicate at storage |
-| `source.relationship` | Effective concept-network edge | Report + source order | Evidence; MODIFY network identity completeness |
+| `source.relationship` | Effective concept-network edge | Report + source order | Evidence; KEEP Clark `link_qname`/`arc_qname` |
 | `source.extraction_issue` | Diagnostic from the current extraction | Local ID with filing/report/document scope | Regenerable diagnosis; KEEP |
 | `source.document_block` | Located structural text block | Document + ordinal | Regenerable evidence; KEEP |
 | `source.filing_section` | Parser's section-boundary assertion | Document + section key | Regenerable interpretation; KEEP method/confidence |
@@ -73,7 +73,7 @@ All source table definitions are in [source_schema.py](../../src/edgar/db/source
 
 The live extractor calls concept/context/unit/fact/network extraction. It does **not** call `_role_declarations` or `_arcrole_declarations`; `ReportExtraction` has no corresponding fields. Keeping unused helpers is not equivalent to retaining role definitions in SQL. Neither the native declaration DTO nor table carries typed-domain references or resolved datatype derivation information.
 
-The extractor enumerates exact `(arcrole, linkrole, link QName, arc QName)` base sets, but only the first two identities survive into `source.relationship`. The full base-set key should survive rather than relying on all relevant networks using standard link/arc element names.
+The extractor enumerates exact `(arcrole, linkrole, link QName, arc QName)` base sets and persists the full key on `source.relationship`, `source.concept_label`, and `source.concept_reference` as Clark TEXT (`link_qname`/`arc_qname`). Named CHECKs require both columns NULL (legacy pre-M1A-2 rows) or both non-empty. Failure to convert either QName on a supported base set is fatal (`INVALID_BASE_SET_QNAME`). Role/arcrole declaration tables, footnotes, and official-taxonomy packets remain later M1A work.
 
 Fact-footnote arcs are explicitly excluded and counted in issues. Generic labels/references and unsupported arcroles can produce nonfatal omissions. Tuples, fractions, and non-dimensional context content can block extraction. These policies are visible in [config.py](../../src/edgar/xbrl/config.py) and [extract.py](../../src/edgar/xbrl/extract.py). Raw artifacts retain the evidence, but the SQL surface is not a complete DTS archive. The target should label supported capabilities honestly and materialize the small missing pieces that review needs.
 

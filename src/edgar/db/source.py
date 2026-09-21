@@ -656,6 +656,17 @@ def _bulk_insert_declarations(
     conn.execute(src.source_concept_declaration.insert(), rows)
 
 
+def _link_arc_qname_columns(
+    link_qname: ExpandedQName, arc_qname: ExpandedQName, *, what: str
+) -> dict[str, str]:
+    """Serialize write-DTO QNames to Clark TEXT. Never persist a half or empty key."""
+    link = link_qname.clark
+    arc = arc_qname.clark
+    if not link or not arc:
+        raise ValueError(f"{what} requires non-empty Clark link_qname and arc_qname")
+    return {"link_qname": link, "arc_qname": arc}
+
+
 def _bulk_insert_labels(
     conn: Connection,
     report_id: int,
@@ -670,6 +681,11 @@ def _bulk_insert_labels(
             "concept_id": _concept_uuid(label.concept, what="label"),
             "link_role_uri": label.link_role_uri,
             "arcrole_uri": label.arcrole_uri,
+            **_link_arc_qname_columns(
+                label.link_qname,
+                label.arc_qname,
+                what=f"label source_order={label.source_order}",
+            ),
             "resource_role_uri": label.resource_role_uri,
             "language": label.language,
             "text": label.text,
@@ -709,6 +725,11 @@ def _bulk_insert_references(
             "concept_id": _concept_uuid(ref.concept, what="reference"),
             "link_role_uri": ref.link_role_uri,
             "arcrole_uri": ref.arcrole_uri,
+            **_link_arc_qname_columns(
+                ref.link_qname,
+                ref.arc_qname,
+                what=f"reference source_order={ref.source_order}",
+            ),
             "resource_role_uri": ref.resource_role_uri,
             "order_value": ref.order_value,
             "source_order": ref.source_order,
@@ -952,6 +973,11 @@ def _bulk_insert_relationships(
             "network_type": rel.network_type,
             "link_role_uri": rel.link_role_uri,
             "arcrole_uri": rel.arcrole_uri,
+            **_link_arc_qname_columns(
+                rel.link_qname,
+                rel.arc_qname,
+                what=f"relationship source_order={rel.source_order}",
+            ),
             "source_concept_id": _concept_uuid(rel.source_concept, what="relationship source"),
             "target_concept_id": _concept_uuid(rel.target_concept, what="relationship target"),
             "order_value": rel.order_value,

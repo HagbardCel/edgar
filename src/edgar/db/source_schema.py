@@ -30,6 +30,12 @@ from edgar.db.schema import SHA256_CHECK, metadata
 
 SOURCE_SCHEMA = "source"
 
+_LINK_ARC_QNAME_CHECK = (
+    "(link_qname IS NULL AND arc_qname IS NULL) OR "
+    "(link_qname IS NOT NULL AND arc_qname IS NOT NULL "
+    "AND link_qname <> '' AND arc_qname <> '')"
+)
+
 # --- Acquisition-owned durable catalog ---------------------------------------
 
 source_issuer = Table(
@@ -200,6 +206,8 @@ source_concept_label = Table(
     Column("concept_id", UUID(as_uuid=True), nullable=False),
     Column("link_role_uri", Text, nullable=False),
     Column("arcrole_uri", Text, nullable=False),
+    Column("link_qname", Text, nullable=True),
+    Column("arc_qname", Text, nullable=True),
     Column("resource_role_uri", Text, nullable=True),
     Column("language", Text, nullable=True),
     Column("text", Text, nullable=False),
@@ -237,6 +245,7 @@ source_concept_label = Table(
         name="uq_source_concept_label_report_order",
     ),
     CheckConstraint("source_order >= 0", name="ck_source_concept_label_source_order_nonneg"),
+    CheckConstraint(_LINK_ARC_QNAME_CHECK, name="ck_source_concept_label_link_arc_qname"),
     Index("ix_source_concept_label_report_concept", "report_id", "concept_id"),
     schema=SOURCE_SCHEMA,
 )
@@ -249,6 +258,8 @@ source_concept_reference = Table(
     Column("concept_id", UUID(as_uuid=True), nullable=False),
     Column("link_role_uri", Text, nullable=False),
     Column("arcrole_uri", Text, nullable=False),
+    Column("link_qname", Text, nullable=True),
+    Column("arc_qname", Text, nullable=True),
     Column("resource_role_uri", Text, nullable=True),
     Column("order_value", Numeric, nullable=True),
     Column("source_order", Integer, nullable=False),
@@ -285,6 +296,7 @@ source_concept_reference = Table(
         name="uq_source_concept_reference_report_order",
     ),
     CheckConstraint("source_order >= 0", name="ck_source_concept_reference_source_order_nonneg"),
+    CheckConstraint(_LINK_ARC_QNAME_CHECK, name="ck_source_concept_reference_link_arc_qname"),
     Index("ix_source_concept_reference_report_concept", "report_id", "concept_id"),
     schema=SOURCE_SCHEMA,
 )
@@ -542,6 +554,8 @@ source_relationship = Table(
     Column("network_type", Text, nullable=False),
     Column("link_role_uri", Text, nullable=False),
     Column("arcrole_uri", Text, nullable=False),
+    Column("link_qname", Text, nullable=True),
+    Column("arc_qname", Text, nullable=True),
     Column("source_concept_id", UUID(as_uuid=True), nullable=False),
     Column("target_concept_id", UUID(as_uuid=True), nullable=False),
     Column("order_value", Numeric, nullable=True),
@@ -579,6 +593,7 @@ source_relationship = Table(
         name="ck_source_relationship_network_type",
     ),
     CheckConstraint("source_order >= 0", name="ck_source_relationship_source_order_nonneg"),
+    CheckConstraint(_LINK_ARC_QNAME_CHECK, name="ck_source_relationship_link_arc_qname"),
     Index(
         "ix_source_relationship_report_network_role",
         "report_id",

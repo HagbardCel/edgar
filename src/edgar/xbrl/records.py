@@ -218,6 +218,13 @@ class ExpandedQName:
         )
 
 
+def _assert_identity_qname(value: ExpandedQName, *, what: str) -> None:
+    if not isinstance(value, ExpandedQName):
+        raise TypeError(f"{what} must be ExpandedQName, not {type(value).__name__}")
+    if not value.local_name:
+        raise ValueError(f"{what} local_name must be non-empty")
+
+
 def _qname_to_dict(value: ExpandedQName | None) -> dict[str, Any] | None:
     return None if value is None else value.to_dict()
 
@@ -439,6 +446,8 @@ _CONCEPT_LABEL_KEYS = frozenset(
         "concept",
         "link_role_uri",
         "arcrole_uri",
+        "link_qname",
+        "arc_qname",
         "resource_role_uri",
         "xml_lang",
         "text",
@@ -460,6 +469,8 @@ class ConceptLabelRecord:
     concept: ExpandedQName
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     text: str
     source_locator: SourceLocator
     arc_locator: SourceLocator
@@ -472,6 +483,8 @@ class ConceptLabelRecord:
             raise ValueError("link_role_uri is required")
         if not self.arcrole_uri:
             raise ValueError("arcrole_uri is required")
+        _assert_identity_qname(self.link_qname, what="concept label link_qname")
+        _assert_identity_qname(self.arc_qname, what="concept label arc_qname")
         _assert_finite_decimal(self.order, label="order")
 
     def to_dict(self) -> dict[str, Any]:
@@ -479,6 +492,8 @@ class ConceptLabelRecord:
             "concept": self.concept.to_dict(),
             "link_role_uri": self.link_role_uri,
             "arcrole_uri": self.arcrole_uri,
+            "link_qname": self.link_qname.to_dict(),
+            "arc_qname": self.arc_qname.to_dict(),
             "resource_role_uri": self.resource_role_uri,
             "xml_lang": self.xml_lang,
             "text": self.text,
@@ -496,6 +511,8 @@ class ConceptLabelRecord:
             concept=_require_qname(obj["concept"], label=f"{label}.concept"),
             link_role_uri=require_str(obj["link_role_uri"], label=f"{label}.link_role_uri"),
             arcrole_uri=require_str(obj["arcrole_uri"], label=f"{label}.arcrole_uri"),
+            link_qname=_require_qname(obj["link_qname"], label=f"{label}.link_qname"),
+            arc_qname=_require_qname(obj["arc_qname"], label=f"{label}.arc_qname"),
             text=require_str(obj["text"], label=f"{label}.text"),
             source_locator=_require_locator(obj["source_locator"], label=f"{label}.source_locator"),
             arc_locator=_require_locator(obj["arc_locator"], label=f"{label}.arc_locator"),
@@ -558,6 +575,8 @@ _CONCEPT_REFERENCE_KEYS = frozenset(
         "concept",
         "link_role_uri",
         "arcrole_uri",
+        "link_qname",
+        "arc_qname",
         "resource_role_uri",
         "order",
         "reference_parts",
@@ -574,6 +593,8 @@ class ConceptReferenceRecord:
     concept: ExpandedQName
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     source_locator: SourceLocator
     arc_locator: SourceLocator
     reference_parts: tuple[ReferencePartRecord, ...] = ()
@@ -585,6 +606,8 @@ class ConceptReferenceRecord:
             raise ValueError("link_role_uri is required")
         if not self.arcrole_uri:
             raise ValueError("arcrole_uri is required")
+        _assert_identity_qname(self.link_qname, what="concept reference link_qname")
+        _assert_identity_qname(self.arc_qname, what="concept reference arc_qname")
         _assert_finite_decimal(self.order, label="order")
 
     def to_dict(self) -> dict[str, Any]:
@@ -592,6 +615,8 @@ class ConceptReferenceRecord:
             "concept": self.concept.to_dict(),
             "link_role_uri": self.link_role_uri,
             "arcrole_uri": self.arcrole_uri,
+            "link_qname": self.link_qname.to_dict(),
+            "arc_qname": self.arc_qname.to_dict(),
             "resource_role_uri": self.resource_role_uri,
             "order": _decimal_to_str(self.order),
             "reference_parts": [part.to_dict() for part in self.reference_parts],
@@ -608,6 +633,8 @@ class ConceptReferenceRecord:
             concept=_require_qname(obj["concept"], label=f"{label}.concept"),
             link_role_uri=require_str(obj["link_role_uri"], label=f"{label}.link_role_uri"),
             arcrole_uri=require_str(obj["arcrole_uri"], label=f"{label}.arcrole_uri"),
+            link_qname=_require_qname(obj["link_qname"], label=f"{label}.link_qname"),
+            arc_qname=_require_qname(obj["arc_qname"], label=f"{label}.arc_qname"),
             source_locator=_require_locator(obj["source_locator"], label=f"{label}.source_locator"),
             arc_locator=_require_locator(obj["arc_locator"], label=f"{label}.arc_locator"),
             reference_parts=_decode_records(
@@ -1121,6 +1148,8 @@ _RELATIONSHIP_KEYS = frozenset(
         "network_type",
         "link_role_uri",
         "arcrole_uri",
+        "link_qname",
+        "arc_qname",
         "source_concept",
         "target_concept",
         "order",
@@ -1147,6 +1176,8 @@ class RelationshipRecord:
     network_type: NetworkType
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     source_concept: ExpandedQName
     target_concept: ExpandedQName
     source_locator: SourceLocator
@@ -1167,6 +1198,8 @@ class RelationshipRecord:
             raise ValueError("arcrole_uri is required")
         if self.context_element is not None and self.context_element not in CONTEXT_ELEMENTS:
             raise ValueError(f"unknown context_element: {self.context_element!r}")
+        _assert_identity_qname(self.link_qname, what="relationship link_qname")
+        _assert_identity_qname(self.arc_qname, what="relationship arc_qname")
         _assert_finite_decimal(self.order, label="order")
         _assert_finite_decimal(self.weight, label="weight")
 
@@ -1175,6 +1208,8 @@ class RelationshipRecord:
             "network_type": self.network_type,
             "link_role_uri": self.link_role_uri,
             "arcrole_uri": self.arcrole_uri,
+            "link_qname": self.link_qname.to_dict(),
+            "arc_qname": self.arc_qname.to_dict(),
             "source_concept": self.source_concept.to_dict(),
             "target_concept": self.target_concept.to_dict(),
             "order": _decimal_to_str(self.order),
@@ -1202,6 +1237,8 @@ class RelationshipRecord:
             network_type=cast(NetworkType, network_type),
             link_role_uri=require_str(obj["link_role_uri"], label=f"{label}.link_role_uri"),
             arcrole_uri=require_str(obj["arcrole_uri"], label=f"{label}.arcrole_uri"),
+            link_qname=_require_qname(obj["link_qname"], label=f"{label}.link_qname"),
+            arc_qname=_require_qname(obj["arc_qname"], label=f"{label}.arc_qname"),
             source_concept=_require_qname(obj["source_concept"], label=f"{label}.source_concept"),
             target_concept=_require_qname(obj["target_concept"], label=f"{label}.target_concept"),
             source_locator=_require_locator(obj["source_locator"], label=f"{label}.source_locator"),
