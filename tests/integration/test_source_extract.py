@@ -24,10 +24,12 @@ from edgar.ingestion.payload import compute_payload_hash
 from edgar.ingestion.source_extract import SourceExtractService
 from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
+from edgar.xbrl.extraction_receipt import RECEIPT_VERSION, ExtractionReceipt
 from edgar.xbrl.source_documents import extract_documents_for_filing
 from edgar.xbrl.source_extract import extract_filing
 from tests.helpers.database import reset_test_database, test_database_url, truncate_all_tables
 from tests.helpers.document_fixtures import RICH_10K_HTML
+from tests.helpers.extraction_receipt import wrap_filing_extraction
 from tests.helpers.xbrl_bundles import make_minimal_semantic_bundle
 
 pytestmark = pytest.mark.database
@@ -93,7 +95,11 @@ def test_extract_filing_writes_facts_and_blocks(engine: Engine, tmp_path: Path) 
 
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        result = persist_extraction(conn, filing_id=catalog.filing_id, extraction=extraction)
+        result = persist_extraction(
+            conn,
+            filing_id=catalog.filing_id,
+            extraction=wrap_filing_extraction(extraction, bundle=bundle),
+        )
 
     assert result.fact_count >= 2
     assert result.block_count == len(extraction.document_blocks)
@@ -136,6 +142,137 @@ def test_source_extract_service_end_to_end(engine: Engine, tmp_path: Path) -> No
     second = service.extract_published_bundle(published.bundle_dir)
     assert second.catalog_reused is True
     assert second.persist.fact_count == result.persist.fact_count
+
+    with engine.connect() as conn:
+        receipt_row = conn.execute(
+            select(src.source_xbrl_report.c.extraction_receipt).where(
+                src.source_xbrl_report.c.filing_id == result.filing_id
+            )
+        ).scalar_one()
+    assert receipt_row is not None
+    receipt = ExtractionReceipt.from_dict(receipt_row)
+    assert receipt.receipt_version == RECEIPT_VERSION
+    assert receipt.semantic_config
+
+
+def test_source_extract_aborts_when_implementation_changes(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.ingestion.source_extract import SourceExtractError
+    from edgar.provenance import ImplementationIdentity
+
+    store = ObjectStore(tmp_path)
+    bundle = _hybrid_html_xbrl_bundle(store)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(bundle)
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+
+    calls = {"n": 0}
+
+    def _mutating_identity(
+        repo_root: object | None = None,
+    ) -> ImplementationIdentity:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ImplementationIdentity(revision="pre", tree_state="clean")
+        return ImplementationIdentity(revision="post", tree_state="clean")
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_implementation_identity",
+        _mutating_identity,
+    )
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_dependency_lock_sha256",
+        lambda repo_root=None: "d" * 64,
+    )
+
+    with pytest.raises(SourceExtractError, match="implementation identity changed"):
+        service.extract_published_bundle(published.bundle_dir)
+
+
+def test_source_extract_aborts_when_lock_changes(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.ingestion.source_extract import SourceExtractError
+    from edgar.provenance import ImplementationIdentity
+
+    store = ObjectStore(tmp_path)
+    bundle = _hybrid_html_xbrl_bundle(store)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(bundle)
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_implementation_identity",
+        lambda repo_root=None: ImplementationIdentity(revision="stable", tree_state="clean"),
+    )
+    calls = {"n": 0}
+
+    def _mutating_lock(repo_root: object | None = None) -> str:
+        calls["n"] += 1
+        return "a" * 64 if calls["n"] == 1 else "b" * 64
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_dependency_lock_sha256",
+        _mutating_lock,
+    )
+
+    with pytest.raises(SourceExtractError, match="dependency lock digest changed"):
+        service.extract_published_bundle(published.bundle_dir)
+
+    with engine.connect() as conn:
+        count = int(
+            conn.execute(select(func.count()).select_from(src.source_xbrl_report)).scalar_one()
+        )
+    assert count == 0
+
+
+def test_source_extract_aborts_when_descriptor_changes(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.ingestion.source_extract import SourceExtractError
+    from edgar.provenance import ImplementationIdentity
+    from edgar.xbrl.source_extract import extract_filing_with_outcomes
+
+    store = ObjectStore(tmp_path)
+    bundle = _hybrid_html_xbrl_bundle(store)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(bundle)
+    descriptor = published.bundle_dir / "bundle.json"
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_implementation_identity",
+        lambda repo_root=None: ImplementationIdentity(revision="stable", tree_state="clean"),
+    )
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_dependency_lock_sha256",
+        lambda repo_root=None: "c" * 64,
+    )
+
+    original_extract = extract_filing_with_outcomes
+
+    def extract_then_mutate(*args: object, **kwargs: object) -> object:
+        outcome = original_extract(*args, **kwargs)
+        descriptor.write_bytes(descriptor.read_bytes() + b" ")
+        return outcome
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.extract_filing_with_outcomes",
+        extract_then_mutate,
+    )
+
+    with pytest.raises(SourceExtractError, match="descriptor SHA changed"):
+        service.extract_published_bundle(published.bundle_dir)
+
+    with engine.connect() as conn:
+        count = int(
+            conn.execute(select(func.count()).select_from(src.source_xbrl_report)).scalar_one()
+        )
+    assert count == 0
 
 
 def test_document_parity_matches_parser_output(tmp_path: Path) -> None:
@@ -210,7 +347,11 @@ def test_non_dimensional_fatal_leaves_prior_snapshot(engine: Engine, tmp_path: P
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, good)
         extraction_a = extract_filing(good, store)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=extraction_a)
+        persist_extraction(
+            conn,
+            filing_id=catalog.filing_id,
+            extraction=wrap_filing_extraction(extraction_a, bundle=good),
+        )
         facts_before = int(
             conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
         )
@@ -281,7 +422,11 @@ def test_non_dimensional_fatal_leaves_prior_snapshot(engine: Engine, tmp_path: P
         issues=(),
     )
     with engine.begin() as conn, pytest.raises(PersistExtractionError, match="fatal"):
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=poisoned)
+        persist_extraction(
+            conn,
+            filing_id=catalog.filing_id,
+            extraction=wrap_filing_extraction(poisoned, bundle=good),
+        )
 
     with engine.connect() as conn:
         assert (
@@ -306,7 +451,11 @@ def test_report2_fatal_leaves_prior_snapshot_unchanged(engine: Engine, tmp_path:
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, good)
         extraction_a = extract_filing(good, store)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=extraction_a)
+        persist_extraction(
+            conn,
+            filing_id=catalog.filing_id,
+            extraction=wrap_filing_extraction(extraction_a, bundle=good),
+        )
         facts_before = int(
             conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
         )

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -21,6 +20,7 @@ from edgar.domain.bundle import (
     UriBinding,
 )
 from edgar.domain.concept_id import concept_id
+from edgar.domain.report_key import report_key as compute_report_key
 from edgar.ingestion.payload import compute_payload_hash
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.records import ExpandedQName
@@ -146,10 +146,6 @@ def _locator(value: str) -> ElementLocator:
     return ElementLocator(scheme="xml_id", value=value)
 
 
-def _report_key(*parts: str) -> str:
-    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
-
-
 def _year_facts(
     *,
     year: int,
@@ -247,7 +243,13 @@ def _catalog_and_extract(
             ),
         )
     )
-    persist_extraction(conn, filing_id=catalog.filing_id, extraction=extraction)
+    from tests.helpers.extraction_receipt import wrap_filing_extraction
+
+    persist_extraction(
+        conn,
+        filing_id=catalog.filing_id,
+        extraction=wrap_filing_extraction(extraction, bundle=bundle),
+    )
 
 
 def _bundle(
@@ -354,7 +356,9 @@ def _report(
     ]
     return ReportExtraction(
         report_input={"kind": "instance", "document_uris": [f"https://example.com/{paths[0]}"]},
-        report_key=_report_key(accession, "sales"),
+        report_key=compute_report_key(
+            {"kind": "instance", "document_uris": [f"https://example.com/{paths[0]}"]}
+        ),
         extractor_version=EXTRACTOR_VERSION,
         arelle_version="2.43.1",
         arelle_item_fact_count=len(facts),

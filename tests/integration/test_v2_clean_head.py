@@ -97,7 +97,7 @@ def test_v2_clean_head_source_schema_only(engine: Engine) -> None:
             assert present is None, f"legacy table still present: public.{name}"
 
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert revision == "0002_registry"
+        assert revision == "0003_m1a_extraction_receipt"
 
 
 def test_v2_clean_head_catalog_smoke(engine: Engine, tmp_path: Path) -> None:

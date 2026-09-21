@@ -8,13 +8,54 @@ blocks/sections from ``edgar.parsing`` heuristics.
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 
 from edgar.domain.bundle import FilingBundle, XbrlReportInput
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.closure import DEFAULT_WORKER_TIMEOUT_SECONDS
-from edgar.xbrl.semantic import run_offline_extract
+from edgar.xbrl.config import SemanticConfig, build_semantic_config
+from edgar.xbrl.semantic import OfflineExtractResult, run_offline_extract
 from edgar.xbrl.source_documents import extract_documents_for_filing
 from edgar.xbrl.source_records import FilingExtraction, ReportExtraction
+
+
+@dataclass(frozen=True)
+class ReportExtractOutcome:
+    report: ReportExtraction
+    worker: OfflineExtractResult
+
+
+@dataclass(frozen=True)
+class FilingExtractOutcome:
+    extraction: FilingExtraction
+    report_outcomes: tuple[ReportExtractOutcome, ...]
+
+
+def extract_report_with_outcome(
+    bundle: FilingBundle,
+    store: ObjectStore,
+    report_input: XbrlReportInput,
+    *,
+    semantic_config: SemanticConfig,
+    python_executable: str = sys.executable,
+    timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
+) -> ReportExtractOutcome:
+    """Extract one report with an explicit typed semantic config."""
+    result = run_offline_extract(
+        bundle,
+        store,
+        report_input=report_input,
+        semantic_config=semantic_config,
+        python_executable=python_executable,
+        timeout_seconds=timeout_seconds,
+    )
+    report = result.report
+    if report.arelle_item_fact_count != len(report.facts):
+        raise AssertionError(
+            "arelle_item_fact_count must equal len(facts): "
+            f"{report.arelle_item_fact_count} != {len(report.facts)}"
+        )
+    return ReportExtractOutcome(report=report, worker=result)
 
 
 def extract_report(
@@ -26,20 +67,50 @@ def extract_report(
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
 ) -> ReportExtraction:
     """Extract one report input into a source ``ReportExtraction``."""
-    result = run_offline_extract(
+    return extract_report_with_outcome(
         bundle,
         store,
-        report_input=report_input,
+        report_input,
+        semantic_config=build_semantic_config(),
         python_executable=python_executable,
         timeout_seconds=timeout_seconds,
-    )
-    report = result.report
-    if report.arelle_item_fact_count != len(report.facts):
-        raise AssertionError(
-            "arelle_item_fact_count must equal len(facts): "
-            f"{report.arelle_item_fact_count} != {len(report.facts)}"
+    ).report
+
+
+def extract_filing_with_outcomes(
+    bundle: FilingBundle,
+    store: ObjectStore,
+    *,
+    semantic_config: SemanticConfig,
+    python_executable: str = sys.executable,
+    timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
+) -> FilingExtractOutcome:
+    """Extract every report input plus eligible HTML documents.
+
+    Document parse happens outside any DB transaction. Fatal document parse
+    errors propagate so callers can skip snapshot replacement. A fatal failure
+    of any report aborts the entire filing extraction.
+    """
+    report_outcomes: list[ReportExtractOutcome] = []
+    for report_input in bundle.report_inputs:
+        report_outcomes.append(
+            extract_report_with_outcome(
+                bundle,
+                store,
+                report_input,
+                semantic_config=semantic_config,
+                python_executable=python_executable,
+                timeout_seconds=timeout_seconds,
+            )
         )
-    return report
+    blocks, sections, doc_issues = extract_documents_for_filing(bundle, store)
+    extraction = FilingExtraction(
+        reports=tuple(item.report for item in report_outcomes),
+        document_blocks=blocks,
+        filing_sections=sections,
+        issues=doc_issues,
+    )
+    return FilingExtractOutcome(extraction=extraction, report_outcomes=tuple(report_outcomes))
 
 
 def extract_filing(
@@ -49,27 +120,11 @@ def extract_filing(
     python_executable: str = sys.executable,
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
 ) -> FilingExtraction:
-    """Extract every report input plus eligible HTML documents.
-
-    Document parse happens outside any DB transaction. Fatal document parse
-    errors propagate so callers can skip snapshot replacement. A fatal failure
-    of any report aborts the entire filing extraction.
-    """
-    reports: list[ReportExtraction] = []
-    for report_input in bundle.report_inputs:
-        reports.append(
-            extract_report(
-                bundle,
-                store,
-                report_input,
-                python_executable=python_executable,
-                timeout_seconds=timeout_seconds,
-            )
-        )
-    blocks, sections, doc_issues = extract_documents_for_filing(bundle, store)
-    return FilingExtraction(
-        reports=tuple(reports),
-        document_blocks=blocks,
-        filing_sections=sections,
-        issues=doc_issues,
-    )
+    """Extract every report input plus eligible HTML documents."""
+    return extract_filing_with_outcomes(
+        bundle,
+        store,
+        semantic_config=build_semantic_config(),
+        python_executable=python_executable,
+        timeout_seconds=timeout_seconds,
+    ).extraction

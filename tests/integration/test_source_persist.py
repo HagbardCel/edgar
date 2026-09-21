@@ -27,6 +27,7 @@ from edgar.domain.bundle import (
     UriBinding,
 )
 from edgar.domain.concept_id import concept_id
+from edgar.domain.report_key import report_key as compute_report_key
 from edgar.ingestion.payload import compute_payload_hash
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.records import ExpandedQName
@@ -48,11 +49,19 @@ from edgar.xbrl.source_records import (
     UnitRecord,
 )
 from tests.helpers.database import reset_test_database, test_database_url, truncate_all_tables
+from tests.helpers.extraction_receipt import wrap_filing_extraction
 
 pytestmark = pytest.mark.database
 
+
+def _p(extraction: FilingExtraction, bundle: FilingBundle) -> object:
+    return wrap_filing_extraction(extraction, bundle=bundle)
+
+
 _NS = "http://example.com/ns"
 _DOC_PATH = "accession/a.htm"
+_REPORT_INPUT = {"kind": "instance", "document_uris": ["https://example.com/a.htm"]}
+_REPORT_KEY = compute_report_key(_REPORT_INPUT)
 
 
 @pytest.fixture(scope="module")
@@ -120,11 +129,11 @@ def _qname(local: str) -> ExpandedQName:
 
 def _minimal_report(
     *,
-    report_key: str,
     concepts: tuple[ConceptRecord, ...],
     facts: tuple[FactRecord, ...],
     issues: tuple[ExtractionIssueRecord, ...] = (),
     arelle_item_fact_count: int | None = None,
+    report_key: str | None = None,
 ) -> ReportExtraction:
     contexts = (
         ContextRecord(
@@ -147,9 +156,10 @@ def _minimal_report(
             ),
         ),
     )
+    key = report_key if report_key is not None else _REPORT_KEY
     return ReportExtraction(
-        report_input={"kind": "instance", "document_uris": ["https://example.com/a.htm"]},
-        report_key=report_key,
+        report_input=dict(_REPORT_INPUT),
+        report_key=key,
         extractor_version="source-extract-v1",
         arelle_version="2.43.1",
         arelle_item_fact_count=(
@@ -228,7 +238,6 @@ def _extraction_a() -> FilingExtraction:
     return FilingExtraction(
         reports=(
             _minimal_report(
-                report_key="a" * 64,
                 concepts=concepts,
                 facts=facts,
                 issues=issues,
@@ -260,7 +269,6 @@ def _extraction_b() -> FilingExtraction:
     return FilingExtraction(
         reports=(
             _minimal_report(
-                report_key="b" * 64,
                 concepts=concepts,
                 facts=facts,
                 issues=issues,
@@ -283,7 +291,6 @@ def _extraction_without_revenue() -> FilingExtraction:
     return FilingExtraction(
         reports=(
             _minimal_report(
-                report_key="c" * 64,
                 concepts=concepts,
                 facts=facts,
             ),
@@ -295,10 +302,14 @@ def test_persist_replaces_counts_and_reuses_concepts(engine: Engine, tmp_path: P
     bundle = _make_bundle(tmp_path)
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_a())
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_a(), bundle)
+        )
 
     with engine.begin() as conn:
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_b())
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_b(), bundle)
+        )
         fact_count = conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
         report_count = conn.execute(
             select(func.count()).select_from(src.source_xbrl_report)
@@ -324,12 +335,13 @@ def test_post_delete_rollback_keeps_prior_facts_and_issues(engine: Engine, tmp_p
     bundle = _make_bundle(tmp_path)
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_a())
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_a(), bundle)
+        )
 
     incomplete = FilingExtraction(
         reports=(
             _minimal_report(
-                report_key="d" * 64,
                 concepts=(ConceptRecord(namespace_uri=_NS, local_name="Revenue"),),
                 facts=(_fact(source_order=0, local="Revenue", value="9", numeric=Decimal("9")),),
                 arelle_item_fact_count=99,
@@ -340,7 +352,7 @@ def test_post_delete_rollback_keeps_prior_facts_and_issues(engine: Engine, tmp_p
         pytest.raises(PersistExtractionError, match="fact completeness"),
         engine.begin() as conn,
     ):
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=incomplete)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(incomplete, bundle))
 
     with engine.connect() as conn:
         facts = conn.execute(
@@ -351,7 +363,136 @@ def test_post_delete_rollback_keeps_prior_facts_and_issues(engine: Engine, tmp_p
 
     assert facts == [("100", 0)]
     assert issues == {"ISSUE_A"}
-    assert reports == [("a" * 64,)]
+    assert reports == [(_REPORT_KEY,)]
+
+
+def test_persist_rejects_receipt_report_input_mismatch(engine: Engine, tmp_path: Path) -> None:
+    from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
+    from tests.helpers.extraction_receipt import minimal_test_receipt
+
+    bundle = _make_bundle(tmp_path)
+    extraction = _extraction_a()
+    report = extraction.reports[0]
+    mismatched = minimal_test_receipt(report, bundle=bundle)
+    # Poison report_input so binding fails before delete.
+    poisoned = PersistableFilingExtraction(
+        reports=(
+            PersistableReport(
+                report=report,
+                extraction_receipt=type(mismatched)(
+                    receipt_version=mismatched.receipt_version,
+                    bundle_ref=mismatched.bundle_ref,
+                    report_input={
+                        "kind": "instance",
+                        "document_uris": ["https://example.com/other.htm"],
+                    },
+                    semantic_config=mismatched.semantic_config,
+                    semantic_config_sha256=mismatched.semantic_config_sha256,
+                    extractor_version=mismatched.extractor_version,
+                    source_records_schema_version=mismatched.source_records_schema_version,
+                    worker_protocol_version=mismatched.worker_protocol_version,
+                    arelle_version=mismatched.arelle_version,
+                    implementation=mismatched.implementation,
+                    dependency_lock_sha256=mismatched.dependency_lock_sha256,
+                ),
+            ),
+        ),
+        document_blocks=extraction.document_blocks,
+        filing_sections=extraction.filing_sections,
+        issues=extraction.issues,
+    )
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+
+    with (
+        pytest.raises(PersistExtractionError, match="report↔receipt binding"),
+        engine.begin() as conn,
+    ):
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=poisoned)
+
+    with engine.connect() as conn:
+        report_keys = {
+            row[0] for row in conn.execute(select(src.source_xbrl_report.c.report_key)).all()
+        }
+    assert report_keys == {_REPORT_KEY}
+
+
+@pytest.mark.parametrize(
+    ("poison_attr", "poison_value"),
+    [
+        ("receipt_version", "garbage"),
+        ("descriptor_sha256", "not-a-sha"),
+    ],
+)
+def test_persist_rejects_schema_invalid_receipt(
+    engine: Engine,
+    tmp_path: Path,
+    poison_attr: str,
+    poison_value: str,
+) -> None:
+    from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
+    from edgar.xbrl.extraction_receipt import BundleRef, ExtractionReceipt
+    from tests.helpers.extraction_receipt import minimal_test_receipt
+
+    bundle = _make_bundle(tmp_path)
+    extraction = _extraction_a()
+    report = extraction.reports[0]
+    base = minimal_test_receipt(report, bundle=bundle)
+    if poison_attr == "receipt_version":
+        bad_receipt = ExtractionReceipt(
+            receipt_version=poison_value,
+            bundle_ref=base.bundle_ref,
+            report_input=base.report_input,
+            semantic_config=base.semantic_config,
+            semantic_config_sha256=base.semantic_config_sha256,
+            extractor_version=base.extractor_version,
+            source_records_schema_version=base.source_records_schema_version,
+            worker_protocol_version=base.worker_protocol_version,
+            arelle_version=base.arelle_version,
+            implementation=base.implementation,
+            dependency_lock_sha256=base.dependency_lock_sha256,
+        )
+    else:
+        bad_bundle_ref = BundleRef(
+            descriptor_relative_path=base.bundle_ref.descriptor_relative_path,
+            descriptor_sha256=poison_value,
+            manifest=base.bundle_ref.manifest,
+        )
+        bad_receipt = ExtractionReceipt(
+            receipt_version=base.receipt_version,
+            bundle_ref=bad_bundle_ref,
+            report_input=base.report_input,
+            semantic_config=base.semantic_config,
+            semantic_config_sha256=base.semantic_config_sha256,
+            extractor_version=base.extractor_version,
+            source_records_schema_version=base.source_records_schema_version,
+            worker_protocol_version=base.worker_protocol_version,
+            arelle_version=base.arelle_version,
+            implementation=base.implementation,
+            dependency_lock_sha256=base.dependency_lock_sha256,
+        )
+    poisoned = PersistableFilingExtraction(
+        reports=(PersistableReport(report=report, extraction_receipt=bad_receipt),),
+        document_blocks=extraction.document_blocks,
+        filing_sections=extraction.filing_sections,
+        issues=extraction.issues,
+    )
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+
+    with (
+        pytest.raises(PersistExtractionError, match="report↔receipt binding"),
+        engine.begin() as conn,
+    ):
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=poisoned)
+
+    with engine.connect() as conn:
+        report_keys = {
+            row[0] for row in conn.execute(select(src.source_xbrl_report.c.report_key)).all()
+        }
+    assert report_keys == {_REPORT_KEY}
 
 
 def test_concurrent_replacement_ends_as_single_extraction(engine: Engine, tmp_path: Path) -> None:
@@ -367,7 +508,7 @@ def test_concurrent_replacement_ends_as_single_extraction(engine: Engine, tmp_pa
         try:
             with engine.connect() as conn, conn.begin():
                 barrier.wait(timeout=10)
-                persist_extraction(conn, filing_id=filing_id, extraction=extraction)
+                persist_extraction(conn, filing_id=filing_id, extraction=_p(extraction, bundle))
         except BaseException as exc:  # noqa: BLE001 — collect for assertion
             errors.append(exc)
 
@@ -391,14 +532,13 @@ def test_concurrent_replacement_ends_as_single_extraction(engine: Engine, tmp_pa
         }
 
     assert len(report_keys) == 1
-    winner = next(iter(report_keys))
-    if winner == "a" * 64:
+    assert report_keys == {_REPORT_KEY}
+    if issue_codes == {"ISSUE_A"}:
         assert fact_count == 1
-        assert issue_codes == {"ISSUE_A"}
-    else:
-        assert winner == "b" * 64
+    elif issue_codes == {"ISSUE_B", "FILING_B"}:
         assert fact_count == 2
-        assert issue_codes == {"ISSUE_B", "FILING_B"}
+    else:
+        raise AssertionError(f"unexpected winner snapshot: {issue_codes!r}")
 
 
 def test_no_concept_gc_after_reextract_without_qname(engine: Engine, tmp_path: Path) -> None:
@@ -406,9 +546,11 @@ def test_no_concept_gc_after_reextract_without_qname(engine: Engine, tmp_path: P
     revenue_id = concept_id(_NS, "Revenue")
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_a())
         persist_extraction(
-            conn, filing_id=catalog.filing_id, extraction=_extraction_without_revenue()
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_a(), bundle)
+        )
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_without_revenue(), bundle)
         )
         remaining = conn.execute(
             select(src.source_concept.c.id).where(src.source_concept.c.id == revenue_id)
@@ -425,8 +567,12 @@ def test_stale_issues_absent_after_successful_replacement(engine: Engine, tmp_pa
     bundle = _make_bundle(tmp_path)
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_a())
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_b())
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_a(), bundle)
+        )
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_b(), bundle)
+        )
         codes = {row[0] for row in conn.execute(select(src.source_extraction_issue.c.code)).all()}
 
     assert "ISSUE_A" not in codes
@@ -464,7 +610,9 @@ def test_blocks_and_sections_persist_with_pr7_fields(engine: Engine, tmp_path: P
     bundle = _make_bundle(tmp_path)
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        result = persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_a())
+        result = persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_a(), bundle)
+        )
         assert result.block_count == 2
         assert result.section_count == 1
         assert result.fact_count == 1
@@ -522,12 +670,13 @@ def test_failed_reextract_keeps_prior_blocks(engine: Engine, tmp_path: Path) -> 
     bundle = _make_bundle(tmp_path)
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_a())
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_a(), bundle)
+        )
 
     incomplete = FilingExtraction(
         reports=(
             _minimal_report(
-                report_key="d" * 64,
                 concepts=(ConceptRecord(namespace_uri=_NS, local_name="Revenue"),),
                 facts=(_fact(source_order=0, local="Revenue", value="9", numeric=Decimal("9")),),
                 arelle_item_fact_count=99,
@@ -548,7 +697,7 @@ def test_failed_reextract_keeps_prior_blocks(engine: Engine, tmp_path: Path) -> 
         pytest.raises(PersistExtractionError, match="fact completeness"),
         engine.begin() as conn,
     ):
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=incomplete)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(incomplete, bundle))
 
     with engine.connect() as conn:
         block_texts = [
@@ -578,7 +727,6 @@ def test_persist_explicit_dimension_sql_null_typed_member(engine: Engine, tmp_pa
     member = ConceptRecord(namespace_uri=_NS, local_name="USMember")
     revenue = ConceptRecord(namespace_uri=_NS, local_name="Revenue")
     report = _minimal_report(
-        report_key="a" * 64,
         concepts=(revenue, axis, member),
         facts=(_fact(source_order=0, local="Revenue", value="100", numeric=Decimal("100")),),
     )
@@ -612,7 +760,7 @@ def test_persist_explicit_dimension_sql_null_typed_member(engine: Engine, tmp_pa
     extraction = FilingExtraction(reports=(report,))
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=extraction)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
         row = conn.execute(
             select(
                 src.source_context_dimension.c.member_kind,
@@ -639,7 +787,6 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
         ConceptRecord(namespace_uri=_NS, local_name="Assets"),
     )
     report = _minimal_report(
-        report_key="a" * 64,
         concepts=concepts,
         facts=(_fact(source_order=0, local="Revenue", value="100", numeric=Decimal("100")),),
     )
@@ -709,7 +856,9 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
         persist_extraction(
-            conn, filing_id=catalog.filing_id, extraction=FilingExtraction(reports=(report,))
+            conn,
+            filing_id=catalog.filing_id,
+            extraction=_p(FilingExtraction(reports=(report,)), bundle),
         )
         doc_id = conn.execute(
             select(src.source_document.c.id).where(src.source_document.c.relative_path == _DOC_PATH)
@@ -765,10 +914,11 @@ def test_persist_missing_document_path_keeps_prior_snapshot(engine: Engine, tmp_
     bundle = _make_bundle(tmp_path)
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction_a())
+        persist_extraction(
+            conn, filing_id=catalog.filing_id, extraction=_p(_extraction_a(), bundle)
+        )
 
     bad_report = _minimal_report(
-        report_key="e" * 64,
         concepts=(ConceptRecord(namespace_uri=_NS, local_name="Revenue"),),
         facts=(_fact(source_order=0, local="Revenue", value="9", numeric=Decimal("9")),),
     )
@@ -803,7 +953,7 @@ def test_persist_missing_document_path_keeps_prior_snapshot(engine: Engine, tmp_
         persist_extraction(
             conn,
             filing_id=catalog.filing_id,
-            extraction=FilingExtraction(reports=(bad_report,)),
+            extraction=_p(FilingExtraction(reports=(bad_report,)), bundle),
         )
 
     with engine.connect() as conn:
@@ -814,7 +964,7 @@ def test_persist_missing_document_path_keeps_prior_snapshot(engine: Engine, tmp_
         reports = conn.execute(select(src.source_xbrl_report.c.report_key)).all()
     assert facts == [("100", 0)]
     assert issues == {"ISSUE_A"}
-    assert reports == [("a" * 64,)]
+    assert reports == [(_REPORT_KEY,)]
 
 
 def test_persist_datetime_context_lexical_and_offset_aware_at(
@@ -822,9 +972,8 @@ def test_persist_datetime_context_lexical_and_offset_aware_at(
 ) -> None:
     bundle = _make_bundle(tmp_path)
 
-    def _report(context_id: str, lexical: str, key: str) -> ReportExtraction:
+    def _report(context_id: str, lexical: str) -> ReportExtraction:
         base = _minimal_report(
-            report_key=key,
             concepts=(ConceptRecord(namespace_uri=_NS, local_name="Revenue"),),
             facts=(_fact(source_order=0, local="Revenue", value="1", numeric=Decimal("1")),),
         )
@@ -872,12 +1021,11 @@ def test_persist_datetime_context_lexical_and_offset_aware_at(
         filing_id = catalog.filing_id
 
     for name, lexical, expect_at in cases:
-        key = name.encode().hex().ljust(64, "0")
         with engine.begin() as conn:
             persist_extraction(
                 conn,
                 filing_id=filing_id,
-                extraction=FilingExtraction(reports=(_report("c-" + name, lexical, key),)),
+                extraction=_p(FilingExtraction(reports=(_report("c-" + name, lexical),)), bundle),
             )
             row = conn.execute(
                 select(
