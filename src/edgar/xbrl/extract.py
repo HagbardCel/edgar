@@ -184,6 +184,7 @@ UNSUPPORTED_CYCLES_ALLOWED = "UNSUPPORTED_CYCLES_ALLOWED"
 UNSUPPORTED_RESOURCE_CLASS = "UNSUPPORTED_RESOURCE_CLASS"
 UNPRESERVED_REFERENCE_PART = "UNPRESERVED_REFERENCE_PART"
 BLOCKING_ENGINE_DIAGNOSTIC = "BLOCKING_ENGINE_DIAGNOSTIC"
+INVALID_BASE_SET_QNAME = "INVALID_BASE_SET_QNAME"
 
 # Fail-closed: former Phase-1 incomplete codes are fatal unless listed here.
 NONFATAL_ISSUE_CODES: frozenset[str] = frozenset(
@@ -205,6 +206,7 @@ NONFATAL_ISSUE_CODES: frozenset[str] = frozenset(
 )
 
 _SUPPORTED_CONCEPT_NETWORKS = frozenset({"presentation", "calculation", "definition"})
+_SUPPORTED_IDENTITY_FAMILIES = _SUPPORTED_CONCEPT_NETWORKS | frozenset({"resource"})
 
 
 class UnattributableSourceDocument(ValueError):
@@ -403,6 +405,48 @@ def _expanded_qname(qname: Any) -> ExpandedQName | None:
 def _clark(qname: Any) -> str | None:
     expanded = _expanded_qname(qname)
     return None if expanded is None else expanded.clark
+
+
+def _base_set_qname_context(
+    link_qname: Any,
+    arc_qname: Any,
+    *,
+    strict: bool,
+) -> tuple[ExpandedQName | None, ExpandedQName | None, dict[str, str | None]]:
+    """Convert enumerated base-set QNames; ``strict`` uses ExpandedQName conversion.
+
+    Diagnostic Clark strings are always best-effort when ``strict`` is false.
+    """
+    if strict:
+        link = _expanded_qname(link_qname)
+        arc = _expanded_qname(arc_qname)
+        return (
+            link,
+            arc,
+            {
+                "link_qname": None if link is None else link.clark,
+                "arc_qname": None if arc is None else arc.clark,
+            },
+        )
+    return None, None, {"link_qname": _clark(link_qname), "arc_qname": _clark(arc_qname)}
+
+
+def _network_issue_context(
+    *,
+    arcrole_uri: str,
+    link_role_uri: str | None,
+    qnames: Mapping[str, str | None],
+    extra: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "arcrole_uri": arcrole_uri,
+        "link_role_uri": link_role_uri,
+        "link_qname": qnames.get("link_qname"),
+        "arc_qname": qnames.get("arc_qname"),
+    }
+    if extra:
+        context.update(extra)
+    return context
 
 
 def _optional_str(value: Any) -> str | None:
@@ -1463,6 +1507,8 @@ def _concept_relationship_record(
     network_type: NetworkType,
     arcrole_uri: str,
     link_role_uri: str,
+    link_qname: ExpandedQName,
+    arc_qname: ExpandedQName,
     declared: frozenset[ExpandedQName],
     extraction: _Extraction,
 ) -> RelationshipRecord | None:
@@ -1493,6 +1539,8 @@ def _concept_relationship_record(
         network_type=network_type,
         link_role_uri=link_role_uri,
         arcrole_uri=arcrole_uri,
+        link_qname=link_qname,
+        arc_qname=arc_qname,
         source_concept=source,
         target_concept=target,
         source_locator=locator,
@@ -1541,6 +1589,8 @@ def _resource_records(
     *,
     arcrole_uri: str,
     link_role_uri: str,
+    link_qname: ExpandedQName,
+    arc_qname: ExpandedQName,
     declared: frozenset[ExpandedQName],
     extraction: _Extraction,
     labels: list[ConceptLabelRecord],
@@ -1580,6 +1630,8 @@ def _resource_records(
                 concept=concept,
                 link_role_uri=link_role_uri,
                 arcrole_uri=arcrole_uri,
+                link_qname=link_qname,
+                arc_qname=arc_qname,
                 text=_text_content(resource),
                 source_locator=resource_locator,
                 arc_locator=arc_locator,
@@ -1594,6 +1646,8 @@ def _resource_records(
             concept=concept,
             link_role_uri=link_role_uri,
             arcrole_uri=arcrole_uri,
+            link_qname=link_qname,
+            arc_qname=arc_qname,
             source_locator=resource_locator,
             arc_locator=arc_locator,
             reference_parts=_reference_parts(
@@ -1617,8 +1671,13 @@ def _relationship_projection(
 
     for arcrole, linkrole, link_qname, arc_qname in _exact_base_set_keys(model_xbrl):
         arcrole_uri = str(arcrole)
+        link_role_from_key = str(linkrole) if linkrole else None
         family = _relationship_family(
             arcrole_uri, link_tag=_clark(link_qname), config=extraction.config
+        )
+        identity_family = family in _SUPPORTED_IDENTITY_FAMILIES
+        _, _, diagnostic_qnames = _base_set_qname_context(
+            link_qname, arc_qname, strict=identity_family
         )
         try:
             relationship_set = model_xbrl.relationshipSet(arcrole, linkrole, link_qname, arc_qname)
@@ -1627,10 +1686,11 @@ def _relationship_projection(
                 f"relationship set for arcrole {arcrole_uri} could not be resolved: "
                 f"{type(exc).__name__}: {exc}"
             )
-            context = {
-                "arcrole_uri": arcrole_uri,
-                "link_role_uri": str(linkrole) if linkrole else None,
-            }
+            context = _network_issue_context(
+                arcrole_uri=arcrole_uri,
+                link_role_uri=link_role_from_key,
+                qnames=diagnostic_qnames,
+            )
             if family in _SUPPORTED_CONCEPT_NETWORKS:
                 extraction.incoherent(RELATIONSHIP_SET_LOAD_FAILED, message, context=context)
             else:
@@ -1643,11 +1703,12 @@ def _relationship_projection(
                 EXCLUDED_ARCROLE,
                 f"{len(model_relationships)} relationship(s) with arcrole {arcrole_uri} "
                 "are outside the semantic projection",
-                context={
-                    "arcrole_uri": arcrole_uri,
-                    "link_role_uri": str(linkrole) if linkrole else None,
-                    "relationship_count": len(model_relationships),
-                },
+                context=_network_issue_context(
+                    arcrole_uri=arcrole_uri,
+                    link_role_uri=link_role_from_key,
+                    qnames=diagnostic_qnames,
+                    extra={"relationship_count": len(model_relationships)},
+                ),
             )
             continue
         if family in ("deferred", "unsupported"):
@@ -1655,13 +1716,36 @@ def _relationship_projection(
                 DEFERRED_ARCROLE if family == "deferred" else UNSUPPORTED_ARCROLE,
                 f"{len(model_relationships)} relationship(s) with arcrole {arcrole_uri} "
                 "are not projected in Phase 1",
-                context={
-                    "arcrole_uri": arcrole_uri,
-                    "link_role_uri": str(linkrole) if linkrole else None,
-                    "relationship_count": len(model_relationships),
-                },
+                context=_network_issue_context(
+                    arcrole_uri=arcrole_uri,
+                    link_role_uri=link_role_from_key,
+                    qnames=diagnostic_qnames,
+                    extra={"relationship_count": len(model_relationships)},
+                ),
             )
             continue
+        link_identity, arc_identity, strict_qnames = _base_set_qname_context(
+            link_qname, arc_qname, strict=True
+        )
+        failed_fields = [
+            field
+            for field, value in (("link_qname", link_identity), ("arc_qname", arc_identity))
+            if value is None
+        ]
+        if failed_fields:
+            extraction.incomplete(
+                INVALID_BASE_SET_QNAME,
+                "supported base set is missing an exact link or arc QName identity",
+                context=_network_issue_context(
+                    arcrole_uri=arcrole_uri,
+                    link_role_uri=link_role_from_key,
+                    qnames=strict_qnames,
+                    extra={"failed_fields": failed_fields},
+                ),
+            )
+            continue
+        assert link_identity is not None
+        assert arc_identity is not None
         for relationship in model_relationships:
             link_role_uri = _optional_str(getattr(relationship, "linkrole", None)) or (
                 str(linkrole) if linkrole else None
@@ -1669,7 +1753,11 @@ def _relationship_projection(
             effective_arcrole = _optional_str(getattr(relationship, "arcrole", None)) or arcrole_uri
             if link_role_uri is None:
                 message = f"relationship with arcrole {effective_arcrole} has no extended link role"
-                context = {"arcrole_uri": effective_arcrole}
+                context = _network_issue_context(
+                    arcrole_uri=effective_arcrole,
+                    link_role_uri=None,
+                    qnames=strict_qnames,
+                )
                 if family in _SUPPORTED_CONCEPT_NETWORKS:
                     extraction.incoherent(MISSING_NETWORK_ROLE, message, context=context)
                 else:
@@ -1680,6 +1768,8 @@ def _relationship_projection(
                     relationship,
                     arcrole_uri=effective_arcrole,
                     link_role_uri=link_role_uri,
+                    link_qname=link_identity,
+                    arc_qname=arc_identity,
                     declared=declared,
                     extraction=extraction,
                     labels=labels,
@@ -1691,6 +1781,8 @@ def _relationship_projection(
                 network_type=cast(NetworkType, family),
                 arcrole_uri=effective_arcrole,
                 link_role_uri=link_role_uri,
+                link_qname=link_identity,
+                arc_qname=arc_identity,
                 declared=declared,
                 extraction=extraction,
             )

@@ -14,6 +14,7 @@ from edgar.domain.bundle import (
     InstanceReportInput,
     UriBinding,
 )
+from edgar.domain.decode import BundleDecodeError
 from edgar.domain.payload import compute_payload_hash
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.records import ExpandedQName
@@ -21,6 +22,7 @@ from edgar.xbrl.semantic import SourceExtractWorkerError, run_offline_extract
 from edgar.xbrl.source_extract import extract_filing
 from edgar.xbrl.source_records import (
     EXTRACTOR_VERSION,
+    SOURCE_RECORDS_SCHEMA_VERSION,
     ConceptDeclarationRecord,
     ConceptLabelRecord,
     ConceptRecord,
@@ -40,6 +42,15 @@ from edgar.xbrl.source_wire import (
     SourceWireError,
     report_extraction_from_dict,
     report_extraction_to_dict,
+)
+from tests.helpers.linkbase_qnames import (
+    CALCULATION_ARC,
+    CALCULATION_LINK,
+    LABEL_ARC,
+    LABEL_LINK,
+    PRESENTATION_ARC,
+    REFERENCE_ARC,
+    REFERENCE_LINK,
 )
 from tests.helpers.xbrl_bundles import (
     INSTANCE,
@@ -73,6 +84,8 @@ def _rich_report_for_wire() -> ReportExtraction:
                 concept=concept,
                 link_role_uri="http://example.com/role/Statement",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                link_qname=LABEL_LINK,
+                arc_qname=LABEL_ARC,
                 text="Assets",
                 source_order=0,
                 language="en",
@@ -82,6 +95,8 @@ def _rich_report_for_wire() -> ReportExtraction:
                 concept=concept,
                 link_role_uri="http://example.com/role/Other",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                link_qname=LABEL_LINK,
+                arc_qname=LABEL_ARC,
                 text="Assets",
                 source_order=1,
                 language="en",
@@ -93,6 +108,8 @@ def _rich_report_for_wire() -> ReportExtraction:
                 concept=concept,
                 link_role_uri="http://example.com/role",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-reference",
+                link_qname=REFERENCE_LINK,
+                arc_qname=REFERENCE_ARC,
                 source_order=0,
                 reference_parts=(
                     ReferencePartRecord(
@@ -183,6 +200,8 @@ def _rich_report_for_wire() -> ReportExtraction:
                 network_type="calculation",
                 link_role_uri="http://example.com/role/Calc",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/summation-item",
+                link_qname=CALCULATION_LINK,
+                arc_qname=CALCULATION_ARC,
                 source_concept=concept,
                 target_concept=other,
                 order_value=Decimal("1.0"),
@@ -202,6 +221,12 @@ def test_report_extraction_wire_round_trip() -> None:
     assert restored.facts[0].continuation_provenance[0]["value"] == "cont1"
     assert restored.references[0].reference_parts[1].value == "Topic"
     assert restored.relationships[0].weight == Decimal("-1.0")
+    assert restored.relationships[0].link_qname == CALCULATION_LINK
+    assert restored.relationships[0].arc_qname == CALCULATION_ARC
+    assert restored.labels[0].link_qname == LABEL_LINK
+    assert restored.labels[0].arc_qname == LABEL_ARC
+    assert restored.references[0].link_qname == REFERENCE_LINK
+    assert restored.references[0].arc_qname == REFERENCE_ARC
     assert [f.source_order for f in restored.facts] == [0, 1, 2]
     assert restored.labels[0].link_role_uri != restored.labels[1].link_role_uri
     assert restored.labels[0].resource_role_uri == restored.labels[1].resource_role_uri
@@ -210,6 +235,13 @@ def test_report_extraction_wire_round_trip() -> None:
 def test_wire_rejects_schema_version_1() -> None:
     payload = report_extraction_to_dict(_rich_report_for_wire())
     payload["schema_version"] = 1
+    with pytest.raises(SourceWireError, match="schema_version"):
+        report_extraction_from_dict(payload)
+
+
+def test_wire_rejects_previous_schema_version() -> None:
+    payload = report_extraction_to_dict(_rich_report_for_wire())
+    payload["schema_version"] = SOURCE_RECORDS_SCHEMA_VERSION - 1
     with pytest.raises(SourceWireError, match="schema_version"):
         report_extraction_from_dict(payload)
 
@@ -362,6 +394,8 @@ def test_build_labels_same_resource_role_distinct_elr() -> None:
                 concept=concept,
                 link_role_uri="http://example.com/role/Statement",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                link_qname=LABEL_LINK,
+                arc_qname=LABEL_ARC,
                 text="Assets",
                 source_locator=resource,
                 arc_locator=arc_a,
@@ -371,6 +405,8 @@ def test_build_labels_same_resource_role_distinct_elr() -> None:
                 concept=concept,
                 link_role_uri="http://example.com/role/Other",
                 arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+                link_qname=LABEL_LINK,
+                arc_qname=LABEL_ARC,
                 text="Assets",
                 source_locator=resource,
                 arc_locator=arc_b,
@@ -386,6 +422,50 @@ def test_build_labels_same_resource_role_distinct_elr() -> None:
     assert labels[0].arc_document_relative_path == "accession/lab.xml"
     assert labels[0].source_locator is not None
     assert labels[0].arc_locator is not None
+    assert labels[0].link_qname == LABEL_LINK
+    assert labels[0].arc_qname == LABEL_ARC
+
+
+def test_wire_rejects_null_relationship_link_qname() -> None:
+    payload = report_extraction_to_dict(_rich_report_for_wire())
+    payload["relationships"][0]["link_qname"] = None
+    with pytest.raises((SourceWireError, BundleDecodeError)):
+        report_extraction_from_dict(payload)
+
+
+def test_wire_rejects_null_label_arc_qname() -> None:
+    payload = report_extraction_to_dict(_rich_report_for_wire())
+    payload["labels"][0]["arc_qname"] = None
+    with pytest.raises((SourceWireError, BundleDecodeError)):
+        report_extraction_from_dict(payload)
+
+
+def test_native_relationship_rejects_non_qname_identity() -> None:
+    concept = ExpandedQName(namespace_uri="http://example.com/test", local_name="Assets")
+    with pytest.raises(TypeError, match="link_qname"):
+        RelationshipRecord(
+            source_order=0,
+            network_type="presentation",
+            link_role_uri="http://example.com/role",
+            arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
+            link_qname="not-a-qname",  # type: ignore[arg-type]
+            arc_qname=PRESENTATION_ARC,
+            source_concept=concept,
+            target_concept=concept,
+        )
+
+
+def test_persist_fail_fast_rejects_empty_clark() -> None:
+    from types import SimpleNamespace
+
+    from edgar.db.source import _link_arc_qname_columns
+
+    with pytest.raises(ValueError, match="Clark"):
+        _link_arc_qname_columns(
+            SimpleNamespace(clark=""),  # type: ignore[arg-type]
+            PRESENTATION_ARC,
+            what="relationship",
+        )
 
 
 def test_optional_path_and_locator_unbound_uri_fails() -> None:

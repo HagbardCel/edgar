@@ -439,6 +439,8 @@ _CONCEPT_LABEL_KEYS = frozenset(
         "concept",
         "link_role_uri",
         "arcrole_uri",
+        "link_qname",
+        "arc_qname",
         "resource_role_uri",
         "xml_lang",
         "text",
@@ -460,6 +462,8 @@ class ConceptLabelRecord:
     concept: ExpandedQName
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     text: str
     source_locator: SourceLocator
     arc_locator: SourceLocator
@@ -479,6 +483,8 @@ class ConceptLabelRecord:
             "concept": self.concept.to_dict(),
             "link_role_uri": self.link_role_uri,
             "arcrole_uri": self.arcrole_uri,
+            "link_qname": self.link_qname.to_dict(),
+            "arc_qname": self.arc_qname.to_dict(),
             "resource_role_uri": self.resource_role_uri,
             "xml_lang": self.xml_lang,
             "text": self.text,
@@ -496,6 +502,8 @@ class ConceptLabelRecord:
             concept=_require_qname(obj["concept"], label=f"{label}.concept"),
             link_role_uri=require_str(obj["link_role_uri"], label=f"{label}.link_role_uri"),
             arcrole_uri=require_str(obj["arcrole_uri"], label=f"{label}.arcrole_uri"),
+            link_qname=_require_qname(obj["link_qname"], label=f"{label}.link_qname"),
+            arc_qname=_require_qname(obj["arc_qname"], label=f"{label}.arc_qname"),
             text=require_str(obj["text"], label=f"{label}.text"),
             source_locator=_require_locator(obj["source_locator"], label=f"{label}.source_locator"),
             arc_locator=_require_locator(obj["arc_locator"], label=f"{label}.arc_locator"),
@@ -558,6 +566,8 @@ _CONCEPT_REFERENCE_KEYS = frozenset(
         "concept",
         "link_role_uri",
         "arcrole_uri",
+        "link_qname",
+        "arc_qname",
         "resource_role_uri",
         "order",
         "reference_parts",
@@ -574,6 +584,8 @@ class ConceptReferenceRecord:
     concept: ExpandedQName
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     source_locator: SourceLocator
     arc_locator: SourceLocator
     reference_parts: tuple[ReferencePartRecord, ...] = ()
@@ -592,6 +604,8 @@ class ConceptReferenceRecord:
             "concept": self.concept.to_dict(),
             "link_role_uri": self.link_role_uri,
             "arcrole_uri": self.arcrole_uri,
+            "link_qname": self.link_qname.to_dict(),
+            "arc_qname": self.arc_qname.to_dict(),
             "resource_role_uri": self.resource_role_uri,
             "order": _decimal_to_str(self.order),
             "reference_parts": [part.to_dict() for part in self.reference_parts],
@@ -608,6 +622,8 @@ class ConceptReferenceRecord:
             concept=_require_qname(obj["concept"], label=f"{label}.concept"),
             link_role_uri=require_str(obj["link_role_uri"], label=f"{label}.link_role_uri"),
             arcrole_uri=require_str(obj["arcrole_uri"], label=f"{label}.arcrole_uri"),
+            link_qname=_require_qname(obj["link_qname"], label=f"{label}.link_qname"),
+            arc_qname=_require_qname(obj["arc_qname"], label=f"{label}.arc_qname"),
             source_locator=_require_locator(obj["source_locator"], label=f"{label}.source_locator"),
             arc_locator=_require_locator(obj["arc_locator"], label=f"{label}.arc_locator"),
             reference_parts=_decode_records(
@@ -1121,6 +1137,8 @@ _RELATIONSHIP_KEYS = frozenset(
         "network_type",
         "link_role_uri",
         "arcrole_uri",
+        "link_qname",
+        "arc_qname",
         "source_concept",
         "target_concept",
         "order",
@@ -1147,6 +1165,8 @@ class RelationshipRecord:
     network_type: NetworkType
     link_role_uri: str
     arcrole_uri: str
+    link_qname: ExpandedQName
+    arc_qname: ExpandedQName
     source_concept: ExpandedQName
     target_concept: ExpandedQName
     source_locator: SourceLocator
@@ -1175,6 +1195,8 @@ class RelationshipRecord:
             "network_type": self.network_type,
             "link_role_uri": self.link_role_uri,
             "arcrole_uri": self.arcrole_uri,
+            "link_qname": self.link_qname.to_dict(),
+            "arc_qname": self.arc_qname.to_dict(),
             "source_concept": self.source_concept.to_dict(),
             "target_concept": self.target_concept.to_dict(),
             "order": _decimal_to_str(self.order),
@@ -1202,6 +1224,8 @@ class RelationshipRecord:
             network_type=cast(NetworkType, network_type),
             link_role_uri=require_str(obj["link_role_uri"], label=f"{label}.link_role_uri"),
             arcrole_uri=require_str(obj["arcrole_uri"], label=f"{label}.arcrole_uri"),
+            link_qname=_require_qname(obj["link_qname"], label=f"{label}.link_qname"),
+            arc_qname=_require_qname(obj["arc_qname"], label=f"{label}.arc_qname"),
             source_concept=_require_qname(obj["source_concept"], label=f"{label}.source_concept"),
             target_concept=_require_qname(obj["target_concept"], label=f"{label}.target_concept"),
             source_locator=_require_locator(obj["source_locator"], label=f"{label}.source_locator"),

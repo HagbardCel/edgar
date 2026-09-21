@@ -43,6 +43,7 @@ from edgar.xbrl.source_records import (
     UnitRecord,
 )
 from tests.helpers.database import reset_test_database, test_database_url, truncate_all_tables
+from tests.helpers.linkbase_qnames import PRESENTATION_ARC, PRESENTATION_LINK
 
 pytestmark = pytest.mark.database
 
@@ -156,6 +157,8 @@ def _extraction() -> FilingExtraction:
                         network_type="presentation",
                         link_role_uri="http://example.com/role/Income",
                         arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
+                        link_qname=PRESENTATION_LINK,
+                        arc_qname=PRESENTATION_ARC,
                         source_concept=concept,
                         target_concept=concept,
                     ),

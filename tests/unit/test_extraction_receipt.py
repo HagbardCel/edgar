@@ -175,10 +175,21 @@ def test_semantic_config_from_dict_round_trip() -> None:
     assert SemanticConfig.from_dict(cfg.to_dict()).to_dict() == cfg.to_dict()
 
 
-def test_decode_extraction_receipt_round_trip() -> None:
+def test_decode_historical_receipt_after_extractor_schema_bump() -> None:
+    from edgar.xbrl.source_records import EXTRACTOR_VERSION, SOURCE_RECORDS_SCHEMA_VERSION
+
     receipt = _sample_receipt()
-    decoded = decode_extraction_receipt(receipt.to_dict())
-    assert decoded.to_dict() == receipt.to_dict()
+    payload = receipt.to_dict()
+    payload["extractor_version"] = "source-extract-v3"
+    payload["source_records_schema_version"] = 2
+    payload["worker_protocol_version"] = WORKER_PROTOCOL_VERSION
+    decoded = decode_extraction_receipt(payload)
+    assert decoded.extractor_version == "source-extract-v3"
+    assert decoded.source_records_schema_version == 2
+    assert decoded.worker_protocol_version == WORKER_PROTOCOL_VERSION
+    assert EXTRACTOR_VERSION != "source-extract-v3"
+    assert SOURCE_RECORDS_SCHEMA_VERSION != 2
+    assert WORKER_PROTOCOL_VERSION == "arelle-worker-v2"
 
 
 def test_decode_rejects_traversal_in_descriptor_relative_path() -> None:
