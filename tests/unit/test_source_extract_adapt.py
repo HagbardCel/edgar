@@ -505,6 +505,9 @@ def test_adapter_reference_rejects_null_link_qname() -> None:
             source_locator=locator,
             arc_locator=locator,
         )
+
+
+def test_native_relationship_rejects_non_qname_identity() -> None:
     concept = ExpandedQName(namespace_uri="http://example.com/test", local_name="Assets")
     with pytest.raises(TypeError, match="link_qname"):
         RelationshipRecord(
