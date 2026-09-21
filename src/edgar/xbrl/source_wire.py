@@ -140,6 +140,13 @@ def _qname_from_dict(data: object, *, label: str) -> ExpandedQName:
     return ExpandedQName.from_dict(obj)
 
 
+def _required(data: Mapping[str, Any], key: str, *, label: str) -> Any:
+    try:
+        return data[key]
+    except KeyError as exc:
+        raise SourceWireError(f"{label}.{key} is required") from exc
+
+
 def _nullable_qname(data: object, *, label: str) -> ExpandedQName | None:
     if data is None:
         return None
@@ -244,8 +251,12 @@ def _label_from_dict(data: dict[str, Any]) -> ConceptLabelRecord:
         concept=_qname_from_dict(data["concept"], label="label.concept"),
         link_role_uri=require_str(data["link_role_uri"], label="label.link_role_uri"),
         arcrole_uri=require_str(data["arcrole_uri"], label="label.arcrole_uri"),
-        link_qname=_qname_from_dict(data["link_qname"], label="label.link_qname"),
-        arc_qname=_qname_from_dict(data["arc_qname"], label="label.arc_qname"),
+        link_qname=_qname_from_dict(
+            _required(data, "link_qname", label="label"), label="label.link_qname"
+        ),
+        arc_qname=_qname_from_dict(
+            _required(data, "arc_qname", label="label"), label="label.arc_qname"
+        ),
         text=require_str(data["text"], label="label.text"),
         source_order=require_int(data["source_order"], label="label.source_order"),
         language=_nullable_str(data.get("language"), label="label.language"),
@@ -302,8 +313,12 @@ def _reference_from_dict(data: dict[str, Any]) -> ConceptReferenceRecord:
         concept=_qname_from_dict(data["concept"], label="reference.concept"),
         link_role_uri=require_str(data["link_role_uri"], label="reference.link_role_uri"),
         arcrole_uri=require_str(data["arcrole_uri"], label="reference.arcrole_uri"),
-        link_qname=_qname_from_dict(data["link_qname"], label="reference.link_qname"),
-        arc_qname=_qname_from_dict(data["arc_qname"], label="reference.arc_qname"),
+        link_qname=_qname_from_dict(
+            _required(data, "link_qname", label="reference"), label="reference.link_qname"
+        ),
+        arc_qname=_qname_from_dict(
+            _required(data, "arc_qname", label="reference"), label="reference.arc_qname"
+        ),
         source_order=require_int(data["source_order"], label="reference.source_order"),
         reference_parts=tuple(parts),
         resource_role_uri=_nullable_str(
@@ -561,8 +576,14 @@ def _relationship_from_dict(data: dict[str, Any]) -> RelationshipRecord:
         ),
         link_role_uri=require_str(data["link_role_uri"], label="relationship.link_role_uri"),
         arcrole_uri=require_str(data["arcrole_uri"], label="relationship.arcrole_uri"),
-        link_qname=_qname_from_dict(data["link_qname"], label="relationship.link_qname"),
-        arc_qname=_qname_from_dict(data["arc_qname"], label="relationship.arc_qname"),
+        link_qname=_qname_from_dict(
+            _required(data, "link_qname", label="relationship"),
+            label="relationship.link_qname",
+        ),
+        arc_qname=_qname_from_dict(
+            _required(data, "arc_qname", label="relationship"),
+            label="relationship.arc_qname",
+        ),
         source_concept=_qname_from_dict(
             data["source_concept"], label="relationship.source_concept"
         ),

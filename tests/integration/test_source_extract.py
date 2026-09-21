@@ -155,6 +155,94 @@ def test_source_extract_service_end_to_end(engine: Engine, tmp_path: Path) -> No
     assert receipt.semantic_config
 
 
+def test_invalid_base_set_qname_leaves_prior_snapshot(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.ingestion.source_extract import SourceExtractError
+    from edgar.xbrl.extract import INVALID_BASE_SET_QNAME
+    from edgar.xbrl.records import SemanticIssueRecord
+    from edgar.xbrl.replay_normalize import NormalizedReplayView
+    from edgar.xbrl.semantic import SourceExtractWorkerError
+
+    store = ObjectStore(tmp_path)
+    bundle = _hybrid_html_xbrl_bundle(store)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(bundle)
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+    first = service.extract_published_bundle(published.bundle_dir)
+    assert first.persist.fact_count >= 2
+
+    with engine.connect() as conn:
+        reports_before = conn.execute(
+            select(src.source_xbrl_report.c.id, src.source_xbrl_report.c.report_key).order_by(
+                src.source_xbrl_report.c.id
+            )
+        ).all()
+        facts_before = conn.execute(
+            select(
+                src.source_fact.c.id,
+                src.source_fact.c.source_order,
+                src.source_fact.c.raw_lexical_value,
+            ).order_by(src.source_fact.c.id)
+        ).all()
+        fact_count_before = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise SourceExtractWorkerError(
+            "INVALID_BASE_SET_QNAME: supported base set is missing an exact "
+            "link or arc QName identity",
+            replay=NormalizedReplayView(
+                load_completed=False,
+                network_attempts=(),
+                unresolved_documents=(),
+                loaded_source_documents=(),
+                resolved_documents=(),
+                expected_binding_documents=(),
+                diagnostics=(),
+                errors=("INVALID_BASE_SET_QNAME",),
+                closure_equal=False,
+            ),
+            issues=(
+                SemanticIssueRecord(
+                    severity="fatal",
+                    code=INVALID_BASE_SET_QNAME,
+                    message="supported base set is missing an exact link or arc QName identity",
+                ),
+            ),
+            arelle_version="test-arelle",
+        )
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.extract_filing_with_outcomes",
+        boom,
+    )
+    with pytest.raises(SourceExtractError, match=INVALID_BASE_SET_QNAME):
+        service.extract_published_bundle(published.bundle_dir)
+
+    with engine.connect() as conn:
+        reports_after = conn.execute(
+            select(src.source_xbrl_report.c.id, src.source_xbrl_report.c.report_key).order_by(
+                src.source_xbrl_report.c.id
+            )
+        ).all()
+        facts_after = conn.execute(
+            select(
+                src.source_fact.c.id,
+                src.source_fact.c.source_order,
+                src.source_fact.c.raw_lexical_value,
+            ).order_by(src.source_fact.c.id)
+        ).all()
+        fact_count_after = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+    assert reports_after == reports_before
+    assert facts_after == facts_before
+    assert fact_count_after == fact_count_before
+
+
 def test_source_extract_aborts_when_implementation_changes(
     engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

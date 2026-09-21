@@ -1676,9 +1676,32 @@ def _relationship_projection(
             arcrole_uri, link_tag=_clark(link_qname), config=extraction.config
         )
         identity_family = family in _SUPPORTED_IDENTITY_FAMILIES
-        _, _, diagnostic_qnames = _base_set_qname_context(
-            link_qname, arc_qname, strict=identity_family
-        )
+        link_identity: ExpandedQName | None
+        arc_identity: ExpandedQName | None
+        qname_context: dict[str, str | None]
+        if identity_family:
+            link_identity, arc_identity, qname_context = _base_set_qname_context(
+                link_qname, arc_qname, strict=True
+            )
+            failed_fields = [
+                field
+                for field, value in (("link_qname", link_identity), ("arc_qname", arc_identity))
+                if value is None
+            ]
+            if failed_fields:
+                extraction.incomplete(
+                    INVALID_BASE_SET_QNAME,
+                    "supported base set is missing an exact link or arc QName identity",
+                    context=_network_issue_context(
+                        arcrole_uri=arcrole_uri,
+                        link_role_uri=link_role_from_key,
+                        qnames=qname_context,
+                        extra={"failed_fields": failed_fields},
+                    ),
+                )
+                continue
+        else:
+            _, _, qname_context = _base_set_qname_context(link_qname, arc_qname, strict=False)
         try:
             relationship_set = model_xbrl.relationshipSet(arcrole, linkrole, link_qname, arc_qname)
         except Exception as exc:  # noqa: BLE001 - engine failure is projected evidence
@@ -1689,7 +1712,7 @@ def _relationship_projection(
             context = _network_issue_context(
                 arcrole_uri=arcrole_uri,
                 link_role_uri=link_role_from_key,
-                qnames=diagnostic_qnames,
+                qnames=qname_context,
             )
             if family in _SUPPORTED_CONCEPT_NETWORKS:
                 extraction.incoherent(RELATIONSHIP_SET_LOAD_FAILED, message, context=context)
@@ -1706,7 +1729,7 @@ def _relationship_projection(
                 context=_network_issue_context(
                     arcrole_uri=arcrole_uri,
                     link_role_uri=link_role_from_key,
-                    qnames=diagnostic_qnames,
+                    qnames=qname_context,
                     extra={"relationship_count": len(model_relationships)},
                 ),
             )
@@ -1719,28 +1742,8 @@ def _relationship_projection(
                 context=_network_issue_context(
                     arcrole_uri=arcrole_uri,
                     link_role_uri=link_role_from_key,
-                    qnames=diagnostic_qnames,
+                    qnames=qname_context,
                     extra={"relationship_count": len(model_relationships)},
-                ),
-            )
-            continue
-        link_identity, arc_identity, strict_qnames = _base_set_qname_context(
-            link_qname, arc_qname, strict=True
-        )
-        failed_fields = [
-            field
-            for field, value in (("link_qname", link_identity), ("arc_qname", arc_identity))
-            if value is None
-        ]
-        if failed_fields:
-            extraction.incomplete(
-                INVALID_BASE_SET_QNAME,
-                "supported base set is missing an exact link or arc QName identity",
-                context=_network_issue_context(
-                    arcrole_uri=arcrole_uri,
-                    link_role_uri=link_role_from_key,
-                    qnames=strict_qnames,
-                    extra={"failed_fields": failed_fields},
                 ),
             )
             continue
@@ -1756,7 +1759,7 @@ def _relationship_projection(
                 context = _network_issue_context(
                     arcrole_uri=effective_arcrole,
                     link_role_uri=None,
-                    qnames=strict_qnames,
+                    qnames=qname_context,
                 )
                 if family in _SUPPORTED_CONCEPT_NETWORKS:
                     extraction.incoherent(MISSING_NETWORK_ROLE, message, context=context)

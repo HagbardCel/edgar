@@ -46,12 +46,21 @@ def _extraction() -> _Extraction:
     return _Extraction(config=build_semantic_config(), resolver=resolver)
 
 
-def _model(*, link: _ArelleQName, arc: _ArelleQName) -> SimpleNamespace:
+def _model(
+    *,
+    link: _ArelleQName,
+    arc: _ArelleQName,
+    relationship_set: object | None = None,
+) -> SimpleNamespace:
     dummy_rel = SimpleNamespace(
         linkrole=_ROLE,
         arcrole=_ARCROLE,
         arcElement=SimpleNamespace(tag=PRESENTATION_ARC.clark),
     )
+
+    def default_set(*_a: object, **_k: object) -> SimpleNamespace:
+        return SimpleNamespace(modelRelationships=[dummy_rel])
+
     return SimpleNamespace(
         qnameConcepts={},
         contexts={},
@@ -59,7 +68,7 @@ def _model(*, link: _ArelleQName, arc: _ArelleQName) -> SimpleNamespace:
         facts=(),
         undefinedFacts=(),
         baseSets={(_ARCROLE, _ROLE, link, arc): object()},
-        relationshipSet=lambda *_a, **_k: SimpleNamespace(modelRelationships=[dummy_rel]),
+        relationshipSet=relationship_set if relationship_set is not None else default_set,
         modelManager=None,
         cntlr=None,
     )
@@ -139,3 +148,23 @@ def test_extract_report_extraction_invalid_arc_qname_raises() -> None:
     assert issues[0].context["failed_fields"] == ["arc_qname"]
     assert issues[0].context["link_qname"] == PRESENTATION_LINK.clark
     assert issues[0].context["arc_qname"] is None
+
+
+def test_invalid_supported_qname_does_not_call_relationship_set() -> None:
+    extraction = _extraction()
+    calls: list[object] = []
+
+    def boom(*_args: object, **_kwargs: object) -> object:
+        calls.append((_args, _kwargs))
+        raise RuntimeError("relationshipSet must not be called")
+
+    model = _model(link=_bad_qname(), arc=_good_arc(), relationship_set=boom)
+    projection = _relationship_projection(model, declared=frozenset(), extraction=extraction)
+    assert calls == []
+    assert projection.relationships == ()
+    assert projection.labels == ()
+    assert projection.references == ()
+    assert [issue.code for issue in extraction.issues] == [INVALID_BASE_SET_QNAME]
+    _assert_invalid_base_set(
+        extraction, failed_field="link_qname", available_clark=PRESENTATION_ARC.clark
+    )

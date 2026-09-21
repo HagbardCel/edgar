@@ -24,6 +24,7 @@ from edgar.xbrl.records import (
     PeriodType,
     ResolvedValueKind,
     ValueStatus,
+    _assert_identity_qname,
 )
 
 EXTRACTOR_VERSION = "source-extract-v4"
@@ -32,13 +33,6 @@ EXTRACTOR_VERSION = "source-extract-v4"
 SOURCE_RECORDS_SCHEMA_VERSION = 3
 
 LocatorScheme = Literal["xml_id", "unqualified_id", "expanded_element_path"]
-
-
-def _assert_identity_qname(value: ExpandedQName, *, what: str) -> None:
-    if not isinstance(value, ExpandedQName):
-        raise TypeError(f"{what} must be ExpandedQName, not {type(value).__name__}")
-    if not value.local_name:
-        raise ValueError(f"{what} local_name must be non-empty")
 
 
 @dataclass(frozen=True)

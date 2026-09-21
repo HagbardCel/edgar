@@ -218,6 +218,13 @@ class ExpandedQName:
         )
 
 
+def _assert_identity_qname(value: ExpandedQName, *, what: str) -> None:
+    if not isinstance(value, ExpandedQName):
+        raise TypeError(f"{what} must be ExpandedQName, not {type(value).__name__}")
+    if not value.local_name:
+        raise ValueError(f"{what} local_name must be non-empty")
+
+
 def _qname_to_dict(value: ExpandedQName | None) -> dict[str, Any] | None:
     return None if value is None else value.to_dict()
 
@@ -476,6 +483,8 @@ class ConceptLabelRecord:
             raise ValueError("link_role_uri is required")
         if not self.arcrole_uri:
             raise ValueError("arcrole_uri is required")
+        _assert_identity_qname(self.link_qname, what="concept label link_qname")
+        _assert_identity_qname(self.arc_qname, what="concept label arc_qname")
         _assert_finite_decimal(self.order, label="order")
 
     def to_dict(self) -> dict[str, Any]:
@@ -597,6 +606,8 @@ class ConceptReferenceRecord:
             raise ValueError("link_role_uri is required")
         if not self.arcrole_uri:
             raise ValueError("arcrole_uri is required")
+        _assert_identity_qname(self.link_qname, what="concept reference link_qname")
+        _assert_identity_qname(self.arc_qname, what="concept reference arc_qname")
         _assert_finite_decimal(self.order, label="order")
 
     def to_dict(self) -> dict[str, Any]:
@@ -1187,6 +1198,8 @@ class RelationshipRecord:
             raise ValueError("arcrole_uri is required")
         if self.context_element is not None and self.context_element not in CONTEXT_ELEMENTS:
             raise ValueError(f"unknown context_element: {self.context_element!r}")
+        _assert_identity_qname(self.link_qname, what="relationship link_qname")
+        _assert_identity_qname(self.arc_qname, what="relationship arc_qname")
         _assert_finite_decimal(self.order, label="order")
         _assert_finite_decimal(self.weight, label="weight")
 

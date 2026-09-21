@@ -440,7 +440,71 @@ def test_wire_rejects_null_label_arc_qname() -> None:
         report_extraction_from_dict(payload)
 
 
-def test_native_relationship_rejects_non_qname_identity() -> None:
+def test_wire_rejects_missing_relationship_link_qname() -> None:
+    payload = report_extraction_to_dict(_rich_report_for_wire())
+    del payload["relationships"][0]["link_qname"]
+    with pytest.raises(SourceWireError, match="link_qname"):
+        report_extraction_from_dict(payload)
+
+
+def test_adapter_relationship_rejects_null_link_qname() -> None:
+    from edgar.xbrl.records import RelationshipRecord as AdapterRelationship
+    from edgar.xbrl.records import SourceLocator
+
+    concept = ExpandedQName(namespace_uri="http://example.com/test", local_name="Assets")
+    locator = SourceLocator(document_uri="https://example.com/a.xml", scheme="xml_id", value="arc1")
+    with pytest.raises(TypeError, match="link_qname"):
+        AdapterRelationship(
+            network_type="presentation",
+            link_role_uri="http://example.com/role",
+            arcrole_uri="http://www.xbrl.org/2003/arcrole/parent-child",
+            link_qname=None,  # type: ignore[arg-type]
+            arc_qname=PRESENTATION_ARC,
+            source_concept=concept,
+            target_concept=concept,
+            source_locator=locator,
+        )
+
+
+def test_adapter_label_rejects_non_qname_arc() -> None:
+    from edgar.xbrl.records import ConceptLabelRecord as AdapterLabel
+    from edgar.xbrl.records import SourceLocator
+
+    concept = ExpandedQName(namespace_uri="http://example.com/test", local_name="Assets")
+    locator = SourceLocator(
+        document_uri="https://example.com/lab.xml", scheme="xml_id", value="lab1"
+    )
+    with pytest.raises(TypeError, match="arc_qname"):
+        AdapterLabel(
+            concept=concept,
+            link_role_uri="http://example.com/role",
+            arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-label",
+            link_qname=LABEL_LINK,
+            arc_qname="not-a-qname",  # type: ignore[arg-type]
+            text="Assets",
+            source_locator=locator,
+            arc_locator=locator,
+        )
+
+
+def test_adapter_reference_rejects_null_link_qname() -> None:
+    from edgar.xbrl.records import ConceptReferenceRecord as AdapterReference
+    from edgar.xbrl.records import SourceLocator
+
+    concept = ExpandedQName(namespace_uri="http://example.com/test", local_name="Assets")
+    locator = SourceLocator(
+        document_uri="https://example.com/ref.xml", scheme="xml_id", value="ref1"
+    )
+    with pytest.raises(TypeError, match="link_qname"):
+        AdapterReference(
+            concept=concept,
+            link_role_uri="http://example.com/role",
+            arcrole_uri="http://www.xbrl.org/2003/arcrole/concept-reference",
+            link_qname=None,  # type: ignore[arg-type]
+            arc_qname=REFERENCE_ARC,
+            source_locator=locator,
+            arc_locator=locator,
+        )
     concept = ExpandedQName(namespace_uri="http://example.com/test", local_name="Assets")
     with pytest.raises(TypeError, match="link_qname"):
         RelationshipRecord(
