@@ -12,6 +12,14 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from edgar.domain.decode import (
+    BundleDecodeError,
+    require_bool,
+    require_exact_keys,
+    require_list_of_str,
+    require_object,
+    require_str,
+)
 from edgar.xbrl.diagnostics import (
     COMPLETE_COMPATIBLE_DIAGNOSTICS,
     DIAGNOSTIC_POLICY_VERSION,
@@ -65,6 +73,27 @@ def _sorted_tuple(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(values))
 
 
+SEMANTIC_CONFIG_KEYS: frozenset[str] = frozenset(
+    {
+        "fact_lexical_version",
+        "element_locator_version",
+        "xml_fragment_version",
+        "diagnostic_policy_version",
+        "complete_compatible_diagnostics",
+        "presentation_arcroles",
+        "calculation_arcroles",
+        "definition_arcroles",
+        "resource_arcroles",
+        "excluded_arcroles",
+        "deferred_arcroles",
+        "custom_definition_link_arcroles_supported",
+        "reported_dimensions_only",
+        "non_dimensional_context_policy",
+        "item_facts_only",
+    }
+)
+
+
 @dataclass(frozen=True)
 class SemanticConfig:
     """Interpretation-affecting policy knobs for one Arelle source extraction."""
@@ -113,28 +142,90 @@ class SemanticConfig:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> SemanticConfig:
-        """Deserialize extraction policy; keys must match :meth:`to_dict`."""
-        return build_semantic_config(
-            fact_lexical_version=str(data["fact_lexical_version"]),
-            element_locator_version=str(data["element_locator_version"]),
-            xml_fragment_version=str(data["xml_fragment_version"]),
-            diagnostic_policy_version=str(data["diagnostic_policy_version"]),
-            complete_compatible_diagnostics=data.get("complete_compatible_diagnostics"),
-            presentation_arcroles=data.get("presentation_arcroles", PRESENTATION_ARCROLES),
-            calculation_arcroles=data.get("calculation_arcroles", CALCULATION_ARCROLES),
-            definition_arcroles=data.get("definition_arcroles", DEFINITION_ARCROLES),
-            resource_arcroles=data.get("resource_arcroles", RESOURCE_ARCROLES),
-            excluded_arcroles=data.get("excluded_arcroles", EXCLUDED_ARCROLES),
-            deferred_arcroles=data.get("deferred_arcroles", DEFERRED_ARCROLES),
-            custom_definition_link_arcroles_supported=bool(
-                data.get("custom_definition_link_arcroles_supported", True)
-            ),
-            reported_dimensions_only=bool(data.get("reported_dimensions_only", True)),
-            non_dimensional_context_policy=str(
-                data.get("non_dimensional_context_policy", "incomplete")
-            ),
-            item_facts_only=bool(data.get("item_facts_only", True)),
-        )
+        """Strict persisted/wire decode: no defaults, no sorting, no repair.
+
+        Instantiates :class:`SemanticConfig` directly. Does **not** call
+        :func:`build_semantic_config`. Unsorted lists and duplicates fail in
+        ``__post_init__``.
+        """
+        try:
+            obj = require_object(data, label="semantic_config")
+            require_exact_keys(obj, SEMANTIC_CONFIG_KEYS, label="semantic_config")
+            return cls(
+                fact_lexical_version=require_str(
+                    obj["fact_lexical_version"], label="semantic_config.fact_lexical_version"
+                ),
+                element_locator_version=require_str(
+                    obj["element_locator_version"],
+                    label="semantic_config.element_locator_version",
+                ),
+                xml_fragment_version=require_str(
+                    obj["xml_fragment_version"], label="semantic_config.xml_fragment_version"
+                ),
+                diagnostic_policy_version=require_str(
+                    obj["diagnostic_policy_version"],
+                    label="semantic_config.diagnostic_policy_version",
+                ),
+                complete_compatible_diagnostics=tuple(
+                    require_list_of_str(
+                        obj["complete_compatible_diagnostics"],
+                        label="semantic_config.complete_compatible_diagnostics",
+                    )
+                ),
+                presentation_arcroles=tuple(
+                    require_list_of_str(
+                        obj["presentation_arcroles"],
+                        label="semantic_config.presentation_arcroles",
+                    )
+                ),
+                calculation_arcroles=tuple(
+                    require_list_of_str(
+                        obj["calculation_arcroles"],
+                        label="semantic_config.calculation_arcroles",
+                    )
+                ),
+                definition_arcroles=tuple(
+                    require_list_of_str(
+                        obj["definition_arcroles"],
+                        label="semantic_config.definition_arcroles",
+                    )
+                ),
+                resource_arcroles=tuple(
+                    require_list_of_str(
+                        obj["resource_arcroles"],
+                        label="semantic_config.resource_arcroles",
+                    )
+                ),
+                excluded_arcroles=tuple(
+                    require_list_of_str(
+                        obj["excluded_arcroles"],
+                        label="semantic_config.excluded_arcroles",
+                    )
+                ),
+                deferred_arcroles=tuple(
+                    require_list_of_str(
+                        obj["deferred_arcroles"],
+                        label="semantic_config.deferred_arcroles",
+                    )
+                ),
+                custom_definition_link_arcroles_supported=require_bool(
+                    obj["custom_definition_link_arcroles_supported"],
+                    label="semantic_config.custom_definition_link_arcroles_supported",
+                ),
+                reported_dimensions_only=require_bool(
+                    obj["reported_dimensions_only"],
+                    label="semantic_config.reported_dimensions_only",
+                ),
+                non_dimensional_context_policy=require_str(
+                    obj["non_dimensional_context_policy"],
+                    label="semantic_config.non_dimensional_context_policy",
+                ),
+                item_facts_only=require_bool(
+                    obj["item_facts_only"], label="semantic_config.item_facts_only"
+                ),
+            )
+        except BundleDecodeError as exc:
+            raise ValueError(str(exc)) from exc
 
     def to_dict(self) -> dict[str, Any]:
         return {

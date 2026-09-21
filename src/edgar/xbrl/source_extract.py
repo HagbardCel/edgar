@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from edgar.domain.bundle import FilingBundle, XbrlReportInput
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.closure import DEFAULT_WORKER_TIMEOUT_SECONDS
+from edgar.xbrl.config import SemanticConfig, build_semantic_config
 from edgar.xbrl.semantic import OfflineExtractResult, run_offline_extract
 from edgar.xbrl.source_documents import extract_documents_for_filing
 from edgar.xbrl.source_records import FilingExtraction, ReportExtraction
@@ -24,19 +25,27 @@ class ReportExtractOutcome:
     worker: OfflineExtractResult
 
 
-def extract_report(
+@dataclass(frozen=True)
+class FilingExtractOutcome:
+    extraction: FilingExtraction
+    report_outcomes: tuple[ReportExtractOutcome, ...]
+
+
+def extract_report_with_outcome(
     bundle: FilingBundle,
     store: ObjectStore,
     report_input: XbrlReportInput,
     *,
+    semantic_config: SemanticConfig,
     python_executable: str = sys.executable,
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
 ) -> ReportExtractOutcome:
-    """Extract one report input into a source ``ReportExtraction``."""
+    """Extract one report with an explicit typed semantic config."""
     result = run_offline_extract(
         bundle,
         store,
         report_input=report_input,
+        semantic_config=semantic_config,
         python_executable=python_executable,
         timeout_seconds=timeout_seconds,
     )
@@ -49,7 +58,7 @@ def extract_report(
     return ReportExtractOutcome(report=report, worker=result)
 
 
-def extract_report_legacy(
+def extract_report(
     bundle: FilingBundle,
     store: ObjectStore,
     report_input: XbrlReportInput,
@@ -57,42 +66,22 @@ def extract_report_legacy(
     python_executable: str = sys.executable,
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
 ) -> ReportExtraction:
-    return extract_report(
+    """Extract one report input into a source ``ReportExtraction``."""
+    return extract_report_with_outcome(
         bundle,
         store,
         report_input,
+        semantic_config=build_semantic_config(),
         python_executable=python_executable,
         timeout_seconds=timeout_seconds,
     ).report
-
-
-def extract_filing(
-    bundle: FilingBundle,
-    store: ObjectStore,
-    *,
-    python_executable: str = sys.executable,
-    timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
-) -> FilingExtraction:
-    """Extract every report input plus eligible HTML documents."""
-    outcome = extract_filing_with_outcomes(
-        bundle,
-        store,
-        python_executable=python_executable,
-        timeout_seconds=timeout_seconds,
-    )
-    return outcome.extraction
-
-
-@dataclass(frozen=True)
-class FilingExtractOutcome:
-    extraction: FilingExtraction
-    report_outcomes: tuple[ReportExtractOutcome, ...]
 
 
 def extract_filing_with_outcomes(
     bundle: FilingBundle,
     store: ObjectStore,
     *,
+    semantic_config: SemanticConfig,
     python_executable: str = sys.executable,
     timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
 ) -> FilingExtractOutcome:
@@ -105,10 +94,11 @@ def extract_filing_with_outcomes(
     report_outcomes: list[ReportExtractOutcome] = []
     for report_input in bundle.report_inputs:
         report_outcomes.append(
-            extract_report(
+            extract_report_with_outcome(
                 bundle,
                 store,
                 report_input,
+                semantic_config=semantic_config,
                 python_executable=python_executable,
                 timeout_seconds=timeout_seconds,
             )
@@ -121,3 +111,20 @@ def extract_filing_with_outcomes(
         issues=doc_issues,
     )
     return FilingExtractOutcome(extraction=extraction, report_outcomes=tuple(report_outcomes))
+
+
+def extract_filing(
+    bundle: FilingBundle,
+    store: ObjectStore,
+    *,
+    python_executable: str = sys.executable,
+    timeout_seconds: float = DEFAULT_WORKER_TIMEOUT_SECONDS,
+) -> FilingExtraction:
+    """Extract every report input plus eligible HTML documents."""
+    return extract_filing_with_outcomes(
+        bundle,
+        store,
+        semantic_config=build_semantic_config(),
+        python_executable=python_executable,
+        timeout_seconds=timeout_seconds,
+    ).extraction

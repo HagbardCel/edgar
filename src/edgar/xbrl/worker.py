@@ -30,6 +30,13 @@ from pathlib import Path
 from typing import Any, Literal, TextIO
 from urllib.parse import unquote, urlsplit
 
+from edgar.domain.bundle import UriBinding, report_input_from_dict
+from edgar.domain.decode import (
+    BundleDecodeError,
+    require_list,
+    require_object,
+    require_str,
+)
 from edgar.domain.identifiers import validate_logical_path
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.arelle_env import (
@@ -44,6 +51,7 @@ from edgar.xbrl.arelle_env import (
     materialize_workspace,
     write_web_cache_document,
 )
+from edgar.xbrl.config import SemanticConfig
 from edgar.xbrl.network_guard import NetworkDeniedError, NetworkGuard, deny_inet_sockets
 from edgar.xbrl.uri import UriIdentityError, normalize_uri
 
@@ -57,6 +65,20 @@ WorkerMode = Literal["online", "offline"]
 WorkerOperation = Literal["load", "extract"]
 
 _DIAGNOSTIC_LEVELS = frozenset({"WARNING", "ERROR", "CRITICAL"})
+
+_EXTRACT_JOB_REQUIRED_KEYS: frozenset[str] = frozenset(
+    {
+        "protocol_version",
+        "mode",
+        "operation",
+        "report_input",
+        "object_store_root",
+        "uri_bindings",
+        "semantic_config",
+    }
+)
+_EXTRACT_JOB_OPTIONAL_KEYS: frozenset[str] = frozenset({"workspace_parent"})
+_EXTRACT_JOB_KEYS: frozenset[str] = _EXTRACT_JOB_REQUIRED_KEYS | _EXTRACT_JOB_OPTIONAL_KEYS
 
 
 @dataclass(frozen=True)
@@ -77,6 +99,15 @@ class WorkerBinding:
             replay_aliases=tuple(data.get("replay_aliases") or ()),
         )
 
+    @classmethod
+    def from_uri_binding(cls, binding: UriBinding) -> WorkerBinding:
+        return cls(
+            document_uri=binding.document_uri,
+            artifact_path=binding.artifact_path,
+            content_sha256=binding.content_sha256,
+            replay_aliases=binding.replay_aliases,
+        )
+
 
 @dataclass(frozen=True)
 class WorkerJob:
@@ -95,6 +126,59 @@ class WorkerJob:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> WorkerJob:
+        obj = require_object(data, label="worker_job")
+        operation = obj.get("operation", "load")
+        if operation == "extract":
+            return cls._from_extract_dict(obj)
+        return cls._from_load_dict(obj)
+
+    @classmethod
+    def _from_extract_dict(cls, data: Mapping[str, Any]) -> WorkerJob:
+        """Strict offline extract job: exact keys + exact JSON types."""
+        actual = set(data)
+        missing = _EXTRACT_JOB_REQUIRED_KEYS - actual
+        if missing:
+            raise ValueError(f"extract job missing fields: {sorted(missing)}")
+        unknown = actual - _EXTRACT_JOB_KEYS
+        if unknown:
+            raise ValueError(f"extract job has unknown fields: {sorted(unknown)}")
+        try:
+            version = require_str(data["protocol_version"], label="protocol_version")
+            mode = require_str(data["mode"], label="mode")
+            operation = require_str(data["operation"], label="operation")
+            object_store_root = require_str(data["object_store_root"], label="object_store_root")
+            bindings_raw = require_list(data["uri_bindings"], label="uri_bindings")
+            report_payload = report_input_from_dict(data["report_input"]).to_dict()
+            config = SemanticConfig.from_dict(data["semantic_config"])
+            bindings = tuple(
+                WorkerBinding.from_uri_binding(UriBinding.from_dict(raw)) for raw in bindings_raw
+            )
+            workspace_parent: Path | None = None
+            if "workspace_parent" in data:
+                workspace_parent = Path(
+                    require_str(data["workspace_parent"], label="workspace_parent")
+                )
+        except (BundleDecodeError, ValueError, TypeError) as exc:
+            raise ValueError(str(exc)) from exc
+        if version != WORKER_PROTOCOL_VERSION:
+            raise ValueError(f"unsupported worker protocol version: {version!r}")
+        if mode != "offline":
+            raise ValueError("extract requires mode=offline")
+        if operation != "extract":
+            raise ValueError(f"unknown worker operation: {operation!r}")
+        return cls(
+            mode="offline",
+            report_input=report_payload,
+            object_store_root=Path(object_store_root),
+            bindings=bindings,
+            workspace_parent=workspace_parent,
+            user_agent=None,
+            operation="extract",
+            semantic_config=config.to_dict(),
+        )
+
+    @classmethod
+    def _from_load_dict(cls, data: Mapping[str, Any]) -> WorkerJob:
         version = data.get("protocol_version", WORKER_PROTOCOL_VERSION)
         if version != WORKER_PROTOCOL_VERSION:
             raise ValueError(f"unsupported worker protocol version: {version!r}")
@@ -104,13 +188,7 @@ class WorkerJob:
         operation = data.get("operation", "load")
         if operation not in ("load", "extract"):
             raise ValueError(f"unknown worker operation: {operation!r}")
-        if operation == "extract" and mode != "offline":
-            raise ValueError("extract requires mode=offline")
-        semantic_config = data.get("semantic_config")
-        if operation == "extract":
-            if not isinstance(semantic_config, dict):
-                raise ValueError("extract requires semantic_config object")
-        elif semantic_config is not None:
+        if data.get("semantic_config") is not None:
             raise ValueError("semantic_config is only valid for extract jobs")
         bindings = [WorkerBinding.from_dict(b) for b in data.get("uri_bindings") or ()]
         for uri, entry in (data.get("uri_objects") or {}).items():
@@ -124,14 +202,14 @@ class WorkerJob:
             )
         parent = data.get("workspace_parent")
         return cls(
-            mode=mode,
+            mode=mode,  # type: ignore[arg-type]
             report_input=dict(data["report_input"]),
             object_store_root=Path(data["object_store_root"]),
             bindings=tuple(bindings),
             workspace_parent=Path(parent) if parent else None,
             user_agent=data.get("user_agent"),
             operation=operation,  # type: ignore[arg-type]
-            semantic_config=dict(semantic_config) if isinstance(semantic_config, dict) else None,
+            semantic_config=None,
         )
 
 

@@ -25,6 +25,7 @@ from edgar.domain.bundle import (
     InstanceReportInput,
     UriBinding,
 )
+from edgar.domain.report_key import report_key as compute_report_key
 from edgar.ingestion.payload import compute_payload_hash
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.records import ExpandedQName
@@ -103,11 +104,12 @@ def _bundle(data_root: Path) -> FilingBundle:
 
 def _extraction() -> FilingExtraction:
     concept = ExpandedQName(namespace_uri=_NS, local_name="Revenue")
+    report_input = {"kind": "instance", "document_uris": ["https://example.com/a.htm"]}
     return FilingExtraction(
         reports=(
             ReportExtraction(
-                report_input={"kind": "instance", "document_uris": ["https://example.com/a.htm"]},
-                report_key="a" * 64,
+                report_input=report_input,
+                report_key=compute_report_key(report_input),
                 extractor_version="source-extract-v1",
                 arelle_version="2.43.1",
                 arelle_item_fact_count=1,
@@ -198,7 +200,13 @@ def test_source_canonical_snapshot_counts(engine: Engine, tmp_path: Path) -> Non
     bundle = _bundle(tmp_path)
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
-        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_extraction())
+        from tests.helpers.extraction_receipt import wrap_filing_extraction
+
+        persist_extraction(
+            conn,
+            filing_id=catalog.filing_id,
+            extraction=wrap_filing_extraction(_extraction(), bundle=bundle),
+        )
 
     with engine.connect() as conn:
         filing_id = lookup_source_filing_id(conn, bundle.filing.accession)

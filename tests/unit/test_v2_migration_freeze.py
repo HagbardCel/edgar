@@ -7,6 +7,7 @@ from pathlib import Path
 _VERSIONS = Path(__file__).resolve().parents[2] / "migrations" / "versions"
 _REVISION_0001 = _VERSIONS / "0001_source_v2.py"
 _REVISION_0002 = _VERSIONS / "0002_registry.py"
+_REVISION_0003 = _VERSIONS / "0003_m1a_extraction_receipt.py"
 
 
 def test_0001_source_v2_does_not_import_live_metadata() -> None:
@@ -24,3 +25,12 @@ def test_0002_registry_does_not_import_live_metadata() -> None:
     assert "op.create_table(" in text
     assert "CREATE SCHEMA IF NOT EXISTS registry" in text
     assert 'down_revision: str | Sequence[str] | None = "0001_source_v2"' in text
+
+
+def test_0003_m1a_extraction_receipt_does_not_import_live_metadata() -> None:
+    text = _REVISION_0003.read_text(encoding="utf-8")
+    assert "edgar.db.source_schema" not in text
+    assert "SOURCE_TABLES" not in text
+    assert "extraction_receipt" in text
+    assert 'down_revision: str | Sequence[str] | None = "0002_registry"' in text
+    assert "op.add_column(" in text

@@ -18,6 +18,11 @@ from edgar.db import source_schema as src
 from edgar.db.source_persist import PersistableFilingExtraction
 from edgar.domain.bundle import FilingBundle, FilingIdentity
 from edgar.domain.concept_id import concept_id
+from edgar.xbrl.extraction_receipt import (
+    PersistedReportRow,
+    ReceiptValidationError,
+    validate_receipt_binding,
+)
 from edgar.xbrl.records import ExpandedQName
 from edgar.xbrl.source_records import (
     ConceptDeclarationRecord,
@@ -29,7 +34,6 @@ from edgar.xbrl.source_records import (
     ElementLocator,
     ExtractionIssueRecord,
     FactRecord,
-    FilingExtraction,
     FilingSectionRecord,
     RelationshipRecord,
     ReportExtraction,
@@ -339,18 +343,16 @@ def persist_extraction(
     conn: Connection,
     *,
     filing_id: int,
-    extraction: FilingExtraction | PersistableFilingExtraction,
+    extraction: PersistableFilingExtraction,
 ) -> PersistExtractionResult:
     """Atomically replace extraction-owned ``source.*`` rows for a filing.
 
     Caller may own the outer transaction. Locks ``source.filing`` with
-    ``FOR UPDATE``, deletes extraction-owned current state, upserts shared
-    concepts (never GC), inserts report rows and dependents, then asserts
-    per-report fact completeness against ``arelle_item_fact_count``.
+    ``FOR UPDATE``, validates every report↔receipt binding, deletes
+    extraction-owned current state, upserts shared concepts (never GC),
+    inserts report rows and dependents, then asserts per-report fact
+    completeness against ``arelle_item_fact_count``.
     """
-    if isinstance(extraction, FilingExtraction):
-        extraction = PersistableFilingExtraction.from_filing_extraction(extraction)
-
     for persistable in extraction.reports:
         report = persistable.report
         for issue in report.issues:
@@ -366,11 +368,35 @@ def persist_extraction(
                 "fatal attempts must not replace the snapshot"
             )
 
-    locked = conn.execute(
-        select(src.source_filing.c.id).where(src.source_filing.c.id == filing_id).with_for_update()
-    ).scalar_one_or_none()
-    if locked is None:
+    filing_row = (
+        conn.execute(
+            select(src.source_filing).where(src.source_filing.c.id == filing_id).with_for_update()
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if filing_row is None:
         raise PersistExtractionError(f"source.filing id={filing_id} not found")
+
+    filing_identity = _filing_identity_from_row(dict(filing_row))
+    for persistable in extraction.reports:
+        report = persistable.report
+        receipt = persistable.extraction_receipt
+        try:
+            validate_receipt_binding(
+                PersistedReportRow(
+                    report_input=report.report_input,
+                    report_key=report.report_key,
+                    extractor_version=report.extractor_version,
+                    arelle_version=report.arelle_version,
+                    filing=filing_identity,
+                ),
+                receipt,
+            )
+        except ReceiptValidationError as exc:
+            raise PersistExtractionError(
+                f"report↔receipt binding failed for report_key={report.report_key}: {exc}"
+            ) from exc
 
     _delete_extraction_owned(conn, filing_id)
 
@@ -385,17 +411,12 @@ def persist_extraction(
 
     for persistable in extraction.reports:
         report = persistable.report
-        receipt_payload = (
-            persistable.extraction_receipt.to_dict()
-            if persistable.extraction_receipt is not None
-            else None
-        )
         report_id = _insert_report(
             conn,
             filing_id=filing_id,
             report=report,
             extracted_at=now,
-            extraction_receipt=receipt_payload,
+            extraction_receipt=persistable.extraction_receipt.to_dict(),
         )
         report_ids.append(report_id)
         _insert_report_children(
@@ -451,6 +472,24 @@ def persist_extraction(
         section_count=section_count,
         issue_count=len(issue_rows),
         concept_upsert_count=concept_upsert_count,
+    )
+
+
+def _filing_identity_from_row(row: Mapping[str, Any]) -> FilingIdentity:
+    filing_date = row["filing_date"]
+    if isinstance(filing_date, datetime):
+        filing_date = filing_date.date()
+    period = row["report_period_end"]
+    if isinstance(period, datetime):
+        period = period.date()
+    return FilingIdentity(
+        cik=str(row["issuer_cik"]),
+        accession=str(row["accession"]),
+        form_type=str(row["form"]),
+        filing_date=filing_date,
+        accepted_at=row["accepted_at"],
+        report_period_end=period,
+        primary_document=str(row["primary_document"]),
     )
 
 

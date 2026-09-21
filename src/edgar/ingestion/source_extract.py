@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,14 +18,20 @@ from edgar.db.source import (
     persist_extraction,
 )
 from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
-from edgar.provenance import gather_dependency_lock_sha256, gather_implementation_identity
+from edgar.domain.bundle import bundles_equivalent
+from edgar.provenance import (
+    ImplementationIdentity,
+    gather_dependency_lock_sha256,
+    gather_implementation_identity,
+)
 from edgar.storage.bundles import BundleRepository, validate_published_bundle_path
 from edgar.storage.objects import ObjectStore
 from edgar.xbrl.closure import DEFAULT_WORKER_TIMEOUT_SECONDS
+from edgar.xbrl.config import SemanticConfig, build_semantic_config
 from edgar.xbrl.extraction_receipt import (
-    build_bundle_ref,
+    BundleRef,
     build_extraction_receipt,
-    verify_extraction_config_chain,
+    load_bundle_ref,
 )
 from edgar.xbrl.source_extract import extract_filing_with_outcomes
 from edgar.xbrl.worker import WORKER_PROTOCOL_VERSION
@@ -32,6 +39,16 @@ from edgar.xbrl.worker import WORKER_PROTOCOL_VERSION
 
 class SourceExtractError(RuntimeError):
     """Source extraction or persistence failed (no snapshot replacement on failure)."""
+
+
+@dataclass(frozen=True)
+class ExtractionRunContext:
+    """Provenance/config captured once before worker execution."""
+
+    implementation: ImplementationIdentity
+    dependency_lock_sha256: str | None
+    bundle_ref: BundleRef
+    semantic_config: SemanticConfig
 
 
 @dataclass(frozen=True)
@@ -93,9 +110,30 @@ class SourceExtractService:
         opaque_id, cik, accession = validate_published_bundle_path(
             self._settings.edgar_data_root, bundle_dir
         )
-        bundle = self._bundles.load(bundle_dir)
-        if bundle.filing.cik != cik or bundle.filing.accession != accession:
+        loaded = self._bundles.load(bundle_dir)
+        if loaded.filing.cik != cik or loaded.filing.accession != accession:
             raise ValueError(f"bundle filing identity does not match directory path {bundle_dir}")
+
+        captured = load_bundle_ref(
+            data_root=self._settings.edgar_data_root,
+            bundle_dir=bundle_dir,
+        )
+        if not bundles_equivalent(captured.bundle, loaded):
+            raise SourceExtractError(
+                "authoritative descriptor read is not equivalent to BundleRepository.load()"
+            )
+        bundle = captured.bundle
+        bundle_ref = captured.bundle_ref
+
+        pre_implementation = gather_implementation_identity()
+        pre_lock = gather_dependency_lock_sha256()
+        semantic_config = build_semantic_config()
+        context = ExtractionRunContext(
+            implementation=pre_implementation,
+            dependency_lock_sha256=pre_lock,
+            bundle_ref=bundle_ref,
+            semantic_config=semantic_config,
+        )
 
         engine = self._require_engine()
         with engine.begin() as conn:
@@ -108,40 +146,43 @@ class SourceExtractService:
             filing_outcome = extract_filing_with_outcomes(
                 bundle,
                 self._store,
+                semantic_config=context.semantic_config,
                 timeout_seconds=self._timeout_seconds,
             )
         except Exception as exc:  # noqa: BLE001 — any extract failure skips replacement
             raise SourceExtractError(str(exc)) from exc
 
-        extraction = filing_outcome.extraction
-        implementation = gather_implementation_identity()
-        lock_sha = gather_dependency_lock_sha256()
-        bundle_ref = build_bundle_ref(
-            data_root=self._settings.edgar_data_root,
-            bundle_dir=bundle_dir,
-            bundle=bundle,
+        post_implementation = gather_implementation_identity()
+        post_lock = gather_dependency_lock_sha256()
+        if post_implementation != context.implementation:
+            raise SourceExtractError("implementation identity changed during extraction")
+        if post_lock != context.dependency_lock_sha256:
+            raise SourceExtractError("dependency lock digest changed during extraction")
+        descriptor_path = (
+            self._settings.edgar_data_root.expanduser().resolve()
+            / context.bundle_ref.descriptor_relative_path
         )
+        try:
+            post_sha = hashlib.sha256(descriptor_path.read_bytes()).hexdigest()
+        except OSError as exc:
+            raise SourceExtractError(f"cannot re-read descriptor after extraction: {exc}") from exc
+        if post_sha != context.bundle_ref.descriptor_sha256:
+            raise SourceExtractError("descriptor SHA changed during extraction")
+
+        extraction = filing_outcome.extraction
+        config_payload = context.semantic_config.to_dict()
         persistable_reports: list[PersistableReport] = []
         for report_outcome in filing_outcome.report_outcomes:
             report = report_outcome.report
             worker = report_outcome.worker
-            semantic_config = worker.effective_semantic_config
-            verify_extraction_config_chain(
-                job_semantic_config=semantic_config,
-                worker_effective_semantic_config=semantic_config,
-                receipt_semantic_config=semantic_config,
-                worker_protocol_version=str(worker.raw_result.get("protocol_version") or ""),
-                expected_worker_protocol_version=WORKER_PROTOCOL_VERSION,
-                receipt_worker_protocol_version=WORKER_PROTOCOL_VERSION,
-            )
             receipt = build_extraction_receipt(
-                bundle_ref=bundle_ref,
+                bundle_ref=context.bundle_ref,
                 report_input=report.report_input,
-                semantic_config=semantic_config,
+                semantic_config=config_payload,
                 arelle_version=worker.arelle_version,
                 worker_protocol_version=WORKER_PROTOCOL_VERSION,
-                implementation=implementation,
-                dependency_lock_sha256=lock_sha,
+                implementation=context.implementation,
+                dependency_lock_sha256=context.dependency_lock_sha256,
             )
             persistable_reports.append(
                 PersistableReport(
@@ -202,6 +243,7 @@ class SourceExtractService:
 
 
 __all__ = [
+    "ExtractionRunContext",
     "ReportCompletenessProbe",
     "SourceExtractError",
     "SourceExtractResult",
