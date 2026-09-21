@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import uuid
+from copy import deepcopy
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -35,6 +39,7 @@ from edgar.xbrl.extraction_receipt import (
     decode_extraction_receipt,
     filing_identity_semantically_equal,
     load_bundle_ref,
+    receipt_verified,
     validate_persisted_receipt_semantics,
     validate_receipt_binding,
     verify_extraction_config_chain,
@@ -158,7 +163,7 @@ def test_filing_identity_compares_accepted_at_by_instant() -> None:
         accession=left.accession,
         form_type=left.form_type,
         filing_date=left.filing_date,
-        accepted_at=datetime(2024, 11, 1, 12, 0, tzinfo=UTC),
+        accepted_at=datetime.fromisoformat("2024-11-01T07:00:00-05:00"),
         report_period_end=left.report_period_end,
         primary_document=left.primary_document,
     )
@@ -284,3 +289,126 @@ def test_resolve_repo_root_rejects_unrelated_checkout(
     identity = gather_implementation_identity()
     assert identity.tree_state == "unknown"
     assert identity.revision is None
+
+
+def _published_receipt_verified_context(tmp_path: Path) -> dict[str, Any]:
+    data_root = tmp_path
+    store = ObjectStore(data_root)
+    bundle = _sample_bundle(store=store)
+    published = BundleRepository(data_root, store).publish(bundle)
+    loaded = load_bundle_ref(data_root=data_root, bundle_dir=published.bundle_dir)
+    report_input = bundle.report_inputs[0].to_dict()
+    implementation = ImplementationIdentity(revision="abc", tree_state="clean")
+    lock_sha = "c" * 64
+    receipt = build_extraction_receipt(
+        bundle_ref=loaded.bundle_ref,
+        report_input=report_input,
+        semantic_config=build_semantic_config().to_dict(),
+        arelle_version="test-arelle",
+        worker_protocol_version=WORKER_PROTOCOL_VERSION,
+        implementation=implementation,
+        dependency_lock_sha256=lock_sha,
+    )
+    payload = decode_extraction_receipt(receipt.to_dict()).to_dict()
+    row = PersistedReportRow(
+        report_input=report_input,
+        report_key=report_key(report_input),
+        extractor_version=receipt.extractor_version,
+        arelle_version=receipt.arelle_version,
+        filing=bundle.filing,
+    )
+    evidence = ProvenanceEvidence(implementation=implementation, dependency_lock_sha256=lock_sha)
+    return {
+        "data_root": data_root,
+        "store": store,
+        "payload": payload,
+        "row": row,
+        "evidence": evidence,
+        "real_sha": loaded.bundle_ref.descriptor_sha256,
+        "published_dir": published.bundle_dir,
+        "bundle": bundle,
+    }
+
+
+@pytest.mark.parametrize(
+    ("case_id", "expected"),
+    [
+        ("valid", True),
+        ("wrong_descriptor_sha", False),
+        ("missing_cas", False),
+        ("noncanonical_logical_path", False),
+        ("wrong_publication_directory", False),
+        ("wrong_lock", False),
+        ("wrong_implementation", False),
+        ("dirty_require_clean", False),
+    ],
+)
+def test_receipt_verified_matrix(tmp_path: Path, case_id: str, expected: bool) -> None:
+    ctx = _published_receipt_verified_context(tmp_path)
+    payload = deepcopy(ctx["payload"])
+    row = ctx["row"]
+    evidence = ctx["evidence"]
+    require_clean = False
+
+    if case_id == "wrong_descriptor_sha":
+        payload["bundle_ref"]["descriptor_sha256"] = "0" * 64
+        assert payload["bundle_ref"]["descriptor_sha256"] != ctx["real_sha"]
+    elif case_id == "missing_cas":
+        artifact_sha = ctx["bundle"].artifacts[0].content.sha256
+        ctx["store"].path_for(artifact_sha).unlink()
+    elif case_id == "noncanonical_logical_path":
+        descriptor = ctx["published_dir"] / "bundle.json"
+        copy_path = ctx["published_dir"] / "arbitrary-copy.json"
+        copy_path.write_bytes(descriptor.read_bytes())
+        payload["bundle_ref"]["descriptor_relative_path"] = copy_path.relative_to(
+            ctx["data_root"]
+        ).as_posix()
+    elif case_id == "wrong_publication_directory":
+        wrong_uuid = uuid.uuid4().hex
+        wrong_dir = ctx["data_root"] / "bundles/0000000001/0000000001-24-000001" / wrong_uuid
+        wrong_dir.mkdir(parents=True)
+        wrong_descriptor = wrong_dir / "bundle.json"
+        canonical = ctx["published_dir"] / "bundle.json"
+        wrong_descriptor.write_bytes(canonical.read_bytes())
+        payload["bundle_ref"]["descriptor_relative_path"] = wrong_descriptor.relative_to(
+            ctx["data_root"]
+        ).as_posix()
+        payload["bundle_ref"]["descriptor_sha256"] = hashlib.sha256(
+            wrong_descriptor.read_bytes()
+        ).hexdigest()
+    elif case_id == "wrong_lock":
+        evidence = ProvenanceEvidence(
+            implementation=ctx["evidence"].implementation,
+            dependency_lock_sha256="d" * 64,
+        )
+    elif case_id == "wrong_implementation":
+        evidence = ProvenanceEvidence(
+            implementation=ImplementationIdentity(revision="other", tree_state="clean"),
+            dependency_lock_sha256=ctx["evidence"].dependency_lock_sha256,
+        )
+    elif case_id == "dirty_require_clean":
+        dirty = ImplementationIdentity(
+            revision="abc",
+            tree_state="dirty",
+            dirty_tree_digest="e" * 64,
+        )
+        payload["implementation"] = {
+            "revision": dirty.revision,
+            "tree_state": dirty.tree_state,
+            "dirty_tree_digest": dirty.dirty_tree_digest,
+        }
+        evidence = ProvenanceEvidence(
+            implementation=dirty,
+            dependency_lock_sha256=ctx["evidence"].dependency_lock_sha256,
+        )
+        require_clean = True
+
+    result = receipt_verified(
+        row,
+        payload,
+        data_root=ctx["data_root"],
+        store=ctx["store"],
+        expected=evidence,
+        require_clean=require_clean,
+    )
+    assert result is expected

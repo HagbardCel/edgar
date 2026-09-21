@@ -370,15 +370,22 @@ def verify_receipt_artifacts(
     """Descriptor bytes, published layout, manifest equivalence, and CAS artifacts."""
     try:
         root = data_root.expanduser().resolve()
+        relative = receipt.bundle_ref.descriptor_relative_path
         try:
-            validate_logical_path(receipt.bundle_ref.descriptor_relative_path)
+            validate_logical_path(relative)
             descriptor_path = assert_path_under(
-                (root / receipt.bundle_ref.descriptor_relative_path).resolve(),
+                (root / relative).resolve(),
                 root,
             )
         except ValueError as exc:
             raise ReceiptValidationError(str(exc)) from exc
-        validate_published_bundle_path(root, descriptor_path.parent)
+        canonical = resolve_published_descriptor(root, descriptor_path.parent)
+        canonical_relative = canonical.relative_to(root).as_posix()
+        if relative != canonical_relative:
+            raise ReceiptValidationError(
+                "descriptor_relative_path is not the canonical published bundle.json"
+            )
+        _, path_cik, path_accession = validate_published_bundle_path(root, canonical.parent)
         if not descriptor_path.is_file():
             raise ReceiptValidationError(f"missing descriptor at {descriptor_path}")
         raw = descriptor_path.read_bytes()
@@ -387,6 +394,14 @@ def verify_receipt_artifacts(
             raise ReceiptValidationError("descriptor_sha256 mismatch")
         parsed = json.loads(raw.decode("utf-8"))
         bundle = FilingBundle.from_dict(parsed)
+        if bundle.filing.cik != path_cik:
+            raise ReceiptValidationError(
+                "descriptor filing CIK does not match publication path CIK"
+            )
+        if bundle.filing.accession != path_accession:
+            raise ReceiptValidationError(
+                "descriptor filing accession does not match publication path accession"
+            )
         if bundle.to_dict() != receipt.bundle_ref.manifest:
             raise ReceiptValidationError("receipt manifest does not match descriptor content")
         validate_bundle_integrity(bundle, store)

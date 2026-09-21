@@ -418,6 +418,83 @@ def test_persist_rejects_receipt_report_input_mismatch(engine: Engine, tmp_path:
     assert report_keys == {_REPORT_KEY}
 
 
+@pytest.mark.parametrize(
+    ("poison_attr", "poison_value"),
+    [
+        ("receipt_version", "garbage"),
+        ("descriptor_sha256", "not-a-sha"),
+    ],
+)
+def test_persist_rejects_schema_invalid_receipt(
+    engine: Engine,
+    tmp_path: Path,
+    poison_attr: str,
+    poison_value: str,
+) -> None:
+    from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
+    from edgar.xbrl.extraction_receipt import BundleRef, ExtractionReceipt
+    from tests.helpers.extraction_receipt import minimal_test_receipt
+
+    bundle = _make_bundle(tmp_path)
+    extraction = _extraction_a()
+    report = extraction.reports[0]
+    base = minimal_test_receipt(report, bundle=bundle)
+    if poison_attr == "receipt_version":
+        bad_receipt = ExtractionReceipt(
+            receipt_version=poison_value,
+            bundle_ref=base.bundle_ref,
+            report_input=base.report_input,
+            semantic_config=base.semantic_config,
+            semantic_config_sha256=base.semantic_config_sha256,
+            extractor_version=base.extractor_version,
+            source_records_schema_version=base.source_records_schema_version,
+            worker_protocol_version=base.worker_protocol_version,
+            arelle_version=base.arelle_version,
+            implementation=base.implementation,
+            dependency_lock_sha256=base.dependency_lock_sha256,
+        )
+    else:
+        bad_bundle_ref = BundleRef(
+            descriptor_relative_path=base.bundle_ref.descriptor_relative_path,
+            descriptor_sha256=poison_value,
+            manifest=base.bundle_ref.manifest,
+        )
+        bad_receipt = ExtractionReceipt(
+            receipt_version=base.receipt_version,
+            bundle_ref=bad_bundle_ref,
+            report_input=base.report_input,
+            semantic_config=base.semantic_config,
+            semantic_config_sha256=base.semantic_config_sha256,
+            extractor_version=base.extractor_version,
+            source_records_schema_version=base.source_records_schema_version,
+            worker_protocol_version=base.worker_protocol_version,
+            arelle_version=base.arelle_version,
+            implementation=base.implementation,
+            dependency_lock_sha256=base.dependency_lock_sha256,
+        )
+    poisoned = PersistableFilingExtraction(
+        reports=(PersistableReport(report=report, extraction_receipt=bad_receipt),),
+        document_blocks=extraction.document_blocks,
+        filing_sections=extraction.filing_sections,
+        issues=extraction.issues,
+    )
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+
+    with (
+        pytest.raises(PersistExtractionError, match="report↔receipt binding"),
+        engine.begin() as conn,
+    ):
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=poisoned)
+
+    with engine.connect() as conn:
+        report_keys = {
+            row[0] for row in conn.execute(select(src.source_xbrl_report.c.report_key)).all()
+        }
+    assert report_keys == {_REPORT_KEY}
+
+
 def test_concurrent_replacement_ends_as_single_extraction(engine: Engine, tmp_path: Path) -> None:
     bundle = _make_bundle(tmp_path)
     with engine.begin() as conn:

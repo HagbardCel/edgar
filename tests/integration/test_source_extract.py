@@ -191,6 +191,90 @@ def test_source_extract_aborts_when_implementation_changes(
         service.extract_published_bundle(published.bundle_dir)
 
 
+def test_source_extract_aborts_when_lock_changes(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.ingestion.source_extract import SourceExtractError
+    from edgar.provenance import ImplementationIdentity
+
+    store = ObjectStore(tmp_path)
+    bundle = _hybrid_html_xbrl_bundle(store)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(bundle)
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_implementation_identity",
+        lambda repo_root=None: ImplementationIdentity(revision="stable", tree_state="clean"),
+    )
+    calls = {"n": 0}
+
+    def _mutating_lock(repo_root: object | None = None) -> str:
+        calls["n"] += 1
+        return "a" * 64 if calls["n"] == 1 else "b" * 64
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_dependency_lock_sha256",
+        _mutating_lock,
+    )
+
+    with pytest.raises(SourceExtractError, match="dependency lock digest changed"):
+        service.extract_published_bundle(published.bundle_dir)
+
+    with engine.connect() as conn:
+        count = int(
+            conn.execute(select(func.count()).select_from(src.source_xbrl_report)).scalar_one()
+        )
+    assert count == 0
+
+
+def test_source_extract_aborts_when_descriptor_changes(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.ingestion.source_extract import SourceExtractError
+    from edgar.provenance import ImplementationIdentity
+    from edgar.xbrl.source_extract import extract_filing_with_outcomes
+
+    store = ObjectStore(tmp_path)
+    bundle = _hybrid_html_xbrl_bundle(store)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(bundle)
+    descriptor = published.bundle_dir / "bundle.json"
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_implementation_identity",
+        lambda repo_root=None: ImplementationIdentity(revision="stable", tree_state="clean"),
+    )
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.gather_dependency_lock_sha256",
+        lambda repo_root=None: "c" * 64,
+    )
+
+    original_extract = extract_filing_with_outcomes
+
+    def extract_then_mutate(*args: object, **kwargs: object) -> object:
+        outcome = original_extract(*args, **kwargs)
+        descriptor.write_bytes(descriptor.read_bytes() + b" ")
+        return outcome
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.extract_filing_with_outcomes",
+        extract_then_mutate,
+    )
+
+    with pytest.raises(SourceExtractError, match="descriptor SHA changed"):
+        service.extract_published_bundle(published.bundle_dir)
+
+    with engine.connect() as conn:
+        count = int(
+            conn.execute(select(func.count()).select_from(src.source_xbrl_report)).scalar_one()
+        )
+    assert count == 0
+
+
 def test_document_parity_matches_parser_output(tmp_path: Path) -> None:
     store = ObjectStore(tmp_path)
     html = store.put_bytes(RICH_10K_HTML)

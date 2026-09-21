@@ -15,12 +15,14 @@ from sqlalchemy import Connection, delete, func, null, select
 from sqlalchemy.dialects.postgresql import insert
 
 from edgar.db import source_schema as src
-from edgar.db.source_persist import PersistableFilingExtraction
+from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
 from edgar.domain.bundle import FilingBundle, FilingIdentity
 from edgar.domain.concept_id import concept_id
 from edgar.xbrl.extraction_receipt import (
+    ExtractionReceipt,
     PersistedReportRow,
     ReceiptValidationError,
+    decode_extraction_receipt,
     validate_receipt_binding,
 )
 from edgar.xbrl.records import ExpandedQName
@@ -379,10 +381,11 @@ def persist_extraction(
         raise PersistExtractionError(f"source.filing id={filing_id} not found")
 
     filing_identity = _filing_identity_from_row(dict(filing_row))
+    validated: list[tuple[PersistableReport, ExtractionReceipt]] = []
     for persistable in extraction.reports:
         report = persistable.report
-        receipt = persistable.extraction_receipt
         try:
+            receipt = decode_extraction_receipt(persistable.extraction_receipt.to_dict())
             validate_receipt_binding(
                 PersistedReportRow(
                     report_input=report.report_input,
@@ -397,6 +400,7 @@ def persist_extraction(
             raise PersistExtractionError(
                 f"report↔receipt binding failed for report_key={report.report_key}: {exc}"
             ) from exc
+        validated.append((persistable, receipt))
 
     _delete_extraction_owned(conn, filing_id)
 
@@ -409,14 +413,14 @@ def persist_extraction(
     fact_count = 0
     issue_rows: list[dict[str, Any]] = []
 
-    for persistable in extraction.reports:
+    for persistable, receipt in validated:
         report = persistable.report
         report_id = _insert_report(
             conn,
             filing_id=filing_id,
             report=report,
             extracted_at=now,
-            extraction_receipt=persistable.extraction_receipt.to_dict(),
+            extraction_receipt=receipt.to_dict(),
         )
         report_ids.append(report_id)
         _insert_report_children(
