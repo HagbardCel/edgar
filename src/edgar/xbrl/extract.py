@@ -1335,10 +1335,10 @@ def _fact_records(
             f"{len(undefined)} reported element(s) have no concept declaration in the DTS",
             context={"count": len(undefined)},
         )
+    iterator_facts = list(_iter_item_facts(getattr(model_xbrl, "facts", None) or (), extraction))
+    iterator_item_count = len(iterator_facts)
     records: list[tuple[int, FactRecord]] = []
-    for source_order, fact in enumerate(
-        _iter_item_facts(getattr(model_xbrl, "facts", None) or (), extraction)
-    ):
+    for source_order, fact in enumerate(iterator_facts):
         record = _fact_record(
             fact,
             context_locators=context_locators,
@@ -1352,7 +1352,7 @@ def _fact_records(
             )
             continue
         records.append((source_order, record))
-    return tuple(records)
+    return iterator_item_count, tuple(records)
 
 
 # --------------------------------------------------------------------------- #
@@ -1921,7 +1921,7 @@ def extract_report_extraction(
     declared = frozenset(declaration.concept for declaration in concept_declarations)
     contexts = _context_projection(model_xbrl, extraction)
     units = _unit_projection(model_xbrl, extraction)
-    ordered_facts = _fact_records(
+    iterator_item_count, ordered_facts = _fact_records(
         model_xbrl,
         context_locators=contexts.locators,
         unit_locators=units.locators,
@@ -1968,6 +1968,7 @@ def extract_report_extraction(
             ordered_facts=ordered_facts,
             relationships=networks.relationships,
             issues=issues,
+            arelle_item_fact_count=iterator_item_count,
         )
     except SourceBuildError as exc:
         invalid = SemanticIssueRecord(

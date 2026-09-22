@@ -124,6 +124,8 @@ source_xbrl_report = Table(
     Column("arelle_version", Text, nullable=False),
     Column("extracted_at", DateTime(timezone=True), nullable=False),
     Column("arelle_item_fact_count", Integer, nullable=False),
+    Column("upstream_item_fact_count", Integer, nullable=True),
+    Column("upstream_inventory_version", Text, nullable=True),
     Column("extraction_receipt", JSONB, nullable=True),
     PrimaryKeyConstraint("id", name="xbrl_report_pkey"),
     ForeignKeyConstraint(
@@ -145,6 +147,13 @@ source_xbrl_report = Table(
     CheckConstraint(
         "arelle_item_fact_count >= 0",
         name="ck_source_xbrl_report_fact_count_nonneg",
+    ),
+    CheckConstraint(
+        "(upstream_item_fact_count IS NULL AND upstream_inventory_version IS NULL) OR "
+        "(upstream_item_fact_count IS NOT NULL AND upstream_inventory_version IS NOT NULL "
+        "AND upstream_inventory_version = 'upstream-v1' "
+        "AND upstream_item_fact_count = arelle_item_fact_count)",
+        name="ck_source_xbrl_report_upstream_inventory",
     ),
     Index("ix_source_xbrl_report_filing", "filing_id"),
     schema=SOURCE_SCHEMA,
@@ -230,6 +239,12 @@ source_concept_label = Table(
         name="concept_label_concept_id_fkey",
     ),
     ForeignKeyConstraint(
+        ["report_id", "concept_id"],
+        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        name="concept_label_report_concept_declaration_fkey",
+        ondelete="NO ACTION",
+    ),
+    ForeignKeyConstraint(
         ["source_document_id"],
         [f"{SOURCE_SCHEMA}.document.id"],
         name="concept_label_source_document_id_fkey",
@@ -279,6 +294,12 @@ source_concept_reference = Table(
         ["concept_id"],
         [f"{SOURCE_SCHEMA}.concept.id"],
         name="concept_reference_concept_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["report_id", "concept_id"],
+        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        name="concept_reference_report_concept_declaration_fkey",
+        ondelete="NO ACTION",
     ),
     ForeignKeyConstraint(
         ["source_document_id"],
@@ -331,6 +352,7 @@ source_context = Table(
         name="context_source_document_id_fkey",
     ),
     UniqueConstraint("report_id", "source_context_id", name="uq_source_context_report_source_id"),
+    UniqueConstraint("report_id", "id", name="uq_source_context_report_id"),
     CheckConstraint(
         "period_kind IN ('instant', 'duration', 'forever')",
         name="ck_source_context_period_kind",
@@ -432,6 +454,7 @@ source_unit = Table(
         name="unit_source_document_id_fkey",
     ),
     UniqueConstraint("report_id", "source_unit_id", name="uq_source_unit_report_source_id"),
+    UniqueConstraint("report_id", "id", name="uq_source_unit_report_id"),
     Index("ix_source_unit_report_source_id", "report_id", "source_unit_id"),
     schema=SOURCE_SCHEMA,
 )
@@ -507,10 +530,28 @@ source_fact = Table(
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
+        ["report_id", "context_id"],
+        [f"{SOURCE_SCHEMA}.context.report_id", f"{SOURCE_SCHEMA}.context.id"],
+        name="fact_report_context_fkey",
+        ondelete="NO ACTION",
+    ),
+    ForeignKeyConstraint(
         ["unit_id"],
         [f"{SOURCE_SCHEMA}.unit.id"],
         name="fact_unit_id_fkey",
         ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["report_id", "unit_id"],
+        [f"{SOURCE_SCHEMA}.unit.report_id", f"{SOURCE_SCHEMA}.unit.id"],
+        name="fact_report_unit_fkey",
+        ondelete="NO ACTION",
+    ),
+    ForeignKeyConstraint(
+        ["report_id", "concept_id"],
+        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        name="fact_report_concept_declaration_fkey",
+        ondelete="NO ACTION",
     ),
     ForeignKeyConstraint(
         ["source_document_id"],
@@ -581,6 +622,18 @@ source_relationship = Table(
         ["target_concept_id"],
         [f"{SOURCE_SCHEMA}.concept.id"],
         name="relationship_target_concept_id_fkey",
+    ),
+    ForeignKeyConstraint(
+        ["report_id", "source_concept_id"],
+        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        name="relationship_report_source_concept_declaration_fkey",
+        ondelete="NO ACTION",
+    ),
+    ForeignKeyConstraint(
+        ["report_id", "target_concept_id"],
+        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        name="relationship_report_target_concept_declaration_fkey",
+        ondelete="NO ACTION",
     ),
     ForeignKeyConstraint(
         ["source_document_id"],

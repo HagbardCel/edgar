@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from edgar.xbrl.extraction_receipt import ExtractionReceipt
 from edgar.xbrl.source_records import (
@@ -12,13 +11,14 @@ from edgar.xbrl.source_records import (
     FilingSectionRecord,
     ReportExtraction,
 )
+from edgar.xbrl.upstream_inventory import UpstreamInventory
 
 
 @dataclass(frozen=True)
 class PersistableReport:
     report: ReportExtraction
     extraction_receipt: ExtractionReceipt
-    upstream_inventory: dict[str, Any] | None = None
+    upstream_inventory: UpstreamInventory | None = None
 
 
 @dataclass(frozen=True)

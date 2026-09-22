@@ -158,6 +158,17 @@ def _minimal_report(
         ),
     )
     key = report_key if report_key is not None else _REPORT_KEY
+    decl_concepts: dict[tuple[str, str], ExpandedQName] = {}
+    for concept in concepts:
+        decl_concepts[(concept.namespace_uri, concept.local_name)] = ExpandedQName(
+            namespace_uri=concept.namespace_uri,
+            local_name=concept.local_name,
+        )
+    for fact in facts:
+        decl_concepts[(fact.concept.namespace_uri, fact.concept.local_name)] = fact.concept
+    declarations = tuple(
+        ConceptDeclarationRecord(concept=qname) for qname in decl_concepts.values()
+    )
     return ReportExtraction(
         report_input=dict(_REPORT_INPUT),
         report_key=key,
@@ -167,6 +178,7 @@ def _minimal_report(
             len(facts) if arelle_item_fact_count is None else arelle_item_fact_count
         ),
         concepts=concepts,
+        declarations=declarations,
         contexts=contexts,
         units=units,
         measures=measures,
@@ -561,7 +573,7 @@ def test_no_concept_gc_after_reextract_without_qname(engine: Engine, tmp_path: P
         ).scalar_one()
 
     assert remaining == revenue_id
-    assert int(decl_count) == 0
+    assert int(decl_count) == 1
 
 
 def test_stale_issues_absent_after_successful_replacement(engine: Engine, tmp_path: Path) -> None:
@@ -738,7 +750,11 @@ def test_persist_explicit_dimension_sql_null_typed_member(engine: Engine, tmp_pa
         arelle_version=report.arelle_version,
         arelle_item_fact_count=report.arelle_item_fact_count,
         concepts=report.concepts,
-        declarations=report.declarations,
+        declarations=(
+            ConceptDeclarationRecord(concept=_qname("Revenue")),
+            ConceptDeclarationRecord(concept=_qname("SegmentAxis")),
+            ConceptDeclarationRecord(concept=_qname("USMember")),
+        ),
         labels=report.labels,
         references=report.references,
         contexts=report.contexts,
@@ -804,6 +820,12 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
                 period_type="duration",
                 source_document_relative_path=_DOC_PATH,
                 source_locator=_locator("decl1"),
+            ),
+            ConceptDeclarationRecord(
+                concept=_qname("Assets"),
+                period_type="instant",
+                source_document_relative_path=_DOC_PATH,
+                source_locator=_locator("decl2"),
             ),
         ),
         labels=(
@@ -878,6 +900,8 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
             select(
                 src.source_concept_declaration.c.source_document_id,
                 src.source_concept_declaration.c.source_locator,
+            ).where(
+                src.source_concept_declaration.c.concept_id == concept_id(_NS, "Revenue")
             )
         ).one()
         ctx = conn.execute(
@@ -946,6 +970,7 @@ def test_persist_missing_document_path_keeps_prior_snapshot(engine: Engine, tmp_
         arelle_version=bad_report.arelle_version,
         arelle_item_fact_count=bad_report.arelle_item_fact_count,
         concepts=bad_report.concepts,
+        declarations=bad_report.declarations,
         contexts=bad_report.contexts,
         units=bad_report.units,
         measures=bad_report.measures,
@@ -1003,6 +1028,7 @@ def test_persist_datetime_context_lexical_and_offset_aware_at(
             arelle_version=base.arelle_version,
             arelle_item_fact_count=base.arelle_item_fact_count,
             concepts=base.concepts,
+            declarations=base.declarations,
             contexts=(
                 ContextRecord(
                     source_context_id=context_id,

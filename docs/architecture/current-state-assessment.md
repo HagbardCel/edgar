@@ -85,7 +85,7 @@ Fact/report IDs change on replacement. Mapping evidence correctly avoids durable
 
 ### Count equality is necessary but not independent evidence of completeness
 
-`_build_facts` checks one output per ordered item; persistence checks row counts. However `_source_build.py` sets `arelle_item_fact_count = len(facts)`. The repeated equality check cannot detect an upstream iterator missing a class of item occurrences. Keep these checks, but add independently inventoried fixture occurrence counts/locators and Arelle collection comparisons with documented IXDS/tuple scope.
+`_build_facts` checks one output per ordered item; persistence checks row counts. However `_source_build.py` sets `arelle_item_fact_count = len(facts)`. The repeated equality check cannot detect an upstream iterator missing a class of item occurrences. M1A-3 adds parent-side upstream inventory, raw→worker reconciliation, `integrity.py`, migration `0005` same-report FKs, and persisted `upstream_item_fact_count` paired with `arelle_item_fact_count`.
 
 ### The registry is curated, but some contracts are economically elastic
 

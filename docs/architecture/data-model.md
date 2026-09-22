@@ -23,7 +23,7 @@ These are typed value objects/JSON schemas, not new identifier microservices or 
 | `source.issuer` | Registrant catalog; CIK | Many filings | Rebuildable catalog; source metadata authority; name is descriptive, not historical security identity |
 | `source.filing` | Submission; accession | Registrant, documents, reports | Durable catalog identity, rebuildable from manifests; facts never merge across accessions |
 | `source.document` | Filing-associated artifact; filing/path | SHA, URI, blocks and extraction locators | Rebuildable inventory mirror; verified bytes remain authority |
-| `source.xbrl_report` | Current interpreted report; filing/report key | Full input + extraction receipt, children | Replaceable per filing; Arelle/parser versions and configuration recorded as metadata |
+| `source.xbrl_report` | Current interpreted report; filing/report key | Full input + extraction receipt, children; M1A-3 `upstream_item_fact_count` / `upstream_inventory_version` when written by the integrity path | Replaceable per filing; Arelle/parser versions and configuration recorded as metadata |
 | Extraction receipt on report | Exact inputs/config used, embedded JSON plus BundleRef | Descriptor, policy/config, code/lock identity, engine version | Current receipt regenerable; copied into every durable evidence/publication that relies on it |
 | `source.concept` | Shared exact QName | Report declarations and assertions | Regenerable identity but no GC while referenced by knowledge; never global declaration properties |
 

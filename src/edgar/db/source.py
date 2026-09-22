@@ -42,6 +42,7 @@ from edgar.xbrl.source_records import (
     UnitMeasureRecord,
     UnitRecord,
 )
+from edgar.xbrl.upstream_inventory import UpstreamInventory
 
 __all__ = [
     "DocumentInventoryItem",
@@ -421,6 +422,7 @@ def persist_extraction(
             report=report,
             extracted_at=now,
             extraction_receipt=receipt.to_dict(),
+            upstream_inventory=persistable.upstream_inventory,
         )
         report_ids.append(report_id)
         _insert_report_children(
@@ -587,7 +589,21 @@ def _insert_report(
     report: ReportExtraction,
     extracted_at: datetime,
     extraction_receipt: dict[str, Any] | None = None,
+    upstream_inventory: UpstreamInventory | None = None,
 ) -> int:
+    from edgar.xbrl.upstream_inventory import UPSTREAM_INVENTORY_VERSION
+
+    upstream_count: int | None = None
+    upstream_version: str | None = None
+    if upstream_inventory is not None:
+        upstream_count = upstream_inventory.selected_target_item_count
+        upstream_version = UPSTREAM_INVENTORY_VERSION
+        if upstream_count != report.arelle_item_fact_count:
+            raise PersistExtractionError(
+                f"upstream vs worker fact count mismatch for report_key={report.report_key}: "
+                f"upstream_item_fact_count={upstream_count} "
+                f"arelle_item_fact_count={report.arelle_item_fact_count}"
+            )
     return int(
         conn.execute(
             insert(src.source_xbrl_report)
@@ -600,6 +616,8 @@ def _insert_report(
                 arelle_version=report.arelle_version,
                 extracted_at=extracted_at,
                 arelle_item_fact_count=report.arelle_item_fact_count,
+                upstream_item_fact_count=upstream_count,
+                upstream_inventory_version=upstream_version,
                 extraction_receipt=extraction_receipt,
             )
             .returning(src.source_xbrl_report.c.id)

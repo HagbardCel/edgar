@@ -491,6 +491,7 @@ def build_report_extraction(
     ordered_facts: Sequence[tuple[int, phase1.FactRecord]],
     relationships: Sequence[phase1.RelationshipRecord],
     issues: Sequence[SemanticIssueRecord],
+    arelle_item_fact_count: int,
 ) -> ReportExtraction:
     """Assemble native ``ReportExtraction`` with logical-path provenance."""
     uri_paths = uri_to_logical_path_map(uri_bindings)
@@ -499,11 +500,15 @@ def build_report_extraction(
     context_ids = _context_id_by_locator(contexts)
     unit_ids = _unit_id_by_locator(units)
     facts = _build_facts(ordered_facts, context_ids, unit_ids, uri_paths)
-    arelle_item_fact_count = len(facts)
     if arelle_item_fact_count != len(ordered_facts):
         raise SourceBuildError(
             "arelle_item_fact_count diverged from ordered fact count: "
             f"{arelle_item_fact_count} != {len(ordered_facts)}"
+        )
+    if arelle_item_fact_count != len(facts):
+        raise SourceBuildError(
+            "arelle_item_fact_count diverged from built fact count: "
+            f"{arelle_item_fact_count} != {len(facts)}"
         )
     return ReportExtraction(
         report_input=payload,
