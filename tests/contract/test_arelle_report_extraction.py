@@ -13,6 +13,8 @@ from edgar.xbrl.extract import UnattributableSourceDocument, canonical_source_do
 from edgar.xbrl.semantic import SourceExtractWorkerError, run_offline_extract
 from tests.helpers.xbrl_bundles import (
     make_alias_schema_bundle,
+    make_conventional_fraction_bundle,
+    make_conventional_tuple_bundle,
     make_datetime_instant_bundle,
     make_decimals_omitted_bundle,
     make_dimensional_default_bundle,
@@ -141,6 +143,20 @@ def test_ixds_multi_document_facts(tmp_path: Path) -> None:
     assert result.report.arelle_item_fact_count >= 2
     paths = {f.source_document_relative_path for f in result.report.facts}
     assert len(paths) >= 1
+
+
+def test_conventional_fraction_fact_is_fatal(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path)
+    with pytest.raises(SourceExtractWorkerError) as exc_info:
+        run_offline_extract(make_conventional_fraction_bundle(store), store)
+    assert any(issue.code == "UNSUPPORTED_FRACTION_FACT" for issue in exc_info.value.issues)
+
+
+def test_conventional_tuple_fact_is_fatal(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path)
+    with pytest.raises(SourceExtractWorkerError) as exc_info:
+        run_offline_extract(make_conventional_tuple_bundle(store), store)
+    assert any(issue.code == "UNSUPPORTED_TUPLE_FACT" for issue in exc_info.value.issues)
 
 
 def test_non_dimensional_context_fails(tmp_path: Path) -> None:

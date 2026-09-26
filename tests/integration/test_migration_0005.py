@@ -120,6 +120,92 @@ def test_upstream_check_rejects_half_paired(engine: Engine) -> None:
         nested.rollback()
 
 
+def test_upstream_check_rejects_null_count_with_version(engine: Engine) -> None:
+    with engine.connect() as conn:
+        report_id = conn.execute(
+            text("SELECT id FROM source.xbrl_report ORDER BY id LIMIT 1")
+        ).scalar_one()
+        nested = conn.begin_nested()
+        with pytest.raises(DBAPIError):
+            conn.execute(
+                text(
+                    """
+                    UPDATE source.xbrl_report
+                    SET upstream_item_fact_count = NULL,
+                        upstream_inventory_version = 'upstream-v1'
+                    WHERE id = :id
+                    """
+                ),
+                {"id": report_id},
+            )
+        nested.rollback()
+
+
+def test_upstream_check_rejects_wrong_version(engine: Engine) -> None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT id, arelle_item_fact_count
+                FROM source.xbrl_report ORDER BY id LIMIT 1
+                """
+            )
+        ).one()
+        report_id, fact_count = row[0], row[1]
+        nested = conn.begin_nested()
+        with pytest.raises(DBAPIError):
+            conn.execute(
+                text(
+                    """
+                    UPDATE source.xbrl_report
+                    SET upstream_item_fact_count = :fc,
+                        upstream_inventory_version = 'upstream-bad'
+                    WHERE id = :id
+                    """
+                ),
+                {"id": report_id, "fc": fact_count},
+            )
+        nested.rollback()
+
+
+def test_upstream_check_accepts_matching_upstream_v1(engine: Engine) -> None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT id, arelle_item_fact_count
+                FROM source.xbrl_report ORDER BY id LIMIT 1
+                """
+            )
+        ).one()
+        report_id, fact_count = row[0], row[1]
+        nested = conn.begin_nested()
+        conn.execute(
+            text(
+                """
+                UPDATE source.xbrl_report
+                SET upstream_item_fact_count = :fc,
+                    upstream_inventory_version = 'upstream-v1'
+                WHERE id = :id
+                """
+            ),
+            {"id": report_id, "fc": fact_count},
+        )
+        stored = conn.execute(
+            text(
+                """
+                SELECT upstream_item_fact_count, upstream_inventory_version,
+                       arelle_item_fact_count
+                FROM source.xbrl_report WHERE id = :id
+                """
+            ),
+            {"id": report_id},
+        ).one()
+        assert stored[0] == stored[2]
+        assert stored[1] == "upstream-v1"
+        nested.rollback()
+
+
 def test_upstream_check_rejects_count_mismatch(engine: Engine) -> None:
     with engine.connect() as conn:
         report_id = conn.execute(

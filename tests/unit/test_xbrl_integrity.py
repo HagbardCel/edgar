@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 
 import pytest
@@ -119,11 +120,7 @@ def test_typed_member_malformed_xml_rejected() -> None:
         validate_report_extraction(bad)
 
 
-def test_typed_member_undeclared_prefix_rejected() -> None:
-    xml = '<p:member xmlns:p="http://example.com/t"/>'
-    import hashlib
-
-    digest = hashlib.sha256(xml.encode()).hexdigest()
+def _typed_dim_report(xml: str, digest: str) -> ReportExtraction:
     report = _minimal_report()
     concept = ExpandedQName(namespace_uri="http://example.com/t", local_name="Dim")
     decls = (
@@ -137,5 +134,23 @@ def test_typed_member_undeclared_prefix_rejected() -> None:
         member_kind="typed",
         typed_member={"xml": xml, "sha256": digest},
     )
-    good = replace(report, declarations=decls, dimensions=(dim,))
-    validate_report_extraction(good)
+    return replace(report, declarations=decls, dimensions=(dim,))
+
+
+def test_typed_member_namespace_complete_xml_accepted() -> None:
+    xml = '<p:member xmlns:p="http://example.com/t"/>'
+    digest = hashlib.sha256(xml.encode("utf-8")).hexdigest()
+    validate_report_extraction(_typed_dim_report(xml, digest))
+
+
+def test_typed_member_undeclared_prefix_rejected() -> None:
+    xml = "<p:member/>"
+    digest = hashlib.sha256(xml.encode("utf-8")).hexdigest()
+    with pytest.raises(ReportIntegrityError, match="well-formed"):
+        validate_report_extraction(_typed_dim_report(xml, digest))
+
+
+def test_typed_member_digest_mismatch_rejected() -> None:
+    xml = '<p:member xmlns:p="http://example.com/t"/>'
+    with pytest.raises(ReportIntegrityError, match="digest mismatch"):
+        validate_report_extraction(_typed_dim_report(xml, "0" * 64))

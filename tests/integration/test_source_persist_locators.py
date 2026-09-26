@@ -88,7 +88,10 @@ def test_persisted_locator_multiset_matches_sql(engine: Engine, tmp_path: Path) 
                 resolved_value_kind="numeric",
                 resolved_numeric=Decimal("2"),
                 source_document_relative_path=_DOC_PATH,
-                source_locator=ElementLocator(scheme="xpath", value="/xbrl/fact[2]"),
+                source_locator=ElementLocator(
+                    scheme="expanded_element_path",
+                    value="/xbrl/fact[2]",
+                ),
             ),
         ),
     )

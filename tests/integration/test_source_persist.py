@@ -66,6 +66,29 @@ _REPORT_INPUT = {"kind": "instance", "document_uris": ["https://example.com/a.ht
 _REPORT_KEY = compute_report_key(_REPORT_INPUT)
 
 
+def _snapshot(conn) -> tuple[tuple[str, ...], tuple[tuple[int, str, int], ...]]:
+    keys = tuple(
+        row[0]
+        for row in conn.execute(
+            select(src.source_xbrl_report.c.report_key).order_by(src.source_xbrl_report.c.id)
+        ).all()
+    )
+    facts = tuple(
+        (int(row[0]), str(row[1]), int(row[2]))
+        for row in conn.execute(
+            select(
+                src.source_fact.c.report_id,
+                src.source_fact.c.raw_lexical_value,
+                src.source_fact.c.source_order,
+            ).order_by(
+                src.source_fact.c.report_id,
+                src.source_fact.c.source_order,
+            )
+        ).all()
+    )
+    return keys, facts
+
+
 @pytest.fixture(scope="module")
 def engine() -> Iterator[Engine]:
     url = test_database_url()
@@ -1031,6 +1054,8 @@ def test_persist_rejects_missing_upstream_inventory(engine: Engine, tmp_path: Pa
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
         persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+    with engine.connect() as conn:
+        before = _snapshot(conn)
     poisoned = PersistableFilingExtraction(
         reports=(
             PersistableReport(
@@ -1048,6 +1073,9 @@ def test_persist_rejects_missing_upstream_inventory(engine: Engine, tmp_path: Pa
         engine.begin() as conn,
     ):
         persist_extraction(conn, filing_id=catalog.filing_id, extraction=poisoned)
+    with engine.connect() as conn:
+        after = _snapshot(conn)
+    assert after == before
 
 
 def test_persist_rejects_wrong_upstream_version_before_delete(
@@ -1062,6 +1090,8 @@ def test_persist_rejects_wrong_upstream_version_before_delete(
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
         persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+    with engine.connect() as conn:
+        before = _snapshot(conn)
     bad = PersistableFilingExtraction(
         reports=(
             PersistableReport(
@@ -1083,10 +1113,8 @@ def test_persist_rejects_wrong_upstream_version_before_delete(
     ):
         persist_extraction(conn, filing_id=catalog.filing_id, extraction=bad)
     with engine.connect() as conn:
-        facts = conn.execute(
-            select(src.source_fact.c.raw_lexical_value, src.source_fact.c.source_order)
-        ).all()
-    assert facts == [("100", 0)]
+        after = _snapshot(conn)
+    assert after == before
 
 
 def test_persist_rejects_integrity_failure_before_delete(engine: Engine, tmp_path: Path) -> None:
@@ -1099,6 +1127,8 @@ def test_persist_rejects_integrity_failure_before_delete(engine: Engine, tmp_pat
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
         persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+    with engine.connect() as conn:
+        before = _snapshot(conn)
     bad_report = ReportExtraction(
         report_input=report.report_input,
         report_key=report.report_key,
@@ -1133,10 +1163,8 @@ def test_persist_rejects_integrity_failure_before_delete(engine: Engine, tmp_pat
     ):
         persist_extraction(conn, filing_id=catalog.filing_id, extraction=bad)
     with engine.connect() as conn:
-        facts = conn.execute(
-            select(src.source_fact.c.raw_lexical_value, src.source_fact.c.source_order)
-        ).all()
-    assert facts == [("100", 0)]
+        after = _snapshot(conn)
+    assert after == before
 
 
 def test_persist_rejects_upstream_count_mismatch_before_delete(
@@ -1151,6 +1179,8 @@ def test_persist_rejects_upstream_count_mismatch_before_delete(
     with engine.begin() as conn:
         catalog = catalog_source_filing(conn, bundle)
         persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+    with engine.connect() as conn:
+        before = _snapshot(conn)
     bad = PersistableFilingExtraction(
         reports=(
             PersistableReport(
@@ -1168,6 +1198,9 @@ def test_persist_rejects_upstream_count_mismatch_before_delete(
         engine.begin() as conn,
     ):
         persist_extraction(conn, filing_id=catalog.filing_id, extraction=bad)
+    with engine.connect() as conn:
+        after = _snapshot(conn)
+    assert after == before
 
 
 def test_persist_datetime_context_lexical_and_offset_aware_at(

@@ -334,8 +334,13 @@ def _dual_report_filing_outcome(store: ObjectStore, published_bundle: FilingBund
 def test_dual_report_service_reextract_failure_preserves_snapshot(
     engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from edgar.domain.report_key import report_key as compute_report_key
+    from edgar.ingestion import source_extract as ingestion_source_extract
     from edgar.ingestion.source_extract import SourceExtractError
-    from edgar.xbrl.source_extract import FilingExtractError
+    from edgar.xbrl import source_extract as xbrl_source_extract
+    from edgar.xbrl.records import SemanticIssueRecord
+    from edgar.xbrl.replay_normalize import NormalizedReplayView
+    from edgar.xbrl.semantic import SourceExtractWorkerError, run_offline_extract
 
     store = ObjectStore(tmp_path)
     bundle = _dual_instance_bundle(store)
@@ -343,18 +348,62 @@ def test_dual_report_service_reextract_failure_preserves_snapshot(
     published = repo.publish(bundle)
     settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
     service = SourceExtractService(settings, engine=engine, bundles=repo)
-    calls = {"n": 0}
+    key_a = compute_report_key(published.bundle.report_inputs[0])
+    key_b = compute_report_key(published.bundle.report_inputs[1])
+    real_extract = ingestion_source_extract.extract_filing_with_outcomes
+    real_worker = run_offline_extract
+    extract_calls = {"n": 0}
+    cached_workers: dict[str, object] = {}
 
-    def fake_extract(pub_bundle: FilingBundle, store_arg: ObjectStore, **kwargs: object) -> object:
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return _dual_report_filing_outcome(store_arg, pub_bundle)
-        raise FilingExtractError("injected B worker failure")
+    def gated_extract(pub_bundle: FilingBundle, store_arg: ObjectStore, **kwargs: object) -> object:
+        extract_calls["n"] += 1
+        if extract_calls["n"] == 1:
+            outcome = _dual_report_filing_outcome(store_arg, pub_bundle)
+            for report_outcome in outcome.report_outcomes:
+                cached_workers[report_outcome.report.report_key] = report_outcome.worker
+            return outcome
+        return real_extract(pub_bundle, store_arg, **kwargs)
+
+    def gated_worker(pub_bundle: FilingBundle, store_arg: ObjectStore, **kwargs: object) -> object:
+        if extract_calls["n"] < 2:
+            return real_worker(pub_bundle, store_arg, **kwargs)
+        report_input = kwargs.get("report_input")
+        if report_input is None:
+            raise AssertionError("report_input required for dual-report worker gate")
+        key = compute_report_key(report_input)
+        if key == key_b:
+            raise SourceExtractWorkerError(
+                "injected B worker failure",
+                replay=NormalizedReplayView(
+                    load_completed=False,
+                    network_attempts=(),
+                    unresolved_documents=(),
+                    loaded_source_documents=(),
+                    resolved_documents=(),
+                    expected_binding_documents=(),
+                    diagnostics=(),
+                    errors=("injected B worker failure",),
+                    closure_equal=False,
+                ),
+                issues=(
+                    SemanticIssueRecord(
+                        severity="fatal",
+                        code="INJECTED_WORKER_FAILURE",
+                        message="injected B worker failure",
+                    ),
+                ),
+            )
+        cached = cached_workers.get(key)
+        if cached is not None:
+            return cached
+        return real_worker(pub_bundle, store_arg, **kwargs)
 
     monkeypatch.setattr(
-        "edgar.ingestion.source_extract.extract_filing_with_outcomes",
-        fake_extract,
+        ingestion_source_extract,
+        "extract_filing_with_outcomes",
+        gated_extract,
     )
+    monkeypatch.setattr(xbrl_source_extract, "run_offline_extract", gated_worker)
     first = service.extract_published_bundle(published.bundle_dir)
     assert first.persist.fact_count >= 2
     assert len(first.persist.report_ids) == 2
@@ -379,6 +428,7 @@ def test_dual_report_service_reextract_failure_preserves_snapshot(
         )
     assert reports_after == reports_before
     assert fact_count_after == fact_count_before
+    assert key_a != key_b
 
 
 def test_source_extract_aborts_when_implementation_changes(
