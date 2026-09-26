@@ -168,24 +168,32 @@ def extract_filing_with_outcomes(
     expected = frozenset(keys)
     inv_by_key = _inventory_map_for_bundle(bundle, store)
 
-    report_outcomes: list[ReportExtractOutcome] = []
+    worker_results: list[OfflineExtractResult] = []
     for report_input in bundle.report_inputs:
-        key = compute_report_key(report_input)
-        result = run_offline_extract(
-            bundle,
-            store,
-            report_input=report_input,
-            semantic_config=semantic_config,
-            python_executable=python_executable,
-            timeout_seconds=timeout_seconds,
+        worker_results.append(
+            run_offline_extract(
+                bundle,
+                store,
+                report_input=report_input,
+                semantic_config=semantic_config,
+                python_executable=python_executable,
+                timeout_seconds=timeout_seconds,
+            )
         )
-        report_outcomes.append(_finalize_report_outcome(result.report, result, inv_by_key[key]))
 
-    validate_outcome_keys(
+    worker_by_key = validate_outcome_keys(
         expected,
-        tuple(report_outcomes),
-        key_of=lambda o: o.report.report_key,
+        tuple(worker_results),
+        key_of=lambda r: r.report.report_key,
         label="worker",
+    )
+    report_outcomes = tuple(
+        _finalize_report_outcome(
+            worker_by_key[key].report,
+            worker_by_key[key],
+            inv_by_key[key],
+        )
+        for key in keys
     )
 
     blocks, sections, doc_issues = extract_documents_for_filing(bundle, store)

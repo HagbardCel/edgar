@@ -141,6 +141,14 @@ def test_context_collision_fan_out(tmp_path: Path) -> None:
     assert len(outcomes) == 1
     assert isinstance(outcomes[0], InventoryFailure)
     assert outcomes[0].code == "CONTEXT_ID_COLLISION"
+    assert "first=" in outcomes[0].message
+    assert "second=" in outcomes[0].message
+    # Same document: distinct element paths, not coarse (path, "context") placeholders.
+    import re
+
+    paths = re.findall(r"\('([^']+)', '([^']+)'\)", outcomes[0].message)
+    assert len(paths) >= 2
+    assert paths[0] != paths[1]
 
 
 def test_comment_and_pi_do_not_crash_scan(tmp_path: Path) -> None:

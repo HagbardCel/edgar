@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping
 
+import lxml.etree as etree
+
 from edgar.xbrl.records import ExpandedQName
 from edgar.xbrl.source_records import (
     ConceptDeclarationRecord,
@@ -16,6 +18,19 @@ from edgar.xbrl.source_records import (
 
 class ReportIntegrityError(ValueError):
     """ReportExtraction violates same-report reference integrity."""
+
+
+def _parse_typed_member_xml(xml: str) -> None:
+    parser = etree.XMLParser(
+        resolve_entities=False,
+        no_network=True,
+        load_dtd=False,
+        huge_tree=False,
+    )
+    try:
+        etree.fromstring(xml.encode("utf-8"), parser=parser)
+    except etree.XMLSyntaxError as exc:
+        raise ReportIntegrityError(f"typed_member xml is not well-formed: {exc}") from exc
 
 
 def _decl_key(concept: ExpandedQName) -> tuple[str, str]:
@@ -100,6 +115,7 @@ def validate_report_extraction(report: ReportExtraction) -> None:
             digest = dim.typed_member.get("sha256")
             if not isinstance(xml, str) or not isinstance(digest, str):
                 raise ReportIntegrityError("typed_member requires string xml and sha256")
+            _parse_typed_member_xml(xml)
             expected = hashlib.sha256(xml.encode("utf-8")).hexdigest()
             if digest != expected:
                 raise ReportIntegrityError("typed_member digest mismatch")

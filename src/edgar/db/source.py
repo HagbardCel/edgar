@@ -403,6 +403,10 @@ def persist_extraction(
                 f"report↔receipt binding failed for report_key={report.report_key}: {exc}"
             ) from exc
         inventory = persistable.upstream_inventory
+        if inventory is None:
+            raise PersistExtractionError(
+                f"missing upstream_inventory for report_key={report.report_key}"
+            )
         if inventory.inventory_version != UPSTREAM_INVENTORY_VERSION:
             raise PersistExtractionError(
                 f"invalid upstream_inventory_version for report_key={report.report_key}: "

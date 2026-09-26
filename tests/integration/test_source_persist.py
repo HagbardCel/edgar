@@ -1021,6 +1021,155 @@ def test_persist_missing_document_path_keeps_prior_snapshot(engine: Engine, tmp_
     assert reports == [(_REPORT_KEY,)]
 
 
+def test_persist_rejects_missing_upstream_inventory(engine: Engine, tmp_path: Path) -> None:
+    from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
+    from tests.helpers.extraction_receipt import minimal_test_receipt
+
+    bundle = _make_bundle(tmp_path)
+    extraction = _extraction_a()
+    report = extraction.reports[0]
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+    poisoned = PersistableFilingExtraction(
+        reports=(
+            PersistableReport(
+                report=report,
+                extraction_receipt=minimal_test_receipt(report, bundle=bundle),
+                upstream_inventory=None,  # type: ignore[arg-type]
+            ),
+        ),
+        document_blocks=extraction.document_blocks,
+        filing_sections=extraction.filing_sections,
+        issues=extraction.issues,
+    )
+    with (
+        pytest.raises(PersistExtractionError, match="missing upstream_inventory"),
+        engine.begin() as conn,
+    ):
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=poisoned)
+
+
+def test_persist_rejects_wrong_upstream_version_before_delete(
+    engine: Engine, tmp_path: Path
+) -> None:
+    from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
+    from tests.helpers.extraction_receipt import minimal_test_receipt
+
+    bundle = _make_bundle(tmp_path)
+    extraction = _extraction_a()
+    report = extraction.reports[0]
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+    bad = PersistableFilingExtraction(
+        reports=(
+            PersistableReport(
+                report=report,
+                extraction_receipt=minimal_test_receipt(report, bundle=bundle),
+                upstream_inventory=UpstreamInventory(
+                    inventory_version="upstream-v0",
+                    selected_target_item_count=report.arelle_item_fact_count,
+                ),
+            ),
+        ),
+        document_blocks=extraction.document_blocks,
+        filing_sections=extraction.filing_sections,
+        issues=extraction.issues,
+    )
+    with (
+        pytest.raises(PersistExtractionError, match="invalid upstream_inventory_version"),
+        engine.begin() as conn,
+    ):
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=bad)
+    with engine.connect() as conn:
+        facts = conn.execute(
+            select(src.source_fact.c.raw_lexical_value, src.source_fact.c.source_order)
+        ).all()
+    assert facts == [("100", 0)]
+
+
+def test_persist_rejects_integrity_failure_before_delete(engine: Engine, tmp_path: Path) -> None:
+    from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
+    from tests.helpers.extraction_receipt import minimal_test_receipt
+
+    bundle = _make_bundle(tmp_path)
+    extraction = _extraction_a()
+    report = extraction.reports[0]
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+    bad_report = ReportExtraction(
+        report_input=report.report_input,
+        report_key=report.report_key,
+        extractor_version=report.extractor_version,
+        arelle_version=report.arelle_version,
+        arelle_item_fact_count=report.arelle_item_fact_count,
+        concepts=report.concepts,
+        declarations=(),
+        contexts=report.contexts,
+        units=report.units,
+        measures=report.measures,
+        facts=report.facts,
+        issues=report.issues,
+    )
+    bad = PersistableFilingExtraction(
+        reports=(
+            PersistableReport(
+                report=bad_report,
+                extraction_receipt=minimal_test_receipt(bad_report, bundle=bundle),
+                upstream_inventory=UpstreamInventory(
+                    selected_target_item_count=bad_report.arelle_item_fact_count
+                ),
+            ),
+        ),
+        document_blocks=extraction.document_blocks,
+        filing_sections=extraction.filing_sections,
+        issues=extraction.issues,
+    )
+    with (
+        pytest.raises(PersistExtractionError, match="report integrity failed"),
+        engine.begin() as conn,
+    ):
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=bad)
+    with engine.connect() as conn:
+        facts = conn.execute(
+            select(src.source_fact.c.raw_lexical_value, src.source_fact.c.source_order)
+        ).all()
+    assert facts == [("100", 0)]
+
+
+def test_persist_rejects_upstream_count_mismatch_before_delete(
+    engine: Engine, tmp_path: Path
+) -> None:
+    from edgar.db.source_persist import PersistableFilingExtraction, PersistableReport
+    from tests.helpers.extraction_receipt import minimal_test_receipt
+
+    bundle = _make_bundle(tmp_path)
+    extraction = _extraction_a()
+    report = extraction.reports[0]
+    with engine.begin() as conn:
+        catalog = catalog_source_filing(conn, bundle)
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=_p(extraction, bundle))
+    bad = PersistableFilingExtraction(
+        reports=(
+            PersistableReport(
+                report=report,
+                extraction_receipt=minimal_test_receipt(report, bundle=bundle),
+                upstream_inventory=UpstreamInventory(selected_target_item_count=99),
+            ),
+        ),
+        document_blocks=extraction.document_blocks,
+        filing_sections=extraction.filing_sections,
+        issues=extraction.issues,
+    )
+    with (
+        pytest.raises(PersistExtractionError, match="upstream vs worker fact count mismatch"),
+        engine.begin() as conn,
+    ):
+        persist_extraction(conn, filing_id=catalog.filing_id, extraction=bad)
+
+
 def test_persist_datetime_context_lexical_and_offset_aware_at(
     engine: Engine, tmp_path: Path
 ) -> None:

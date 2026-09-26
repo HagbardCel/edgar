@@ -243,6 +243,144 @@ def test_invalid_base_set_qname_leaves_prior_snapshot(
     assert fact_count_after == fact_count_before
 
 
+def _dual_instance_bundle(store: ObjectStore) -> FilingBundle:
+    from tests.helpers.xbrl_bundles import INSTANCE, INSTANCE_URI, make_minimal_semantic_bundle
+
+    base = make_minimal_semantic_bundle(store)
+    uri_b = "https://www.sec.gov/Archives/edgar/data/1/0000000001000010/b.xml"
+    path_b = "accession/b.xml"
+    inst_b = store.put_bytes(INSTANCE)
+    artifacts = (
+        *base.artifacts,
+        BundleArtifact(
+            logical_path=path_b,
+            content=ContentObject(sha256=inst_b.sha256, byte_size=inst_b.byte_size),
+            artifact_kind="primary_document",
+            required=True,
+        ),
+    )
+    artifact_tuple = tuple(artifacts)
+    return FilingBundle(
+        filing=base.filing,
+        payload_hash=compute_payload_hash(artifact_tuple),
+        artifacts=artifact_tuple,
+        report_inputs=(
+            InstanceReportInput(document_uris=(INSTANCE_URI,)),
+            InstanceReportInput(document_uris=(uri_b,)),
+        ),
+        uri_bindings=(
+            *base.uri_bindings,
+            UriBinding(uri_b, path_b, inst_b.sha256),
+        ),
+    )
+
+
+def _dual_report_filing_outcome(store: ObjectStore, published_bundle: FilingBundle) -> object:
+    """Two successful single-report extracts merged (dual-input bundle is not replay-faithful)."""
+    from edgar.xbrl.config import build_semantic_config
+    from edgar.xbrl.source_documents import extract_documents_for_filing
+    from edgar.xbrl.source_extract import FilingExtractOutcome, extract_report_with_outcome
+    from edgar.xbrl.source_records import FilingExtraction
+    from tests.helpers.xbrl_bundles import INSTANCE, INSTANCE_URI, make_minimal_semantic_bundle
+
+    base = make_minimal_semantic_bundle(store)
+    uri_b = published_bundle.report_inputs[1].document_uris[0]
+    path_b = "accession/b.xml"
+    inst_b = store.put_bytes(INSTANCE)
+    artifacts_b = tuple(
+        (
+            BundleArtifact(
+                logical_path=path_b,
+                content=ContentObject(sha256=inst_b.sha256, byte_size=inst_b.byte_size),
+                artifact_kind="primary_document",
+                required=True,
+            )
+            if a.logical_path == "accession/a.xml"
+            else a
+        )
+        for a in base.artifacts
+    )
+    bindings_b = tuple(
+        UriBinding(uri_b, path_b, inst_b.sha256) if b.document_uri == INSTANCE_URI else b
+        for b in base.uri_bindings
+    )
+    bundle_b = FilingBundle(
+        filing=base.filing,
+        payload_hash=compute_payload_hash(artifacts_b),
+        artifacts=artifacts_b,
+        report_inputs=(InstanceReportInput(document_uris=(uri_b,)),),
+        uri_bindings=bindings_b,
+    )
+    config = build_semantic_config()
+    outcome_a = extract_report_with_outcome(
+        base, store, base.report_inputs[0], semantic_config=config
+    )
+    outcome_b = extract_report_with_outcome(
+        bundle_b, store, bundle_b.report_inputs[0], semantic_config=config
+    )
+    blocks, sections, issues = extract_documents_for_filing(published_bundle, store)
+    extraction = FilingExtraction(
+        reports=(outcome_a.report, outcome_b.report),
+        document_blocks=blocks,
+        filing_sections=sections,
+        issues=issues,
+    )
+    return FilingExtractOutcome(
+        extraction=extraction,
+        report_outcomes=(outcome_a, outcome_b),
+    )
+
+
+def test_dual_report_service_reextract_failure_preserves_snapshot(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.ingestion.source_extract import SourceExtractError
+    from edgar.xbrl.source_extract import FilingExtractError
+
+    store = ObjectStore(tmp_path)
+    bundle = _dual_instance_bundle(store)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(bundle)
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+    calls = {"n": 0}
+
+    def fake_extract(pub_bundle: FilingBundle, store_arg: ObjectStore, **kwargs: object) -> object:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _dual_report_filing_outcome(store_arg, pub_bundle)
+        raise FilingExtractError("injected B worker failure")
+
+    monkeypatch.setattr(
+        "edgar.ingestion.source_extract.extract_filing_with_outcomes",
+        fake_extract,
+    )
+    first = service.extract_published_bundle(published.bundle_dir)
+    assert first.persist.fact_count >= 2
+    assert len(first.persist.report_ids) == 2
+
+    with engine.connect() as conn:
+        reports_before = conn.execute(
+            select(src.source_xbrl_report.c.report_key).order_by(src.source_xbrl_report.c.id)
+        ).all()
+        fact_count_before = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+
+    with pytest.raises(SourceExtractError, match="injected B worker failure"):
+        service.extract_published_bundle(published.bundle_dir)
+
+    with engine.connect() as conn:
+        reports_after = conn.execute(
+            select(src.source_xbrl_report.c.report_key).order_by(src.source_xbrl_report.c.id)
+        ).all()
+        fact_count_after = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+    assert reports_after == reports_before
+    assert fact_count_after == fact_count_before
+
+
 def test_source_extract_aborts_when_implementation_changes(
     engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -238,17 +238,21 @@ def _inline_local_name(el: etree._Element) -> str | None:
     return qname.localname
 
 
+def _element_path(root: etree._Element, el: etree._Element) -> str:
+    return etree.ElementTree(root).getelementpath(el)
+
+
 def _scan_inline_member(path: str, root: etree._Element, scan: _MembershipScan) -> None:
     for ctx in root.iter(CONTEXT_LOCAL):
         cid = ctx.get("id")
         if cid:
             scan.raw_context_count += 1
-            scan.context_id_locs.setdefault(cid, []).append((path, "context"))
+            scan.context_id_locs.setdefault(cid, []).append((path, _element_path(root, ctx)))
     for unit in root.iter(UNIT_LOCAL):
         uid = unit.get("id")
         if uid:
             scan.raw_unit_count += 1
-            scan.unit_id_locs.setdefault(uid, []).append((path, "unit"))
+            scan.unit_id_locs.setdefault(uid, []).append((path, _element_path(root, unit)))
 
     for el in root.iter():
         local = _inline_local_name(el)
@@ -296,12 +300,12 @@ def _scan_instance_member(path: str, root: etree._Element, scan: _MembershipScan
         cid = ctx.get("id")
         if cid:
             scan.raw_context_count += 1
-            scan.context_id_locs.setdefault(cid, []).append((path, "context"))
+            scan.context_id_locs.setdefault(cid, []).append((path, _element_path(root, ctx)))
     for unit in root.iter(UNIT_LOCAL):
         uid = unit.get("id")
         if uid:
             scan.raw_unit_count += 1
-            scan.unit_id_locs.setdefault(uid, []).append((path, "unit"))
+            scan.unit_id_locs.setdefault(uid, []).append((path, _element_path(root, unit)))
     tid = target_identity_key(DefaultTarget())
     for el in root.iter():
         if not isinstance(el.tag, str):

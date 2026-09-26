@@ -58,5 +58,8 @@ poison `upgrade head`.
 - Offline extract uses the isolated Arelle worker (`operation=extract`) and a
   native lossless `ReportExtraction` wire (`extraction_payload`). M1A-3 runs
   parent-side upstream inventory before the worker, reconciles raw vs worker fact
-  counts, validates `integrity.py`, then persists with optional `upstream_*` columns.
+  counts, validates `integrity.py`, then persists with required upstream evidence
+  (`upstream_inventory` on the persist path). SQL NULL/NULL upstream columns are
+  legacy rows only; new writes pair `upstream_item_fact_count` with
+  `arelle_item_fact_count`.
 - Fatality is fail-closed; persist refuses `severity="fatal"` issues.

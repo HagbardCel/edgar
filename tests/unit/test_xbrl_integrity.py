@@ -98,3 +98,44 @@ def test_typed_member_requires_xml_and_digest() -> None:
     bad = replace(report, declarations=decls, dimensions=(dim,))
     with pytest.raises(ReportIntegrityError, match="typed_member"):
         validate_report_extraction(bad)
+
+
+def test_typed_member_malformed_xml_rejected() -> None:
+    report = _minimal_report()
+    concept = ExpandedQName(namespace_uri="http://example.com/t", local_name="Dim")
+    decls = (
+        *report.declarations,
+        ConceptDeclarationRecord(concept=concept, period_type="instant"),
+    )
+    dim = ContextDimensionRecord(
+        source_context_id="c1",
+        dimension=concept,
+        context_element="segment",
+        member_kind="typed",
+        typed_member={"xml": "<unclosed", "sha256": "00"},
+    )
+    bad = replace(report, declarations=decls, dimensions=(dim,))
+    with pytest.raises(ReportIntegrityError, match="well-formed"):
+        validate_report_extraction(bad)
+
+
+def test_typed_member_undeclared_prefix_rejected() -> None:
+    xml = '<p:member xmlns:p="http://example.com/t"/>'
+    import hashlib
+
+    digest = hashlib.sha256(xml.encode()).hexdigest()
+    report = _minimal_report()
+    concept = ExpandedQName(namespace_uri="http://example.com/t", local_name="Dim")
+    decls = (
+        *report.declarations,
+        ConceptDeclarationRecord(concept=concept, period_type="instant"),
+    )
+    dim = ContextDimensionRecord(
+        source_context_id="c1",
+        dimension=concept,
+        context_element="segment",
+        member_kind="typed",
+        typed_member={"xml": xml, "sha256": digest},
+    )
+    good = replace(report, declarations=decls, dimensions=(dim,))
+    validate_report_extraction(good)
