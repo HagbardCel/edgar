@@ -243,6 +243,194 @@ def test_invalid_base_set_qname_leaves_prior_snapshot(
     assert fact_count_after == fact_count_before
 
 
+def _dual_instance_bundle(store: ObjectStore) -> FilingBundle:
+    from tests.helpers.xbrl_bundles import INSTANCE, INSTANCE_URI, make_minimal_semantic_bundle
+
+    base = make_minimal_semantic_bundle(store)
+    uri_b = "https://www.sec.gov/Archives/edgar/data/1/0000000001000010/b.xml"
+    path_b = "accession/b.xml"
+    inst_b = store.put_bytes(INSTANCE)
+    artifacts = (
+        *base.artifacts,
+        BundleArtifact(
+            logical_path=path_b,
+            content=ContentObject(sha256=inst_b.sha256, byte_size=inst_b.byte_size),
+            artifact_kind="primary_document",
+            required=True,
+        ),
+    )
+    artifact_tuple = tuple(artifacts)
+    return FilingBundle(
+        filing=base.filing,
+        payload_hash=compute_payload_hash(artifact_tuple),
+        artifacts=artifact_tuple,
+        report_inputs=(
+            InstanceReportInput(document_uris=(INSTANCE_URI,)),
+            InstanceReportInput(document_uris=(uri_b,)),
+        ),
+        uri_bindings=(
+            *base.uri_bindings,
+            UriBinding(uri_b, path_b, inst_b.sha256),
+        ),
+    )
+
+
+def _dual_report_filing_outcome(store: ObjectStore, published_bundle: FilingBundle) -> object:
+    """Two successful single-report extracts merged (dual-input bundle is not replay-faithful)."""
+    from edgar.xbrl.config import build_semantic_config
+    from edgar.xbrl.source_documents import extract_documents_for_filing
+    from edgar.xbrl.source_extract import FilingExtractOutcome, extract_report_with_outcome
+    from edgar.xbrl.source_records import FilingExtraction
+    from tests.helpers.xbrl_bundles import INSTANCE, INSTANCE_URI, make_minimal_semantic_bundle
+
+    base = make_minimal_semantic_bundle(store)
+    uri_b = published_bundle.report_inputs[1].document_uris[0]
+    path_b = "accession/b.xml"
+    inst_b = store.put_bytes(INSTANCE)
+    artifacts_b = tuple(
+        (
+            BundleArtifact(
+                logical_path=path_b,
+                content=ContentObject(sha256=inst_b.sha256, byte_size=inst_b.byte_size),
+                artifact_kind="primary_document",
+                required=True,
+            )
+            if a.logical_path == "accession/a.xml"
+            else a
+        )
+        for a in base.artifacts
+    )
+    bindings_b = tuple(
+        UriBinding(uri_b, path_b, inst_b.sha256) if b.document_uri == INSTANCE_URI else b
+        for b in base.uri_bindings
+    )
+    bundle_b = FilingBundle(
+        filing=base.filing,
+        payload_hash=compute_payload_hash(artifacts_b),
+        artifacts=artifacts_b,
+        report_inputs=(InstanceReportInput(document_uris=(uri_b,)),),
+        uri_bindings=bindings_b,
+    )
+    config = build_semantic_config()
+    outcome_a = extract_report_with_outcome(
+        base, store, base.report_inputs[0], semantic_config=config
+    )
+    outcome_b = extract_report_with_outcome(
+        bundle_b, store, bundle_b.report_inputs[0], semantic_config=config
+    )
+    blocks, sections, issues = extract_documents_for_filing(published_bundle, store)
+    extraction = FilingExtraction(
+        reports=(outcome_a.report, outcome_b.report),
+        document_blocks=blocks,
+        filing_sections=sections,
+        issues=issues,
+    )
+    return FilingExtractOutcome(
+        extraction=extraction,
+        report_outcomes=(outcome_a, outcome_b),
+    )
+
+
+def test_dual_report_service_reextract_failure_preserves_snapshot(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edgar.domain.report_key import report_key as compute_report_key
+    from edgar.ingestion import source_extract as ingestion_source_extract
+    from edgar.ingestion.source_extract import SourceExtractError
+    from edgar.xbrl import source_extract as xbrl_source_extract
+    from edgar.xbrl.records import SemanticIssueRecord
+    from edgar.xbrl.replay_normalize import NormalizedReplayView
+    from edgar.xbrl.semantic import SourceExtractWorkerError, run_offline_extract
+
+    store = ObjectStore(tmp_path)
+    bundle = _dual_instance_bundle(store)
+    repo = BundleRepository(tmp_path, store)
+    published = repo.publish(bundle)
+    settings = Settings().model_copy(update={"edgar_data_root": tmp_path})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+    key_a = compute_report_key(published.bundle.report_inputs[0])
+    key_b = compute_report_key(published.bundle.report_inputs[1])
+    real_extract = ingestion_source_extract.extract_filing_with_outcomes
+    real_worker = run_offline_extract
+    extract_calls = {"n": 0}
+    cached_workers: dict[str, object] = {}
+
+    def gated_extract(pub_bundle: FilingBundle, store_arg: ObjectStore, **kwargs: object) -> object:
+        extract_calls["n"] += 1
+        if extract_calls["n"] == 1:
+            outcome = _dual_report_filing_outcome(store_arg, pub_bundle)
+            for report_outcome in outcome.report_outcomes:
+                cached_workers[report_outcome.report.report_key] = report_outcome.worker
+            return outcome
+        return real_extract(pub_bundle, store_arg, **kwargs)
+
+    def gated_worker(pub_bundle: FilingBundle, store_arg: ObjectStore, **kwargs: object) -> object:
+        if extract_calls["n"] < 2:
+            return real_worker(pub_bundle, store_arg, **kwargs)
+        report_input = kwargs.get("report_input")
+        if report_input is None:
+            raise AssertionError("report_input required for dual-report worker gate")
+        key = compute_report_key(report_input)
+        if key == key_b:
+            raise SourceExtractWorkerError(
+                "injected B worker failure",
+                replay=NormalizedReplayView(
+                    load_completed=False,
+                    network_attempts=(),
+                    unresolved_documents=(),
+                    loaded_source_documents=(),
+                    resolved_documents=(),
+                    expected_binding_documents=(),
+                    diagnostics=(),
+                    errors=("injected B worker failure",),
+                    closure_equal=False,
+                ),
+                issues=(
+                    SemanticIssueRecord(
+                        severity="fatal",
+                        code="INJECTED_WORKER_FAILURE",
+                        message="injected B worker failure",
+                    ),
+                ),
+            )
+        cached = cached_workers.get(key)
+        if cached is not None:
+            return cached
+        return real_worker(pub_bundle, store_arg, **kwargs)
+
+    monkeypatch.setattr(
+        ingestion_source_extract,
+        "extract_filing_with_outcomes",
+        gated_extract,
+    )
+    monkeypatch.setattr(xbrl_source_extract, "run_offline_extract", gated_worker)
+    first = service.extract_published_bundle(published.bundle_dir)
+    assert first.persist.fact_count >= 2
+    assert len(first.persist.report_ids) == 2
+
+    with engine.connect() as conn:
+        reports_before = conn.execute(
+            select(src.source_xbrl_report.c.report_key).order_by(src.source_xbrl_report.c.id)
+        ).all()
+        fact_count_before = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+
+    with pytest.raises(SourceExtractError, match="injected B worker failure"):
+        service.extract_published_bundle(published.bundle_dir)
+
+    with engine.connect() as conn:
+        reports_after = conn.execute(
+            select(src.source_xbrl_report.c.report_key).order_by(src.source_xbrl_report.c.id)
+        ).all()
+        fact_count_after = int(
+            conn.execute(select(func.count()).select_from(src.source_fact)).scalar_one()
+        )
+    assert reports_after == reports_before
+    assert fact_count_after == fact_count_before
+    assert key_a != key_b
+
+
 def test_source_extract_aborts_when_implementation_changes(
     engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

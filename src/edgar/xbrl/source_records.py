@@ -27,10 +27,10 @@ from edgar.xbrl.records import (
     _assert_identity_qname,
 )
 
-EXTRACTOR_VERSION = "source-extract-v4"
+EXTRACTOR_VERSION = "source-extract-v5"
 
 #: Wire schema for worker ``extraction_payload`` (not identity).
-SOURCE_RECORDS_SCHEMA_VERSION = 3
+SOURCE_RECORDS_SCHEMA_VERSION = 4
 
 LocatorScheme = Literal["xml_id", "unqualified_id", "expanded_element_path"]
 

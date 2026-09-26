@@ -354,9 +354,112 @@ def _bundle_from_parts(
     )
 
 
+FRACTION_SCHEMA_URI = normalize_uri("https://example.com/fraction.xsd")
+FRACTION_INSTANCE_URI = normalize_uri(
+    "https://www.sec.gov/Archives/edgar/data/1/0000000001000012/fraction.xml"
+)
+
+FRACTION_SCHEMA = b"""<?xml version="1.0"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema"
+        xmlns:xbrli="http://www.xbrl.org/2003/instance"
+        targetNamespace="http://example.com/fraction"
+        elementFormDefault="qualified">
+  <import namespace="http://www.xbrl.org/2003/instance"
+          schemaLocation="http://www.xbrl.org/2003/xbrl-instance-2003-12-31.xsd"/>
+  <element name="ShareRatio" id="frac_ShareRatio" type="xbrli:fractionItemType"
+           substitutionGroup="xbrli:item" nillable="true"
+           xbrli:periodType="instant"/>
+</schema>
+"""
+
+FRACTION_INSTANCE = b"""<?xml version="1.0"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+            xmlns:f="http://example.com/fraction">
+  <link:schemaRef xlink:type="simple" xlink:href="https://example.com/fraction.xsd"/>
+  <xbrli:context id="c1">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000001</xbrli:identifier>
+    </xbrli:entity>
+    <xbrli:period><xbrli:instant>2024-12-31</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  <xbrli:unit id="u1"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
+  <f:ShareRatio contextRef="c1" unitRef="u1" id="frac1">
+    <xbrli:numerator>1</xbrli:numerator>
+    <xbrli:denominator>4</xbrli:denominator>
+  </f:ShareRatio>
+</xbrli:xbrl>
+"""
+
+TUPLE_SCHEMA_URI = normalize_uri("https://example.com/tuple.xsd")
+TUPLE_INSTANCE_URI = normalize_uri(
+    "https://www.sec.gov/Archives/edgar/data/1/0000000001000013/tuple.xml"
+)
+
+TUPLE_SCHEMA = b"""<?xml version="1.0"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema"
+        xmlns:xbrli="http://www.xbrl.org/2003/instance"
+        targetNamespace="http://example.com/tuple"
+        elementFormDefault="qualified">
+  <import namespace="http://www.wbrl.org/2003/instance"
+          schemaLocation="http://www.xbrl.org/2003/xbrl-instance-2003-12-31.xsd"/>
+  <element name="DisclosureTuple" id="tuple_DisclosureTuple"
+           substitutionGroup="xbrli:tuple" nillable="true"
+           xbrli:periodType="instant"/>
+  <element name="LineItem" id="tuple_LineItem" type="xbrli:stringItemType"
+           substitutionGroup="xbrli:item" nillable="true"
+           xbrli:periodType="instant"/>
+</schema>
+""".replace(b"wbrl", b"xbrl")
+
+TUPLE_INSTANCE = b"""<?xml version="1.0"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            xmlns:tu="http://example.com/tuple">
+  <link:schemaRef xlink:type="simple" xlink:href="https://example.com/tuple.xsd"/>
+  <xbrli:context id="c1">
+    <xbrli:entity>
+      <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000001</xbrli:identifier>
+    </xbrli:entity>
+    <xbrli:period><xbrli:instant>2024-12-31</xbrli:instant></xbrli:period>
+  </xbrli:context>
+  <tu:DisclosureTuple contextRef="c1" id="tuple1">
+    <tu:LineItem contextRef="c1">disclosure line</tu:LineItem>
+  </tu:DisclosureTuple>
+</xbrli:xbrl>
+"""
+
+
 def make_minimal_semantic_bundle(store: ObjectStore) -> FilingBundle:
     """Ordinary XBRL instance with duplicate facts and a 2024-12-31 instant context."""
     return _bundle_from_parts(store=store, instance_bytes=INSTANCE, schema_bytes=SCHEMA)
+
+
+def make_conventional_fraction_bundle(store: ObjectStore) -> FilingBundle:
+    """Conventional XBRL fraction item (xbrli:fractionItemType)."""
+    return _bundle_from_parts(
+        store=store,
+        instance_bytes=FRACTION_INSTANCE,
+        schema_bytes=FRACTION_SCHEMA,
+        schema_uri=FRACTION_SCHEMA_URI,
+        instance_uri=FRACTION_INSTANCE_URI,
+        accession="0000000001-00-000012",
+    )
+
+
+def make_conventional_tuple_bundle(store: ObjectStore) -> FilingBundle:
+    """Conventional XBRL tuple with a child item fact."""
+    return _bundle_from_parts(
+        store=store,
+        instance_bytes=TUPLE_INSTANCE,
+        schema_bytes=TUPLE_SCHEMA,
+        schema_uri=TUPLE_SCHEMA_URI,
+        instance_uri=TUPLE_INSTANCE_URI,
+        accession="0000000001-00-000013",
+    )
 
 
 def make_datetime_instant_bundle(store: ObjectStore, *, lexical: str) -> FilingBundle:
