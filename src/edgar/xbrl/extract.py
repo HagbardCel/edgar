@@ -192,8 +192,6 @@ NONFATAL_ISSUE_CODES: frozenset[str] = frozenset(
         DEFERRED_ARCROLE,
         UNSUPPORTED_ARCROLE,
         EXCLUDED_ARCROLE,
-        UNSUPPORTED_TUPLE_FACT,
-        UNSUPPORTED_FRACTION_FACT,
         UNSUPPORTED_INLINE_SIGN,
         INVALID_INLINE_SCALE,
         UNRESOLVED_INLINE_FORMAT,
@@ -1322,7 +1320,7 @@ def _fact_records(
     context_locators: Mapping[str, SourceLocator],
     unit_locators: Mapping[str, SourceLocator],
     extraction: _Extraction,
-) -> tuple[tuple[int, FactRecord], ...]:
+) -> tuple[int, tuple[tuple[int, FactRecord], ...]]:
     """Authoritative item occurrences: ``(source_order, FactRecord)`` in yield order.
 
     Every yielded item produces exactly one record with that iterator ordinal, or

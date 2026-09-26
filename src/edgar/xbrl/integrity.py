@@ -19,6 +19,8 @@ class ReportIntegrityError(ValueError):
 
 
 def _decl_key(concept: ExpandedQName) -> tuple[str, str]:
+    if concept.namespace_uri is None:
+        raise ReportIntegrityError(f"concept {concept.clark} missing namespace_uri")
     return (concept.namespace_uri, concept.local_name)
 
 
@@ -89,13 +91,18 @@ def validate_report_extraction(report: ReportExtraction) -> None:
             and _decl_key(dim.member) not in declarations_by_qname
         ):
             raise ReportIntegrityError(f"explicit member {dim.member.clark} has no declaration")
-        if dim.member_kind == "typed" and dim.typed_member is not None:
-            xml = dim.typed_member.get("xml") if isinstance(dim.typed_member, dict) else None
-            digest = dim.typed_member.get("sha256") if isinstance(dim.typed_member, dict) else None
-            if isinstance(xml, str) and isinstance(digest, str):
-                expected = hashlib.sha256(xml.encode("utf-8")).hexdigest()
-                if digest != expected:
-                    raise ReportIntegrityError("typed_member digest mismatch")
+        if dim.member_kind == "typed":
+            if dim.typed_member is None:
+                raise ReportIntegrityError("typed member missing typed_member payload")
+            if not isinstance(dim.typed_member, dict):
+                raise ReportIntegrityError("typed_member must be a mapping")
+            xml = dim.typed_member.get("xml")
+            digest = dim.typed_member.get("sha256")
+            if not isinstance(xml, str) or not isinstance(digest, str):
+                raise ReportIntegrityError("typed_member requires string xml and sha256")
+            expected = hashlib.sha256(xml.encode("utf-8")).hexdigest()
+            if digest != expected:
+                raise ReportIntegrityError("typed_member digest mismatch")
 
     for measure in report.measures:
         if measure.source_unit_id not in unit_id_by_source:

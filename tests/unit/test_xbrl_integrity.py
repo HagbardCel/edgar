@@ -11,6 +11,7 @@ from edgar.xbrl.records import ExpandedQName
 from edgar.xbrl.source_records import (
     ConceptDeclarationRecord,
     ConceptRecord,
+    ContextDimensionRecord,
     ContextRecord,
     FactRecord,
     ReportExtraction,
@@ -75,4 +76,25 @@ def test_fact_unknown_context_rejected() -> None:
         ),
     )
     with pytest.raises(ReportIntegrityError, match="unknown context"):
+        validate_report_extraction(bad)
+
+
+def test_typed_member_requires_xml_and_digest() -> None:
+    report = _minimal_report()
+    concept = ExpandedQName(namespace_uri="http://example.com/t", local_name="Dim")
+    member = ExpandedQName(namespace_uri="http://example.com/t", local_name="Member")
+    decls = (
+        *report.declarations,
+        ConceptDeclarationRecord(concept=concept, period_type="instant"),
+        ConceptDeclarationRecord(concept=member, period_type="instant"),
+    )
+    dim = ContextDimensionRecord(
+        source_context_id="c1",
+        dimension=concept,
+        context_element="segment",
+        member_kind="typed",
+        typed_member={},
+    )
+    bad = replace(report, declarations=decls, dimensions=(dim,))
+    with pytest.raises(ReportIntegrityError, match="typed_member"):
         validate_report_extraction(bad)

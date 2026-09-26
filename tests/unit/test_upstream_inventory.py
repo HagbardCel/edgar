@@ -140,4 +140,123 @@ def test_context_collision_fan_out(tmp_path: Path) -> None:
     outcomes = build_inventory_outcomes(bundle, store)
     assert len(outcomes) == 1
     assert isinstance(outcomes[0], InventoryFailure)
-    assert outcomes[0].code == "CONTEXT_OR_UNIT_COLLISION"
+    assert outcomes[0].code == "CONTEXT_ID_COLLISION"
+
+
+def test_comment_and_pi_do_not_crash_scan(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path / "c")
+    xml = b"""<?xml version="1.0"?>
+<!-- comment -->
+<?pi data?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
+      xmlns:xbrli="http://www.xbrl.org/2003/instance">
+  <xbrli:context id="c1"/>
+  <ix:nonNumeric name="t:Foo" contextRef="c1">x</ix:nonNumeric>
+</html>
+"""
+    obj = store.put_bytes(xml)
+    uri = "https://example.com/inline.htm"
+    bundle = FilingBundle(
+        filing=FilingIdentity(
+            cik="0000000001",
+            accession="0000000001-24-000003",
+            form_type="10-K",
+            filing_date=date(2024, 1, 1),
+            accepted_at=None,
+            report_period_end=date(2023, 12, 31),
+            primary_document="inline.htm",
+        ),
+        payload_hash=compute_payload_hash(
+            (
+                BundleArtifact(
+                    logical_path="a.htm",
+                    content=ContentObject(sha256=obj.sha256, byte_size=obj.byte_size),
+                    artifact_kind="primary_document",
+                    required=True,
+                ),
+            )
+        ),
+        artifacts=(
+            BundleArtifact(
+                logical_path="a.htm",
+                content=ContentObject(sha256=obj.sha256, byte_size=obj.byte_size),
+                artifact_kind="primary_document",
+                required=True,
+            ),
+        ),
+        report_inputs=(IxdsReportInput(document_uris=(uri,), target="default"),),
+        uri_bindings=(
+            UriBinding(
+                document_uri=uri,
+                artifact_path="a.htm",
+                content_sha256=obj.sha256,
+                replay_aliases=(),
+            ),
+        ),
+    )
+    outcomes = build_inventory_outcomes(bundle, store)
+    assert len(outcomes) == 1
+    assert isinstance(outcomes[0], InventorySuccess)
+
+
+def test_foreign_namespace_non_numeric_not_counted(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path / "f")
+    xml = b"""<?xml version="1.0"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:foo="http://example.com/not-inline">
+  <foo:nonNumeric contextRef="c1">x</foo:nonNumeric>
+</html>
+"""
+    obj = store.put_bytes(xml)
+    uri = "https://example.com/inline.htm"
+    bundle = FilingBundle(
+        filing=FilingIdentity(
+            cik="0000000001",
+            accession="0000000001-24-000004",
+            form_type="10-K",
+            filing_date=date(2024, 1, 1),
+            accepted_at=None,
+            report_period_end=date(2023, 12, 31),
+            primary_document="inline.htm",
+        ),
+        payload_hash=compute_payload_hash(
+            (
+                BundleArtifact(
+                    logical_path="a.htm",
+                    content=ContentObject(sha256=obj.sha256, byte_size=obj.byte_size),
+                    artifact_kind="primary_document",
+                    required=True,
+                ),
+            )
+        ),
+        artifacts=(
+            BundleArtifact(
+                logical_path="a.htm",
+                content=ContentObject(sha256=obj.sha256, byte_size=obj.byte_size),
+                artifact_kind="primary_document",
+                required=True,
+            ),
+        ),
+        report_inputs=(IxdsReportInput(document_uris=(uri,), target="default"),),
+        uri_bindings=(
+            UriBinding(
+                document_uri=uri,
+                artifact_path="a.htm",
+                content_sha256=obj.sha256,
+                replay_aliases=(),
+            ),
+        ),
+    )
+    outcomes = build_inventory_outcomes(bundle, store)
+    assert isinstance(outcomes[0], InventorySuccess)
+    assert outcomes[0].inventory.selected_target_item_count == 0
+
+
+def test_instance_wrong_root_is_fatal(tmp_path: Path) -> None:
+    store = ObjectStore(tmp_path / "w")
+    html = b"<html><body/></html>"
+    bundle = _instance_bundle(store, html)
+    outcomes = build_inventory_outcomes(bundle, store)
+    assert isinstance(outcomes[0], InventoryFailure)
+    assert outcomes[0].code == "INSTANCE_ROOT_INVALID"

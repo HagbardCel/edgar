@@ -118,6 +118,61 @@ def _uri_to_logical_path(bindings: Sequence[UriBinding]) -> dict[str, str]:
     return out
 
 
+def _resolve_member_canonical_uri(
+    uri: str,
+    bindings: Sequence[UriBinding],
+) -> str | None:
+    normalized = normalize_uri(uri)
+    canonicals: list[str] = []
+    for binding in bindings:
+        canonical = normalize_uri(binding.document_uri)
+        aliases = {normalize_uri(alias) for alias in binding.replay_aliases}
+        if normalized == canonical or normalized in aliases:
+            canonicals.append(canonical)
+    unique = frozenset(canonicals)
+    if len(unique) > 1:
+        return None
+    if len(unique) == 1:
+        return next(iter(unique))
+    return None
+
+
+def _ixds_membership_for_input(
+    report_input: IxdsReportInput,
+    bindings: Sequence[UriBinding],
+) -> frozenset[str] | InventoryFailure:
+    canonical_members: list[str] = []
+    for uri in report_input.document_uris:
+        canonical = _resolve_member_canonical_uri(uri, bindings)
+        if canonical is None:
+            return InventoryFailure(
+                report_key=compute_report_key(report_input),
+                code="IXDS_MEMBER_URI_AMBIGUOUS",
+                message=f"ambiguous or unbound IXDS member URI {uri!r}",
+            )
+        canonical_members.append(canonical)
+    if len(canonical_members) != len(set(canonical_members)):
+        return InventoryFailure(
+            report_key=compute_report_key(report_input),
+            code="IXDS_DUPLICATE_CANONICAL_MEMBER",
+            message="duplicate canonical IXDS member after URI binding resolution",
+        )
+    return frozenset(canonical_members)
+
+
+def ixds_membership_key(
+    report_input: IxdsReportInput,
+    bindings: Sequence[UriBinding] | None = None,
+) -> frozenset[str]:
+    """Membership key for tests; requires bindings when replay aliases matter."""
+    if bindings is None:
+        return frozenset(normalize_uri(u) for u in report_input.document_uris)
+    resolved = _ixds_membership_for_input(report_input, bindings)
+    if isinstance(resolved, InventoryFailure):
+        raise ValueError(resolved.message)
+    return resolved
+
+
 def _load_member_bytes(
     bundle: FilingBundle,
     store: ObjectStore,
@@ -141,10 +196,6 @@ def _load_member_bytes(
     return path, data
 
 
-def ixds_membership_key(report_input: IxdsReportInput) -> frozenset[str]:
-    return frozenset(normalize_uri(u) for u in report_input.document_uris)
-
-
 @dataclass
 class _MembershipScan:
     raw_context_count: int = 0
@@ -166,8 +217,10 @@ class _MembershipScan:
     unit_refs_by_target: dict[tuple[str, str], set[str]] = field(
         default_factory=lambda: defaultdict(set)
     )
-    continued_at_edges: list[tuple[str, str, str]] = field(default_factory=list)
-    structural_error: str | None = None
+    item_continued_at: list[tuple[tuple[str, str], str]] = field(default_factory=list)
+    footnote_continued_at: list[str] = field(default_factory=list)
+    continuation_continued_at: dict[str, str] = field(default_factory=dict)
+    instance_root_invalid: bool = False
 
 
 def _local_name(tag: str) -> str:
@@ -176,21 +229,16 @@ def _local_name(tag: str) -> str:
     return tag
 
 
-def _inline_ns_for_root(root: etree._Element) -> str | None:
-    for el in root.iter():
-        ns = etree.QName(el).namespace
-        if ns in INLINE_NS:
-            return ns
-    for _prefix, ns in root.nsmap.items():
-        if ns in INLINE_NS:
-            return ns
-    return None
+def _inline_local_name(el: etree._Element) -> str | None:
+    if not isinstance(el.tag, str):
+        return None
+    qname = etree.QName(el)
+    if qname.namespace not in INLINE_NS:
+        return None
+    return qname.localname
 
 
 def _scan_inline_member(path: str, root: etree._Element, scan: _MembershipScan) -> None:
-    ix_ns = _inline_ns_for_root(root)
-    if ix_ns is None:
-        return
     for ctx in root.iter(CONTEXT_LOCAL):
         cid = ctx.get("id")
         if cid:
@@ -201,21 +249,33 @@ def _scan_inline_member(path: str, root: etree._Element, scan: _MembershipScan) 
         if uid:
             scan.raw_unit_count += 1
             scan.unit_id_locs.setdefault(uid, []).append((path, "unit"))
+
     for el in root.iter():
-        local = _local_name(el.tag)
+        local = _inline_local_name(el)
+        if local is None:
+            continue
         if local == "continuation":
             cid = el.get("id")
             if cid:
                 scan.continuation_count += 1
-                scan.elements_by_id[cid].append((path, "continuation"))
+                scan.elements_by_id[cid].append((path, f"continuation:{cid}"))
+                continued = el.get("continuedAt")
+                if continued:
+                    scan.continuation_continued_at[cid] = continued
+            continue
+        if local == "footnote":
             continued = el.get("continuedAt")
-            if continued and cid:
-                scan.continued_at_edges.append((path, cid, continued))
+            if continued:
+                scan.footnote_continued_at.append(continued)
+            continue
         if local in ("nonNumeric", "nonFraction", "fraction"):
             tid = target_identity_key(target_identity_from_inline_attribute(el.get("target")))
             scan.item_counts_by_target[tid] += 1
             if local == "fraction":
                 scan.fraction_by_target[tid] += 1
+            continued = el.get("continuedAt")
+            if continued:
+                scan.item_continued_at.append((tid, continued))
             cref = el.get("contextRef")
             if cref:
                 scan.context_refs_by_target[tid].add(cref)
@@ -228,7 +288,9 @@ def _scan_inline_member(path: str, root: etree._Element, scan: _MembershipScan) 
 
 
 def _scan_instance_member(path: str, root: etree._Element, scan: _MembershipScan) -> None:
-    if etree.QName(root).namespace != XBRLI_NS or _local_name(root.tag) != "xbrl":
+    qname = etree.QName(root)
+    if qname.namespace != XBRLI_NS or qname.localname != "xbrl":
+        scan.instance_root_invalid = True
         return
     for ctx in root.iter(CONTEXT_LOCAL):
         cid = ctx.get("id")
@@ -242,6 +304,8 @@ def _scan_instance_member(path: str, root: etree._Element, scan: _MembershipScan
             scan.unit_id_locs.setdefault(uid, []).append((path, "unit"))
     tid = target_identity_key(DefaultTarget())
     for el in root.iter():
+        if not isinstance(el.tag, str):
+            continue
         if el.get("contextRef") is not None:
             scan.item_counts_by_target[tid] += 1
             scan.context_refs_by_target[tid].add(el.get("contextRef") or "")
@@ -250,26 +314,112 @@ def _scan_instance_member(path: str, root: etree._Element, scan: _MembershipScan
                 scan.unit_refs_by_target[tid].add(uref)
 
 
-def _check_id_collisions(scan: _MembershipScan) -> str | None:
+def _check_id_collisions(scan: _MembershipScan) -> InventoryFailure | None:
     for cid, locs in scan.context_id_locs.items():
         if len(locs) > 1:
             a, b = locs[0], locs[1]
-            return f"CONTEXT_ID_COLLISION id={cid!r} first={a!r} second={b!r}"
+            return InventoryFailure(
+                report_key="",
+                code="CONTEXT_ID_COLLISION",
+                message=f"context id={cid!r} first={a!r} second={b!r}",
+            )
     for uid, locs in scan.unit_id_locs.items():
         if len(locs) > 1:
             a, b = locs[0], locs[1]
-            return f"UNIT_ID_COLLISION id={uid!r} first={a!r} second={b!r}"
+            return InventoryFailure(
+                report_key="",
+                code="UNIT_ID_COLLISION",
+                message=f"unit id={uid!r} first={a!r} second={b!r}",
+            )
+    return None
+
+
+def _resolve_continuation_node(scan: _MembershipScan, ref: str) -> str | None:
+    nodes = scan.elements_by_id.get(ref, [])
+    if len(nodes) > 1:
+        return "CONTINUATION_AMBIGUOUS"
+    if len(nodes) == 0:
+        return "CONTINUATION_UNRESOLVED"
+    return None
+
+
+def _walk_continuation_chain(
+    scan: _MembershipScan,
+    start_ref: str,
+    *,
+    max_steps: int,
+) -> tuple[str | None, list[str]]:
+    visited: set[str] = set()
+    chain: list[str] = []
+    current: str | None = start_ref
+    steps = 0
+    while current is not None and steps <= max_steps:
+        err = _resolve_continuation_node(scan, current)
+        if err is not None:
+            return err, chain
+        if current in visited:
+            return "CONTINUATION_CYCLE", chain
+        visited.add(current)
+        chain.append(current)
+        current = scan.continuation_continued_at.get(current)
+        steps += 1
+    if steps > max_steps:
+        return "CONTINUATION_CYCLE", chain
+    return None, chain
+
+
+def _check_continuation_for_target(
+    scan: _MembershipScan,
+    sel_key: tuple[str, str],
+) -> InventoryFailure | None:
+    max_steps = max(scan.continuation_count, 1)
+    root_starts: list[tuple[str, tuple[str, str] | None, str]] = []
+    for tid_key, continued in scan.item_continued_at:
+        root_starts.append(("item", tid_key, continued))
+    for continued in scan.footnote_continued_at:
+        root_starts.append(("footnote", None, continued))
+
+    node_to_roots: dict[str, set[int]] = defaultdict(set)
+    for root_index, (_kind, tid_key, start_ref) in enumerate(root_starts):
+        err, chain = _walk_continuation_chain(scan, start_ref, max_steps=max_steps)
+        if tid_key == sel_key and err is not None:
+            return InventoryFailure(
+                report_key="",
+                code=err,
+                message=f"continuation failure from selected target at {start_ref!r}",
+            )
+        for node in chain:
+            node_to_roots[node].add(root_index)
+
+    for node, roots in node_to_roots.items():
+        if len(roots) < 2:
+            continue
+        has_selected_item = any(
+            root_starts[i][0] == "item" and root_starts[i][1] == sel_key for i in roots
+        )
+        if has_selected_item:
+            return InventoryFailure(
+                report_key="",
+                code="CONTINUATION_REUSE",
+                message=f"continuation id {node!r} reused across chains",
+            )
     return None
 
 
 def _inventory_for_selected(
     scan: _MembershipScan,
     selected: TargetIdentity,
-) -> UpstreamInventory | str:
+) -> UpstreamInventory | InventoryFailure:
     sel_key = target_identity_key(selected)
-    err = _check_continuation_for_target(scan, sel_key)
-    if err:
-        return err
+    if scan.fraction_by_target.get(sel_key, 0) > 0 or scan.tuple_by_target.get(sel_key, 0) > 0:
+        return InventoryFailure(
+            report_key="",
+            code="UNSUPPORTED_INLINE_FRACTION_OR_TUPLE",
+            message="selected target has inline fraction or tuple container",
+        )
+    cont_err = _check_continuation_for_target(scan, sel_key)
+    if cont_err is not None:
+        return cont_err
     alt_counts: list[tuple[dict[str, Any], int]] = []
     for key, count in sorted(scan.item_counts_by_target.items()):
         if key == sel_key:
@@ -293,28 +443,12 @@ def _inventory_for_selected(
             for ref in refs
         ),
         alternate_unit_refs=frozenset(
-            ref
-            for key, refs in scan.unit_refs_by_target.items()
-            if key != sel_key
-            for ref in refs
+            ref for key, refs in scan.unit_refs_by_target.items() if key != sel_key for ref in refs
         ),
         fraction_count=scan.fraction_by_target.get(sel_key, 0),
         tuple_container_count=scan.tuple_by_target.get(sel_key, 0),
         continuation_count=scan.continuation_count,
     )
-
-
-def _check_continuation_for_target(scan: _MembershipScan, sel_key: tuple[str, str]) -> str | None:
-    fact_continued: set[str] = set()
-    for _path, _from, to_ref in scan.continued_at_edges:
-        fact_continued.add(to_ref)
-    for ref in fact_continued:
-        nodes = scan.elements_by_id.get(ref, [])
-        if len(nodes) > 1:
-            return f"CONTINUATION_AMBIGUOUS id={ref!r}"
-        if len(nodes) == 0:
-            return f"CONTINUATION_UNRESOLVED id={ref!r}"
-    return None
 
 
 def build_inventory_outcomes(
@@ -332,13 +466,26 @@ def build_inventory_outcomes(
 
     ixds_groups: dict[frozenset[str], list[IxdsReportInput]] = defaultdict(list)
     instance_inputs: list[tuple[str, InstanceReportInput]] = []
+    ixds_failures: list[InventoryFailure] = []
 
     for inp in inputs:
         key = compute_report_key(inp)
         if isinstance(inp, IxdsReportInput):
-            ixds_groups[ixds_membership_key(inp)].append(inp)
+            membership_or_fail = _ixds_membership_for_input(inp, bundle.uri_bindings)
+            if isinstance(membership_or_fail, InventoryFailure):
+                ixds_failures.append(
+                    InventoryFailure(
+                        report_key=key,
+                        code=membership_or_fail.code,
+                        message=membership_or_fail.message,
+                    )
+                )
+            else:
+                ixds_groups[membership_or_fail].append(inp)
         elif isinstance(inp, InstanceReportInput):
             instance_inputs.append((key, inp))
+
+    outcomes.extend(ixds_failures)
 
     for membership, group in ixds_groups.items():
         scan = _MembershipScan()
@@ -358,13 +505,13 @@ def build_inventory_outcomes(
                 )
             continue
         collision = _check_id_collisions(scan)
-        if collision:
+        if collision is not None:
             for inp in group:
                 outcomes.append(
                     InventoryFailure(
                         report_key=compute_report_key(inp),
-                        code="CONTEXT_OR_UNIT_COLLISION",
-                        message=collision,
+                        code=collision.code,
+                        message=collision.message,
                     )
                 )
             continue
@@ -372,12 +519,12 @@ def build_inventory_outcomes(
             key = compute_report_key(inp)
             selected = selected_target_for_report_input(domain_target=inp.target)
             inv_or_err = _inventory_for_selected(scan, selected)
-            if isinstance(inv_or_err, str):
+            if isinstance(inv_or_err, InventoryFailure):
                 outcomes.append(
                     InventoryFailure(
                         report_key=key,
-                        code="CONTINUATION_INVALID",
-                        message=inv_or_err,
+                        code=inv_or_err.code,
+                        message=inv_or_err.message,
                     )
                 )
             else:
@@ -395,18 +542,33 @@ def build_inventory_outcomes(
                 InventoryFailure(report_key=key, code="INVENTORY_SCAN_FAILED", message=str(exc))
             )
             continue
-        collision = _check_id_collisions(scan)
-        if collision:
+        if scan.instance_root_invalid:
             outcomes.append(
                 InventoryFailure(
-                    report_key=key, code="CONTEXT_OR_UNIT_COLLISION", message=collision
+                    report_key=key,
+                    code="INSTANCE_ROOT_INVALID",
+                    message="document root is not xbrli:xbrl",
+                )
+            )
+            continue
+        collision = _check_id_collisions(scan)
+        if collision is not None:
+            outcomes.append(
+                InventoryFailure(
+                    report_key=key,
+                    code=collision.code,
+                    message=collision.message,
                 )
             )
             continue
         inv_or_err = _inventory_for_selected(scan, DefaultTarget())
-        if isinstance(inv_or_err, str):
+        if isinstance(inv_or_err, InventoryFailure):
             outcomes.append(
-                InventoryFailure(report_key=key, code="CONTINUATION_INVALID", message=inv_or_err)
+                InventoryFailure(
+                    report_key=key,
+                    code=inv_or_err.code,
+                    message=inv_or_err.message,
+                )
             )
         else:
             outcomes.append(InventorySuccess(report_key=key, inventory=inv_or_err))

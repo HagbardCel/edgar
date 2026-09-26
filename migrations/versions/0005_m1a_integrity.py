@@ -138,5 +138,5 @@ def downgrade() -> None:
         schema="source",
         type_="check",
     )
-    op.drop_column("upstream_inventory_version", "xbrl_report", schema="source")
-    op.drop_column("upstream_item_fact_count", "xbrl_report", schema="source")
+    op.drop_column("xbrl_report", "upstream_inventory_version", schema="source")
+    op.drop_column("xbrl_report", "upstream_item_fact_count", schema="source")

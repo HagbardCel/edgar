@@ -31,3 +31,13 @@ def test_missing_outcome_key() -> None:
             key_of=lambda o: o[0],
             label="inventory",
         )
+
+
+def test_unknown_outcome_key() -> None:
+    with pytest.raises(ReportSetError, match="unexpected"):
+        validate_outcome_keys(
+            frozenset({"a"}),
+            [("b", 1)],
+            key_of=lambda o: o[0],
+            label="worker",
+        )

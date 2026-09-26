@@ -18,7 +18,7 @@ from edgar.xbrl.upstream_inventory import UpstreamInventory
 class PersistableReport:
     report: ReportExtraction
     extraction_receipt: ExtractionReceipt
-    upstream_inventory: UpstreamInventory | None = None
+    upstream_inventory: UpstreamInventory
 
 
 @dataclass(frozen=True)

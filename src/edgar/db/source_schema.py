@@ -240,7 +240,10 @@ source_concept_label = Table(
     ),
     ForeignKeyConstraint(
         ["report_id", "concept_id"],
-        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        [
+            f"{SOURCE_SCHEMA}.concept_declaration.report_id",
+            f"{SOURCE_SCHEMA}.concept_declaration.concept_id",
+        ],
         name="concept_label_report_concept_declaration_fkey",
         ondelete="NO ACTION",
     ),
@@ -297,7 +300,10 @@ source_concept_reference = Table(
     ),
     ForeignKeyConstraint(
         ["report_id", "concept_id"],
-        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        [
+            f"{SOURCE_SCHEMA}.concept_declaration.report_id",
+            f"{SOURCE_SCHEMA}.concept_declaration.concept_id",
+        ],
         name="concept_reference_report_concept_declaration_fkey",
         ondelete="NO ACTION",
     ),
@@ -549,7 +555,10 @@ source_fact = Table(
     ),
     ForeignKeyConstraint(
         ["report_id", "concept_id"],
-        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        [
+            f"{SOURCE_SCHEMA}.concept_declaration.report_id",
+            f"{SOURCE_SCHEMA}.concept_declaration.concept_id",
+        ],
         name="fact_report_concept_declaration_fkey",
         ondelete="NO ACTION",
     ),
@@ -625,13 +634,19 @@ source_relationship = Table(
     ),
     ForeignKeyConstraint(
         ["report_id", "source_concept_id"],
-        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        [
+            f"{SOURCE_SCHEMA}.concept_declaration.report_id",
+            f"{SOURCE_SCHEMA}.concept_declaration.concept_id",
+        ],
         name="relationship_report_source_concept_declaration_fkey",
         ondelete="NO ACTION",
     ),
     ForeignKeyConstraint(
         ["report_id", "target_concept_id"],
-        [f"{SOURCE_SCHEMA}.concept_declaration.report_id", f"{SOURCE_SCHEMA}.concept_declaration.concept_id"],
+        [
+            f"{SOURCE_SCHEMA}.concept_declaration.report_id",
+            f"{SOURCE_SCHEMA}.concept_declaration.concept_id",
+        ],
         name="relationship_report_target_concept_declaration_fkey",
         ondelete="NO ACTION",
     ),

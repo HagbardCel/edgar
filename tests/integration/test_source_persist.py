@@ -48,6 +48,7 @@ from edgar.xbrl.source_records import (
     UnitMeasureRecord,
     UnitRecord,
 )
+from edgar.xbrl.upstream_inventory import UpstreamInventory
 from tests.helpers.database import reset_test_database, test_database_url, truncate_all_tables
 from tests.helpers.extraction_receipt import wrap_filing_extraction
 from tests.helpers.linkbase_qnames import LABEL_ARC, LABEL_LINK, PRESENTATION_ARC, PRESENTATION_LINK
@@ -392,6 +393,9 @@ def test_persist_rejects_receipt_report_input_mismatch(engine: Engine, tmp_path:
         reports=(
             PersistableReport(
                 report=report,
+                upstream_inventory=UpstreamInventory(
+                    selected_target_item_count=report.arelle_item_fact_count
+                ),
                 extraction_receipt=type(mismatched)(
                     receipt_version=mismatched.receipt_version,
                     bundle_ref=mismatched.bundle_ref,
@@ -486,7 +490,15 @@ def test_persist_rejects_schema_invalid_receipt(
             dependency_lock_sha256=base.dependency_lock_sha256,
         )
     poisoned = PersistableFilingExtraction(
-        reports=(PersistableReport(report=report, extraction_receipt=bad_receipt),),
+        reports=(
+            PersistableReport(
+                report=report,
+                extraction_receipt=bad_receipt,
+                upstream_inventory=UpstreamInventory(
+                    selected_target_item_count=report.arelle_item_fact_count
+                ),
+            ),
+        ),
         document_blocks=extraction.document_blocks,
         filing_sections=extraction.filing_sections,
         issues=extraction.issues,
@@ -900,9 +912,7 @@ def test_persist_provenance_on_relationship_declaration_context_unit(
             select(
                 src.source_concept_declaration.c.source_document_id,
                 src.source_concept_declaration.c.source_locator,
-            ).where(
-                src.source_concept_declaration.c.concept_id == concept_id(_NS, "Revenue")
-            )
+            ).where(src.source_concept_declaration.c.concept_id == concept_id(_NS, "Revenue"))
         ).one()
         ctx = conn.execute(
             select(

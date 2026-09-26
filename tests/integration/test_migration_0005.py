@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+from alembic import command
 from sqlalchemy import Engine, create_engine, text
 
 from tests.helpers.database import (
+    alembic_config,
     reset_test_database,
     test_database_url,
 )
@@ -57,3 +59,22 @@ def test_composite_fk_present(engine: Engine) -> None:
             )
         ).scalar_one_or_none()
     assert row is not None
+
+
+def test_downgrade_removes_0005_objects(engine: Engine) -> None:
+    url = test_database_url()
+    cfg = alembic_config(url)
+    command.downgrade(cfg, "0004_m1a_network_identity")
+    assert not _column_exists(engine, "upstream_item_fact_count")
+    with engine.connect() as conn:
+        fk = conn.execute(
+            text(
+                """
+                SELECT 1 FROM pg_constraint c
+                JOIN pg_namespace n ON n.oid = c.connamespace
+                WHERE n.nspname = 'source' AND c.conname = 'fact_report_context_fkey'
+                """
+            )
+        ).scalar_one_or_none()
+    assert fk is None
+    command.upgrade(cfg, "head")

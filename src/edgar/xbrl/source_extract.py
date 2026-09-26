@@ -179,9 +179,7 @@ def extract_filing_with_outcomes(
             python_executable=python_executable,
             timeout_seconds=timeout_seconds,
         )
-        report_outcomes.append(
-            _finalize_report_outcome(result.report, result, inv_by_key[key])
-        )
+        report_outcomes.append(_finalize_report_outcome(result.report, result, inv_by_key[key]))
 
     validate_outcome_keys(
         expected,
