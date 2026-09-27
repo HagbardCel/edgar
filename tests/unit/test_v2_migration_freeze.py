@@ -9,6 +9,7 @@ _REVISION_0001 = _VERSIONS / "0001_source_v2.py"
 _REVISION_0002 = _VERSIONS / "0002_registry.py"
 _REVISION_0003 = _VERSIONS / "0003_m1a_extraction_receipt.py"
 _REVISION_0004 = _VERSIONS / "0004_m1a_network_identity.py"
+_REVISION_0005 = _VERSIONS / "0005_m1a_integrity.py"
 
 
 def test_0001_source_v2_does_not_import_live_metadata() -> None:
@@ -48,3 +49,12 @@ def test_0004_m1a_network_identity_does_not_import_live_metadata() -> None:
     assert "ck_source_concept_reference_link_arc_qname" in text
     assert "op.drop_constraint(" in text
     assert "op.drop_column(" in text
+
+
+def test_0005_m1a_integrity_does_not_import_live_metadata() -> None:
+    text = _REVISION_0005.read_text(encoding="utf-8")
+    assert "edgar.db.source_schema" not in text
+    assert "SOURCE_TABLES" not in text
+    assert 'down_revision: str | Sequence[str] | None = "0004_m1a_network_identity"' in text
+    assert "upstream_item_fact_count" in text
+    assert "op.drop_constraint(" in text

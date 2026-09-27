@@ -17,6 +17,7 @@ from edgar.xbrl.source_records import (
     FilingExtraction,
     ReportExtraction,
 )
+from edgar.xbrl.upstream_inventory import UpstreamInventory
 from edgar.xbrl.worker import WORKER_PROTOCOL_VERSION
 
 
@@ -67,6 +68,9 @@ def wrap_filing_extraction(
             PersistableReport(
                 report=report,
                 extraction_receipt=minimal_test_receipt(report, bundle=bundle),
+                upstream_inventory=UpstreamInventory(
+                    selected_target_item_count=report.arelle_item_fact_count
+                ),
             )
             for report in extraction.reports
         ),

@@ -129,6 +129,15 @@ def _seed_pre_0004_rows(engine: Engine) -> None:
         conn.execute(
             text(
                 """
+                INSERT INTO source.concept_declaration (report_id, concept_id, period_type)
+                VALUES (:report_id, :cid, 'instant')
+                """
+            ),
+            {"report_id": report_id, "cid": cid},
+        )
+        conn.execute(
+            text(
+                """
                 INSERT INTO source.relationship (
                   report_id, source_order, network_type, link_role_uri, arcrole_uri,
                   source_concept_id, target_concept_id

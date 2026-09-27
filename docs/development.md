@@ -16,7 +16,7 @@ Configure `.env` with `EDGAR_DATA_ROOT`, `EDGAR_DATABASE_URL`, and (for tests)
 
 ## Migrations
 
-Head revision is `0004_m1a_network_identity` (after `0003_m1a_extraction_receipt`):
+Head revision is `0005_m1a_integrity` (after `0004_m1a_network_identity`):
 schema `source` plus schema `registry` (`canonical_metric`, `mapping_assertion`).
 Live Core metadata is `src/edgar/db/source_schema.py` and
 `src/edgar/db/registry_schema.py`.
@@ -56,5 +56,10 @@ poison `upgrade head`.
 - No dual-write to Phase-1 projection tables.
 - No `scripts/spikes/` imports from production `src/`.
 - Offline extract uses the isolated Arelle worker (`operation=extract`) and a
-  native lossless `ReportExtraction` wire (`extraction_payload`).
+  native lossless `ReportExtraction` wire (`extraction_payload`). M1A-3 runs
+  parent-side upstream inventory before the worker, reconciles raw vs worker fact
+  counts, validates `integrity.py`, then persists with required upstream evidence
+  (`upstream_inventory` on the persist path). SQL NULL/NULL upstream columns are
+  legacy rows only; new writes pair `upstream_item_fact_count` with
+  `arelle_item_fact_count`.
 - Fatality is fail-closed; persist refuses `severity="fatal"` issues.

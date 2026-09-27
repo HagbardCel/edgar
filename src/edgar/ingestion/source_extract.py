@@ -188,7 +188,7 @@ class SourceExtractService:
                 PersistableReport(
                     report=report,
                     extraction_receipt=receipt,
-                    upstream_inventory=None,
+                    upstream_inventory=report_outcome.upstream_inventory,
                 )
             )
         persistable = PersistableFilingExtraction(
@@ -214,6 +214,9 @@ class SourceExtractService:
             )
             for report in extraction.reports
         )
+        inv_by_key = {
+            ro.report.report_key: ro.upstream_inventory for ro in filing_outcome.report_outcomes
+        }
         for probe in report_probes:
             if probe.arelle_item_fact_count != probe.fact_dto_count:
                 raise SourceExtractError(
@@ -221,6 +224,14 @@ class SourceExtractService:
                     f"report_key={probe.report_key} "
                     f"arelle_item_fact_count={probe.arelle_item_fact_count} "
                     f"fact_dto_count={probe.fact_dto_count}"
+                )
+            upstream = inv_by_key[probe.report_key]
+            if upstream.selected_target_item_count != probe.arelle_item_fact_count:
+                raise SourceExtractError(
+                    "upstream vs worker completeness failed before persist: "
+                    f"report_key={probe.report_key} "
+                    f"selected_target_item_count={upstream.selected_target_item_count} "
+                    f"arelle_item_fact_count={probe.arelle_item_fact_count}"
                 )
 
         try:

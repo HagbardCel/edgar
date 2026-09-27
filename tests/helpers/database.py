@@ -47,6 +47,13 @@ def reset_test_database(engine: Engine, *, database_url: str | None = None) -> N
     Phase-1 DBs stamped with the deleted 0001–0004 lineage cannot upgrade to
     ``0001_source_v2``. Integration fixtures must recreate via this helper.
     """
+    actual = make_url(str(engine.url))
+    if actual.database != "edgar_test":
+        raise RuntimeError("refusing reset_test_database: engine not connected to edgar_test")
+    if database_url is not None:
+        alembic_db = make_url(database_url).database
+        if alembic_db != "edgar_test":
+            raise RuntimeError("refusing reset_test_database: database_url not edgar_test")
     url = database_url or str(engine.url)
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA IF EXISTS source CASCADE"))

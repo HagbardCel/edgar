@@ -26,6 +26,7 @@ from edgar.storage.objects import ObjectStore
 from edgar.xbrl.records import ExpandedQName
 from edgar.xbrl.source_records import (
     EXTRACTOR_VERSION,
+    ConceptDeclarationRecord,
     ConceptRecord,
     ContextDimensionRecord,
     ContextRecord,
@@ -354,6 +355,13 @@ def _report(
         ConceptRecord(namespace_uri=DIM_NS, local_name="BusinessSegment"),
         ConceptRecord(namespace_uri=DIM_NS, local_name="NorthAmerica"),
     ]
+    declarations = tuple(
+        ConceptDeclarationRecord(
+            concept=_qname(c.local_name, c.namespace_uri),
+            period_type="duration",
+        )
+        for c in concepts
+    )
     return ReportExtraction(
         report_input={"kind": "instance", "document_uris": [f"https://example.com/{paths[0]}"]},
         report_key=compute_report_key(
@@ -363,6 +371,7 @@ def _report(
         arelle_version="2.43.1",
         arelle_item_fact_count=len(facts),
         concepts=tuple(concepts),
+        declarations=declarations,
         contexts=tuple(contexts),
         dimensions=tuple(dimensions),
         units=(

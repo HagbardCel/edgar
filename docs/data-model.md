@@ -74,6 +74,9 @@ upserted during extraction and never garbage-collected by extract replace.
 source.xbrl_report
   filing_id + report_key   # unique
   entrypoint / binding provenance, arelle_version, extracted_at, …
+  arelle_item_fact_count, upstream_item_fact_count, upstream_inventory_version
+  # M1A-3: upstream_* paired NULL on legacy rows; else upstream-v1 and
+  # upstream_item_fact_count = arelle_item_fact_count (CHECK)
 
 source.concept_declaration   # report-scoped declaration of a concept
   source_document_id, source_locator   # optional paired provenance
@@ -102,6 +105,8 @@ source.extraction_issue      # filing- and/or report-scoped diagnostics
 Grain notes:
 
 - Facts, relationships, labels, and references are unique on `(report_id, source_order)`.
+- `source.context` and `source.unit` are unique on `(report_id, id)` for same-report
+  composite foreign keys (`ON DELETE NO ACTION`) from facts and linkbase rows.
 - Label/reference `link_role_uri`, `arcrole_uri`, and `resource_role_uri` are
   distinct; they are never collapsed. Supported associations also persist Clark
   `link_qname` and `arc_qname` (same both-NULL-or-both-non-empty CHECK names
