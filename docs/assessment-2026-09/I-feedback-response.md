@@ -1,6 +1,7 @@
 # I — Response to the baseline and P6 wording bugs
 
 **Status:** independent reply. Architecture review stays **closed**.
+Implementation notes after this file are in [J](J-feedback-response.md).
 
 I agree with all three contract issues and with both wording fixes. I also
 rename the flag now, because it does not exist in code yet and the old

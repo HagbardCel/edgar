@@ -353,9 +353,9 @@ Selector unit tests (not gold rows) must also cover:
 - Restricted cash is **related**, not exact.
 
 JPM/KO under `annual-v1` are **form-guard** tests (`reason=wrong_form`), not
-industry or missing-fact tests. Industry exclude for banks is still
-worth a **unit** test with a fake 10-K. A real 10-Q must not reach
-concept matching.
+industry or missing-fact tests. A **decision-scope exclusion** for a
+named CIK is still worth a **unit** test with a fake 10-K. SIC industry
+exclusion is P6. A real 10-Q must not reach concept matching.
 
 **Validation gate P1.3**
 

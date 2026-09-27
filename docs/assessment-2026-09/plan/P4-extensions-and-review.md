@@ -260,7 +260,7 @@ tier3_candidate_precision =
   reviewed Tier-3 candidates
 ```
 
-Precision CI is **two numbers**, not one:
+Gold CI has **two views**, not two precision numbers:
 
 ```text
 registry/gold/cohorts/<id>.yml     # slot ids; append-only new files
@@ -290,9 +290,16 @@ files. Duplicate ids fail `edgar rules check`.
 edgar build --check-gold --require-no-gold-regressions --baseline-ref <base-sha>
 ```
 
-CI sets `<base-sha>` to the pull-request base commit. Locally, pass that
-same ref. Do **not** pass `HEAD`: on a PR branch `HEAD` already contains
-the new gold.
+CI sets `<base-sha>` to the pull-request base commit and **fetches that
+commit** before the check. A shallow checkout does not contain it, so
+`git show <base-sha>:registry/gold/...` fails until the workflow fetches
+the base. Locally, pass that same ref. Do **not** pass `HEAD`: on a PR
+branch `HEAD` already contains the new gold.
+
+A historical gold label that is itself wrong is corrected in its **own**
+PR: verify the label, change the assertion, merge. The next PR is judged
+against that corrected baseline and may change the selector. An ordinary
+code PR must not rewrite the assertions it is scored against.
 
 `--require-no-gold-regressions` checks historical assertions. It does
 **not** apply a numeric publication floor. That threshold, if any, is set

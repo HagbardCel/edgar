@@ -162,8 +162,11 @@ the regression commit.
 
 Pins ([I](I-feedback-response.md)): `--baseline-ref` is the PR base, and
 both cohort membership and gold assertions are read from that ref; P6
-does not invent an `unsupported` decision. **Architecture review stays
-closed.**
+does not invent an `unsupported` decision.
+
+Notes ([J](J-feedback-response.md)): correct a bad gold label in its own
+PR; CI must fetch `<base-sha>`. **Architecture review stays closed.**
+Next work is P0, then P1, then the P2 spike.
 
 ## What to keep from already-merged M1A work
 

@@ -77,10 +77,11 @@ contracts, `AGENTS.md` phase gates or ADR 0010–0013. Adopting any recommendati
 | [G Contract bugs](G-feedback-response.md) | Issuer expansion, slot eligibility, gold union; architecture stays closed |
 | [H Contract cleanup](H-feedback-response.md) | Stale rejection, `broader_only`, multi-decision scope; architecture stays closed |
 | [I Baseline pins](I-feedback-response.md) | Baseline assertions, no `unsupported` decision; architecture stays closed |
+| [J Implementation notes](J-feedback-response.md) | Gold-label corrections and baseline fetch; architecture stays closed |
 
 Read 01 → 02 → 05 → 04 → 08 for the argument; 03, 06, 07 and A are reference
 material. Implement from [plan/](plan/README.md). Revisions after critique:
-[B](B-feedback-response.md) through [I](I-feedback-response.md).
+[B](B-feedback-response.md) through [J](J-feedback-response.md).
 
 ## Key measurements (2026-09-27, local corpus of six filings)
 
