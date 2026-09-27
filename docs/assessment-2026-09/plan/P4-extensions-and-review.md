@@ -10,8 +10,8 @@ The residual after Stage-1 rules is **visible, ranked, and reducible**
 without per-filing human qualification.
 
 - Tier 2: issuer extension family reuse, guarded by value continuity.
-- Tier 3: structural proofs (value equality or verified calculation
-  position), auto-accepted only under a reviewed policy.
+- Tier 3: structural *candidates* (value equality or verified calculation
+  position) that rank the queue and never auto-accept.
 - Tier 4: humans write issuer rules in Git. Optional LLM proposals never
   accept.
 - `edgar review list|show` prints the queue. Precision per tier is measured
@@ -103,39 +103,41 @@ uv run pytest -q tests/unit/test_tier2_continuity.py
 
 ---
 
-### P4.3 — Tier 3 structural proofs
+### P4.3 — Tier 3 structural *candidates* (no auto-accept)
 
-Implement two proof types only. Do not add a rule engine.
+Implement two proof types only. Do not add a rule engine. **Neither
+proof accepts a mapping.** They attach evidence to a queue item.
 
 1. **Value equality.** Extension fact numeric equals a standard-concept
    fact for the same context and unit. Proof record: both fact ids and the
-   `Decimal`.
+   `Decimal`. Counterexample you must test: two different concepts both
+   `0` — proof may fire as *evidence*, still not exact.
 2. **Verified calculation parent.** Extension is the calc parent of the
    same children (by local name or by already-mapped concepts) as a
    standard total, **and** the weighted sum of child facts equals the
    parent fact (do not trust the linkbase without arithmetic).
 
-Policy flag `registry/rules/policies.yml`:
+Policy flag `registry/decisions/_policies.yml` (or equivalent):
 
 ```yaml
-tier3_value_equality: enable
-tier3_calc_parent: enable
+tier3_value_equality: rank   # rank | off   — never "accept"
+tier3_calc_parent: rank
 ```
 
-Either flag can be turned off without a code change. Auto-accepted Tier 3
-exact rules are **written back as generated YAML** under
-`registry/rules/generated/` **or** recorded only on the observation
-(`method: structural-proof`, `proof: {...}`) without a Git rule. Prefer
-observation-only in P4 so generated files do not churn. If you write Git
-files, they must be a separate commit the reviewer can revert.
+A human (P4.4 / P4.5) writes an accepted decision if they agree. Do not
+write `registry/decisions/generated/` from these proofs.
+
+Auto-acceptance of a *narrow* proof class needs a later ADR and a gold
+set showing effectively perfect precision. Out of scope for P4.
 
 **Validation gate P4.3**
 
 ```bash
 uv run pytest -q tests/unit/test_tier3_proofs.py
-# equality proof accepts; mismatched values do not
+# equality attaches evidence; does not create status=accepted
+# two zeros of different concepts: no exact decision written
 # calc proof fails when weights do not reconstruct the parent
-# policy off → no auto-accept
+# policy off → no proof attached
 ```
 
 ---
@@ -217,7 +219,7 @@ LLM_ENABLED=false uv run pytest -q
 |---|---|
 | Queue non-empty on the spike and ranked | yes |
 | Tier 2 unit tests green | yes |
-| Tier 3 policy can be disabled | yes |
+| Tier 3 never writes `status: accepted` | yes |
 | Narrower never publishes as exact | yes |
 | Gold precision by tier reported | yes |
 | P1 15/15 still pass | yes |

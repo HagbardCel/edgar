@@ -69,9 +69,11 @@ contracts, `AGENTS.md` phase gates or ADR 0010–0013. Adopting any recommendati
 | [08 Migration plan assessment](08-migration-plan-assessment.md) | What to keep, cut or move in M1A–M5; revised sequence |
 | [Implementation sequence](plan/README.md) | Junior-implementable steps P0–P6, one file each, with validation gates |
 | [A Evidence and method](A-evidence-and-method.md) | Commands run, raw measurements, experiment scripts |
+| [B Feedback response](B-feedback-response.md) | Independent reply to a hybrid-architecture critique; records what changed |
 
 Read 01 → 02 → 05 → 04 → 08 for the argument; 03, 06, 07 and A are reference
-material. Implement from [plan/](plan/README.md).
+material. Implement from [plan/](plan/README.md). Revisions after critique:
+[B](B-feedback-response.md).
 
 ## Key measurements (2026-09-27, local corpus of six filings)
 

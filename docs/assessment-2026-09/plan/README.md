@@ -94,7 +94,8 @@ These are not optional. They come from [01](../01-goals-and-principles.md) and
   from `src/`.
 - Tests: unit tests have no database and no network. Integration tests use
   `edgar_test` and the marker `database`.
-- Knowledge (contracts, rules, gold) lives in Git under `registry/`.
+- Knowledge (contracts, **decision records**, gold) lives in Git under
+  `registry/`. Rejected decisions stay; the runtime applies accepted ones.
 - Derived output (observations, findings) is rebuildable. Do not add Alembic
   tables for it in P1–P2.
 - When counts change (declarations, issues), the PR must say *why* and show

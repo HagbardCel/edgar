@@ -122,6 +122,11 @@ This reaches a measured, market-sample annual dataset in about **5–6 weeks** (
 consolidated system with extensions and time views in roughly **3–4 months**. The adopted plan
 reaches nine slots on six filings at M3, after M1A and M2.
 
+Revisions after the hybrid-architecture critique ([B](B-feedback-response.md)): Git holds
+**decision records** (not only active rules); Tier 3 does not auto-accept; `annual-v1` is
+10-K/10-K/A only; P5 slot identity is the period, not the supplying filing's DEI focus;
+accession change is not a restatement; P0.3 keep-set includes label/reference subjects.
+
 ## What to keep from already-merged M1A work
 
 - **Link/arc QNames (M1A-2):** keep as is.

@@ -83,7 +83,7 @@ around.
 | **S1** Per-report human review + occurrence qualification (adopted plan) | High on reviewed cases | Very low; bounded by reviewer hours | High | Very high, O(filings × metrics) | None | No | Human attestation, unmeasured |
 | **S2** Global rules on standard concepts + deterministic selector | High; residual is filer mis-tagging | High for standard-tagged metrics; zero for extension-only | Very high (one rule, one definition) | Very low (hundreds of rule decisions, once) | Taxonomy only | Full | Validators, oracle agreement, gold precision |
 | **S3** Issuer extension rules by review, reused via continuity | High | Targeted | High | Moderate, O(distinct extension patterns); amortized | None | Reuse is automatic, guarded by value continuity | Review + continuity checks |
-| **S4** Structural proof for extensions (calc position, value equality, statement role) | Medium–high when proof conditions are strict | Moderate | High (the proof is recorded) | Low (code + one policy review) | None | Yes, under reviewed policies | Per-policy precision on gold |
+| **S4** Structural proof for extensions (calc position, value equality, statement role) | Medium–high when proof conditions are strict; zeros collide | Moderate | High (the proof is recorded) | Low (code + one policy review) | None | Candidate ranking only; not auto-accept | Per-policy precision on gold before any later ADR |
 | **S5** Third-party mapping tables | Unknown, varies | Broad | Low–medium | Low | Maintainer, license | Proposals only | Must be measured against gold |
 | **S6** Label or embedding similarity | Low–medium (labels do not prove equivalence) | Broad | Low | Low | Embedding model | Candidate retrieval only | Not a basis for acceptance |
 | **S7** Supervised classifier | Possibly good | Broad | Low | Labeled data + upkeep | Training data | Premature | Held-out precision |
@@ -102,16 +102,18 @@ Notes on the less obvious rows:
     industry, not by per-report review.
   - Taxonomy deprecations. The taxonomy table lists concepts per release, so a deprecated concept
     simply stops matching new filings. Its replacement gets a rule.
-- **S4 needs strict proofs.** Examples:
-  - An extension's value equals a standard-concept fact for the same context.
+- **S4 is evidence, not acceptance.** Examples:
+  - An extension's value equals a standard-concept fact for the same context (zeros collide).
   - An extension is the calculation parent of the same children as a standard total, and the
     arithmetic verifies.
 
   Calculation linkbases contain filer errors, so proofs that rely on them must also verify the
-  arithmetic on the facts.
+  arithmetic on the facts. These proofs rank the review queue. They do not write `status:
+  accepted`.
 - **S8 must not decide.** It reads the evidence packet (definition, statement position, calc
   neighbours, values, prior mapping) and proposes `(metric, relation, rationale)`. Acceptance comes
-  from a deterministic S4 proof or a human. This is consistent with `AGENTS.md`.
+  from a human. A later ADR may allow a narrow S4 proof class only after gold precision is
+  effectively perfect. This is consistent with `AGENTS.md`.
 - **S9 adds nothing** that one structured LLM call plus deterministic tools does not. A
   general-purpose coding agent is useful for *investigating* the review queue through the CLI and
   SQL. Nothing in the pipeline should depend on an agent framework.
@@ -128,14 +130,14 @@ flowchart TB
   T1 -- no --> T2{Issuer rule for this<br/>extension family, values<br/>continuous?}
   T2 -- yes --> A2[Tier 2: continuity]
   T2 -- no --> T3{Structural proof<br/>value equality / verified<br/>calc position?}
-  T3 -- yes --> A3[Tier 3: structural proof]
+  T3 -- yes --> Q3[Tier 3: proof on queue<br/>not accepted]
   T3 -- no --> P{On a primary statement<br/>near a missing metric?}
   P -- yes --> Q[Review queue<br/>evidence packet,<br/>optional LLM proposal]
   P -- no --> N[Ignored: not a candidate]
-  Q -- human rule PR --> A4[Tier 4: reviewed issuer rule]
+  Q3 --> Q
+  Q -- human decision PR --> A4[Tier 4: reviewed issuer decision]
   A1 --> S[Selector]
   A2 --> S
-  A3 --> S
   A4 --> S
   S --> O[Observation or typed<br/>non-publication reason]
 ```
@@ -151,23 +153,28 @@ flowchart TB
 - Expected effort is a few days of rule authoring, because the rules are decided once per concept
   family.
 
-**Stage 2: extensions by continuity and proof.** Rank the residual:
+**Stage 2: extensions by continuity and candidates.** Rank the residual:
 
 1. Issuer-years where a headline metric is `missing` but the matching primary statement contains an
    unmapped line item.
-2. Apply Tier 2 continuity and Tier 3 proofs.
-3. Generate an evidence packet for the rest: definition, labels, statement and line position, calc
-   parent and children, values, prior-year mapping, and the identity residual it would close.
+2. Apply Tier 2 continuity (reuse of an already-accepted issuer decision, guarded by value and
+   label continuity).
+3. Attach Tier 3 *proofs as evidence on queue items* (value equality, verified calc parent). These
+   do **not** auto-accept. Equal numbers are not semantic identity (two zeros are not the same
+   concept).
+4. Generate an evidence packet for the rest: definition, labels, statement and line position, calc
+   parent and children, values, prior-year mapping, prior **rejected** decisions, and the identity
+   residual it would close.
 
-Humans resolve queue items by writing issuer rules, which are then reused automatically.
+Humans resolve queue items by writing decision records, which are then reused automatically when
+status is `accepted`.
 
 **Stage 3: LLM proposals for the queue.** Use a versioned prompt with a schema-validated output, and
 record the model, input hash and parameters, as `AGENTS.md` requires.
 
-Proposals only reorder or pre-fill review. A proposal becomes a rule when either:
-
-- a Tier 3 proof confirms it; or
-- a human accepts it.
+Proposals only reorder or pre-fill review. A proposal becomes a decision when a human accepts it
+(or, later, if a narrowly defined proof class has measured effectively-perfect gold precision —
+not in the initial sequence).
 
 Measure the proposal precision per model and prompt version. Stop using the step if it does not
 save review time.
@@ -183,49 +190,62 @@ save review time.
 
 | Tier | Basis | Accepted by | Typical share (hypothesis, to be measured) |
 |---|---|---|---|
-| 1 Standard rule | FASB definition + reviewed global rule | Policy, automatically | Most headline observations |
-| 2 Continuity | Reviewed issuer rule, same extension family, comparative values agree | Policy, automatically | Recurring extensions |
-| 3 Structural proof | Value equality or verified calculation position | Reviewed policy, automatically; precision monitored | Some new extensions |
-| 4 Reviewed | Human-reviewed issuer rule (possibly LLM-proposed) | Human | Residual |
+| 1 Standard decision | FASB definition + reviewed family decision, expanded to exact QNames | Policy, automatically | Most headline observations |
+| 2 Continuity | Reviewed issuer decision, same extension local name, values and labels continuous | Policy, automatically | Recurring extensions |
+| 3 Structural candidate | Value equality or verified calculation position | **Queue only.** Never publishes as exact until a human accepts, or a later ADR authorizes a proof class with measured ~perfect gold precision | Some new extensions |
+| 4 Reviewed | Human-reviewed issuer decision (possibly LLM-proposed) | Human | Residual |
 | — Unresolved | — | Not published; queued | — |
+| — Rejected | Prior decision `status: rejected` | Not published; queue suppresses unless new evidence | — |
 
 Every observation records its tier and rule ids. Datasets can filter by tier; for example, a
 conservative study uses Tiers 1–2 only.
 
 ## 6. Observation selection (deterministic, standards-based)
 
-The `annual-v1` selector works per 10-K or 10-K/A:
+The `annual-v1` selector runs only on forms `10-K` and `10-K/A`. A 10-Q is out of
+scope for this policy (P5). If invoked on a 10-Q it returns `unsupported` /
+`wrong_form`, never an annual value.
 
-1. **Report period.** Take the EDGAR required context: the undimensioned context of the DEI cover
-   facts, such as `DocumentPeriodEndDate`. Duration metrics use its start and end; instant metrics
-   use its end. Fiscal year and period come from `DocumentFiscalYearFocus` and
-   `DocumentFiscalPeriodFocus`.
-2. **Candidates.** A candidate fact must satisfy all of the following:
-   - its concept has an applicable exact rule (Tiers 1–4, conditions satisfied);
+1. **Filing's own report period.** Take the EDGAR required context: the undimensioned context of
+   the DEI cover facts, such as `DocumentPeriodEndDate`. Duration metrics use its start and end;
+   instant metrics use its end. `DocumentFiscalYearFocus` and `DocumentFiscalPeriodFocus` classify
+   **this filing's own** period. They are not the identity of comparative facts in the same
+   instance.
+2. **Slot identity** is `(cik, metric, period_start|instant, period_end, unit, scope)`. Fiscal year
+   and period are derived from those dates against the issuer calendar. A FY2022 comparative
+   inside a FY2023 10-K belongs to the 2022 slot.
+3. **Candidates.** A candidate fact must satisfy all of the following:
+   - its exact QName is in the expansion of an applicable exact decision (Tiers 1–2 or 4;
+     conditions satisfied);
    - its entity is the registrant;
    - it has no dimensions. Arelle is not allowed to invent defaults; undimensioned means the
      default (consolidated) member.
    - its unit matches the contract's unit dimension;
-   - its period matches as in step 1;
+   - its period matches the *requested slot period* (the filing's required context for as-filed
+     current-period requests; explicit start/end for comparatives);
    - it is valid and non-nil.
-3. **Duplicates.**
+4. **Duplicates.**
    - Identical values collapse to one.
    - Values consistent under decimal rounding collapse to the most precise.
    - Otherwise the result is `conflict`.
-4. **Several exact concepts** with the same value give one observation with several supports. With
+5. **Several exact concepts** with the same value give one observation with several supports. With
    different values the result is `conflict`. There is never silent precedence.
-5. **Non-publication reasons.**
+6. **Non-publication reasons.**
    - `missing`: no candidate.
    - `unmapped_candidate`: a primary-statement line item in the matching context has no rule.
-   - `unsupported`: the contract is excluded for this industry.
+   - `unsupported`: the contract is excluded for this industry or the form is out of policy.
    - `broader_only`: only broader concepts are present.
-6. **Views.**
-   - `as-filed`: the filing's own period.
-   - `first-reported`: the earliest acceptance that reports the slot.
-   - `latest-as-of(T)`: the latest acceptance ≤ T, including comparatives in later filings. It is
-     flagged when it differs from as-filed.
+7. **Views.**
+   - `as-filed`: the filing's own period (required context).
+   - `first-reported`: earliest `available_at` that reports the slot.
+   - `latest-as-of(T)`: latest `available_at` ≤ T, including comparatives in later filings.
 
-   `available_at` is the SEC acceptance timestamp of the supplying filing.
+   `available_at` is the SEC acceptance timestamp of the **supplying** filing.
+
+   A later accession with the same value is `reported_again`, not a restatement. Set
+   `value_changed` when decimals-consistent comparison fails;
+   `restatement_candidate` only then. Never set restatement merely because
+   `supplying_accession` ≠ the original 10-K.
 
 Amendments need no special machinery. A 10-K/A with full statements competes like any filing. One
 without statements, such as the eBay 10-K/A with 37 cover facts, contributes no candidates.

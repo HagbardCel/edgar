@@ -167,24 +167,36 @@ remaining extract time, and ~47% of database bytes.
 
 1. The concept appears on a fact in this report.
 2. The concept is a source or target of a persisted relationship.
-3. The concept's namespace is **not** a standard family:
+3. The concept is the subject of a **label or reference we still persist**.
+4. The concept's namespace is **not** a standard family:
    - `http://fasb.org/us-gaap/`
    - `http://fasb.org/srt/`
    - `http://xbrl.sec.gov/dei/`
 
    (issuer extensions are kept even if unused by facts.)
 
-Build the keep-set **after** facts and relationships are collected, then
-filter the declaration tuple. Do not change fact, context, unit, or
-relationship extraction.
+Build the keep-set **after** facts, relationships, labels, and references
+are collected. Then:
+
+- filter declarations to the keep-set;
+- filter **labels and references** for standard-taxonomy concepts to the
+  same keep-set (do not persist 17k unused US-GAAP labels).
+
+If you persist a label/reference, its concept **must** remain in the
+declaration keep-set (foreign-key / provenance). Do not drop the resource
+and keep an orphan, or keep the resource and drop the declaration.
+
+Do not change fact, context, unit, or relationship extraction.
 
 **Bump** `EXTRACTOR_VERSION` from `source-extract-v5` to `source-extract-v6`.
 Any output-shape change requires this (standing rule 9).
 
 **Expected count change.** Declarations per full 10-K should drop from ~18.5k
-to roughly the size of (used concepts ∪ relationship endpoints ∪ extensions),
-typically low thousands. Facts and relationships must match the previous
-extract exactly (same counts, same source locators, same values).
+to roughly the size of (fact concepts ∪ relationship endpoints ∪ persisted
+label/reference subjects ∪ extensions), typically low thousands. Facts and
+relationships must match the previous extract exactly (same counts, same
+source locators, same values). Label/reference counts for unused standard
+concepts should fall in line with declarations.
 
 **Tests**
 

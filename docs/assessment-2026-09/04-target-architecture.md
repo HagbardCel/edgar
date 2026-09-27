@@ -8,7 +8,7 @@ exactly one owner:
 | Truth | Owner | Mutability |
 |---|---|---|
 | What was filed and published by SEC and standard setters | Object store: raw filing bytes, SEC-generated companions, official taxonomy packages | Immutable, content-addressed |
-| What we decided it means | Git: metric contracts, mapping rules, selection policies, gold values | Versioned by commit, changed through reviewed PRs |
+| What we decided it means | Git: metric contracts, semantic decision records, gold values | Versioned by commit, changed through reviewed PRs |
 | What follows from the two | Derived columnar datasets, each stamped with producer version and inputs | Disposable; rebuilt, never migrated |
 
 Everything else is implementation.
@@ -25,8 +25,8 @@ product.
 | **Taxonomy** | Pin official taxonomy packages (US-GAAP, SRT, DEI, …); parse each release once into concepts, labels incl. documentation, references and standard networks | Packages → `taxonomy/{release}/*.parquet` | Packages durable; tables derived |
 | **Extract** | Offline Arelle worker (packages + filing files, network guard). Produces per-report facts, contexts, dimensions, units, filer declarations, filer networks, roles, SEC statement classification, issues | Filing manifest → `extract/{version}/…/*.parquet` | Derived |
 | **Documents** | HTML blocks and regulatory sections (current parser) | Filing manifest → `documents/{version}/…` | Derived |
-| **Knowledge** | Metric contracts, standard and issuer mapping rules, industry conditions, gold values | Git `registry/` → validated in CI | Durable (Git) |
-| **Resolve** | Apply rules to facts: every fact gets zero or more `(metric, relation, rule_id)` supports | facts + taxonomy + rules → `supports` | Derived |
+| **Knowledge** | Metric contracts; semantic **decision records** (accepted, rejected, non-exact); gold values | Git `registry/` → validated in CI | Durable (Git) |
+| **Resolve** | Expand accepted decisions to exact QNames; every fact gets zero or more `(metric, relation, decision_id)` supports | facts + taxonomy + decisions → `supports` | Derived |
 | **Select** | Per issuer × metric × fiscal period × view, choose supporting facts or a typed non-publication reason | supports + contexts + policy → `observations` | Derived |
 | **Validate** | Accounting identities, calculation consistency, SEC `companyfacts` agreement, gold values, cross-filing stability | observations + facts + oracles → `findings`, quality report | Derived |
 | **Review** | Rank exceptions; optionally attach LLM proposals; humans resolve them by editing rules in Git | findings + unmapped candidates → queue; decisions → PR | Queue derived; decisions in Git |
@@ -42,7 +42,7 @@ flowchart LR
   LLM[Optional LLM<br/>proposals]
   subgraph Durable["Durable (owned)"]
     OBJ[(Object store<br/>raw bytes, sha256)]
-    GIT[(Git registry<br/>contracts, rules,<br/>gold values)]
+    GIT[(Git registry<br/>contracts, decisions,<br/>gold values)]
     PUB[(Published<br/>snapshots)]
   end
   subgraph Derived["Derived, rebuildable (DuckDB / Parquet)"]
@@ -161,33 +161,65 @@ The existing `filings` and `documents sections` commands keep their behavior. Th
 
 ### Knowledge files (Git)
 
-```yaml
-# registry/rules/standard.yml — global rules on standard concepts
-- id: total_assets.us-gaap.Assets
-  metric: total_assets
-  concept: us-gaap:Assets            # namespace family; all releases where the concept exists
-  relation: exact
-  contract_hash: "<sha256 of contract>"   # CI fails if the contract changed since review
-  basis: "FASB documentation: carrying amount of all recognized assets"
-  reviewed: {by: "<reviewer>", on: "<date>"}
+Authored form is a **decision record**, not a bare runtime rule. `resolve`
+loads accepted decisions and expands them to exact QNames. Rejected
+decisions are not applied; the review queue reads them so the same question
+is not reopened without new evidence.
 
-# registry/rules/conditions.yml — where global rules do not apply
-- rule: revenue.us-gaap.RevenueFromContractWithCustomerExcludingAssessedTax
-  exclude_when: {industry: [bank, insurance]}    # from SIC; bank revenue needs its own contract
+```yaml
+# registry/decisions/total_assets/us-gaap-Assets.yml
+id: total_assets.us-gaap.Assets
+metric: total_assets
+source:
+  family: us-gaap          # not a QName; see expansion below
+  local_name: Assets
+relation: exact
+scope: {}                  # or {exclude_sic_divisions: [H]}
+status: accepted           # accepted | rejected
+method: curated
+rationale: "FASB documentation: carrying amount of all recognized assets"
+evidence:
+  - kind: documentation
+    quote: "Sum of the carrying amounts … of all assets that are recognized."
+reviewed: {by: "<reviewer>", on: "<date>"}
+contract_hash: "<sha256 of contract>"
 ```
 
 ```yaml
-# registry/rules/issuers/0001065088.yml — issuer extension rules (continuity across releases)
-- id: ebay.research_and_development.disposal
-  metric: research_and_development
-  concept: ebay:DisposalGroupIncludingDiscontinuedOperationProductDevelopment
-  relation: narrower
-  method: reviewed                   # or: structural-proof (see 05)
+# registry/decisions/issuers/0001065088/DisposalGroup-product-development.yml
+id: ebay.research_and_development.disposal
+metric: research_and_development
+source:
+  family: issuer
+  issuer_cik: "0001065088"
+  local_name: DisposalGroupIncludingDiscontinuedOperationProductDevelopment
+relation: narrower
+status: accepted
+method: reviewed
 ```
 
-The gold set lives beside the rules, for example `registry/gold/*.yml`, holding values verified
-against rendered statements. The M0 benchmark's values and counterexamples migrate there, without
-the review-process fields.
+**QName expansion** (runtime, not identity):
+
+```text
+decision (family + local_name)
+    → exact QNames of facts this decision covers
+P1 algorithm: namespace starts with the family prefix
+              (http://fasb.org/us-gaap/, …) and local_name equals
+Later: same, plus taxonomy-table drift checks (type / period / balance /
+       documentation). Material drift drops that release's QName from
+       the expansion and queues a review.
+```
+
+Source facts always keep the expanded QName
+`{http://fasb.org/us-gaap/2023}Assets`. The family string is never stored
+as a concept identity.
+
+The gold set lives beside decisions, for example `registry/gold/*.yml`.
+Values are verified against rendered statements. The M0 benchmark's values
+and counterexamples migrate there, without the review-process fields.
+
+A derived `registry/rules/` snapshot is optional for debugging. It must be
+generated from decisions, never hand-edited as a second authority.
 
 ## Data model essentials
 
@@ -197,8 +229,10 @@ The per-report extraction tables are:
 - contexts;
 - context dimensions;
 - units;
-- declarations (filer extensions plus concepts used by facts);
-- labels and references (filer concepts);
+- declarations (filer extensions plus concepts used by facts, relationships,
+  or persisted labels/references);
+- labels and references (same keep-set; unused standard-taxonomy resources
+  are not stored per report);
 - relationships (all networks in the filing DTS extension linkbases);
 - roles (URI, definition, `usedOn`);
 - statement classification (from `MetaLinks.json` / `FilingSummary.xml`);
@@ -214,7 +248,10 @@ report.
 Observation rows carry the following, and every published number resolves to exact source bytes
 through them:
 
-- issuer, metric and fiscal period (fiscal year, fiscal period, start/end), and view;
+- issuer, metric, period (start/end or instant), unit, scope, and view;
+- derived `fiscal_year` / `fiscal_period` (issuer calendar, not the
+  supplying filing's DEI focus — that focus names only the filing's own
+  reporting period);
 - value, unit and decimals;
 - status (`value | missing | conflict | unmapped_candidate | unsupported`);
 - supporting fact ids, rule ids and the relation;
@@ -240,12 +277,17 @@ through them:
 ## What goes away
 
 - The second record family and the wire codec.
-- Receipts, as a separate object: a manifest per build and per publication replaces them.
-- Integrity re-checks beyond one assertion at commit.
+- Receipts, as a separate object: a manifest per build and per publication replaces them
+  (same identity fields: hashes, versions, fact counts, issue counts).
+- Integrity re-checks beyond **one** runtime completeness boundary: every
+  Arelle item fact is persisted or becomes an explicit issue, checked at
+  commit. Fixture goldens remain. The other eleven check sites go.
 - Closure capture and replay verification for standard taxonomies. Extension files remain part of
   the filing.
 - Per-report standard declarations and locators.
 - The PostgreSQL source schema and its migrations.
-- The registry DB mirror, the mapping ledger and its lifecycle states.
+- The registry DB mirror and the PostgreSQL mapping-ledger *implementation*
+  (propose/accept lifecycle, mutation triggers). **Ledger semantics stay:**
+  decision records in Git, including rejected and non-exact conclusions.
 - The planned review profiles, qualification packets, knowledge clocks, publication notices and
   multiple hash schemes (see 07 for what this gives up).

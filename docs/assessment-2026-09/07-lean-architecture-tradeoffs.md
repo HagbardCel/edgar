@@ -34,7 +34,7 @@ quality. Given the mission (market-wide research data), that is the wrong trade.
 | Places defining metric contracts | 3 (YAML, DB mirror, benchmark fixture) | 1 (YAML) | 3 → 1 |
 | Snapshot identities | 4 (`report_key`, opaque bundle id, payload hash, descriptor SHA) | 1 (manifest hash) + report key | 4 → 1–2 |
 | Sites enforcing the fact-count invariant | 13 files | 1 commit check + tests | 13 → 2 |
-| Mapping history stores | Ledger (designed) + Git | Git | 2 → 1 |
+| Mapping history stores | PostgreSQL ledger (designed) + Git | Git **decision records** (accepted, rejected, non-exact) | 2 implementations → 1 |
 | Deletable production modules | — | ~20: `records` (most), `source_wire`, `_source_build`, `upstream_inventory`, `extraction_receipt`, `closure` (most), `db/source`, `db/source_schema`, `db/registry*`, `registry/service` (most), `corpus_acceptance`, migrations, … | ~9–12k lines |
 | New production code | — | Resolve, select, validate, oracles, taxonomy tables, MetaLinks parsing, review queue, export | +2.5–4k lines |
 | Human work per new filing | Qualification per report and occurrence | Zero unless an exception is raised | O(filings) → O(exceptions) |
@@ -45,10 +45,13 @@ Third-party capabilities replace bespoke work:
 
 - Arelle taxonomy packages replace closure capture.
 - DuckDB/Parquet replaces the schema, migrations and row persistence.
-- Git, pull requests and CI replace the ledger and mirror.
+- Git decision records + pull requests + CI replace the PostgreSQL ledger and
+  mirror. Decision *semantics* (relation, status, rationale, evidence,
+  supersedes) stay.
 - XBRL duplicate-fact rules replace bespoke accuracy review.
 - The EDGAR required context replaces bespoke period-slot identity.
-- FASB documentation via `MetaLinks.json` replaces planned taxonomy-evidence acquisition.
+- FASB documentation via `MetaLinks.json` is P1 evidence; official taxonomy
+  packages remain the pinned authority after a P3 parity test.
 - SEC `companyfacts`/FSDS replace attestation as the quality signal.
 
 ## 3. What the leaner architecture gives up
@@ -69,13 +72,13 @@ Each trade-off is classified:
 | T5 | Database-enforced constraints (FKs, CHECKs) on evidence tables | One code path writes derived tables. Integrity is checked once at commit by SQL anti-joins, and extensively in tests. | Sensible | Keep commit-time integrity SQL mandatory |
 | T6 | Concurrent writers, multi-user editing, a server endpoint | Single-user batch workload. Git handles concurrent knowledge edits through PRs. | Future risk | Revisit on a multi-user service or remote consumers; PostgreSQL is still an option for the serving layer |
 | T7 | Byte-exact capture of what each standard-taxonomy URL served at filing time | Official packages are the canonical content. Issuer extension files remain captured per filing. A parity test proves equivalence on the spike corpus. | Accept explicitly | Keep fetch-and-pin for non-packaged URLs; fail closed if a release is missing |
-| T8 | Independent re-count of facts (upstream inventory) in production runs | Golden counts on fixtures catch extractor regressions. Oracle agreement catches missing facts at scale. | Sensible | Run the fixture corpus in CI on every Arelle upgrade |
+| T8 | Redundant re-counts (upstream inventory + 11 other sites) | **One** runtime completeness boundary remains: every Arelle item fact is persisted or becomes an explicit issue, checked at commit. Manifests carry fact and issue counts. Fixture goldens stay. | Sensible | Completeness check is mandatory; do not reduce it to “CI fixtures only” |
 | T9 | Formal protocol boundaries between resolve, select and validate | They are pure functions over fixed table schemas. Tests pin behavior. Fewer layers make them easier to change. | Sensible | Refactor if one stage grows beyond ~1k lines |
 | T10 | Generic extensibility: pluggable engines, protocol versions, multiple hash schemes | No second engine or protocol is planned. Versions are single strings, bumped on output change. | Sensible | — |
 | T11 | Dependence on SEC-generated companions (`MetaLinks`, `FilingSummary`) | They are evidence, not truth, and are cross-checked against filed role definitions and taxonomy packages. | Sensible | Verify availability on older filings in P2 |
 | T12 | Dependence on external oracles (`companyfacts`, FSDS) | Validation only. Outputs never depend on them. | Sensible | If an oracle disappears, validation weakens; publication still works |
 | T13 | Scope sequencing: annual before quarterly/YTD, consolidated before segments | This follows research value and difficulty. Counterexamples stay as tests so nothing is silently mis-published. | Accept explicitly | Stage 4 when users need quarterly data |
-| T14 | Structural-proof auto-acceptance (Tier 3) without per-claim review | Proofs are deterministic, recorded and measured. A policy can be switched off. | Accept explicitly | Tier-3 precision below threshold disables the policy |
+| T14 | *(withdrawn)* Auto-accepting Tier-3 numeric or calc proofs as exact mappings | **Not given up.** Equal values are not semantic identity. Tier 3 is a queue candidate only until a later ADR and a gold set show a narrow proof class is effectively perfect. | — | See [B](B-feedback-response.md) §8 |
 | T15 | Keeping ~55k words of rationale in the working tree | Git history keeps it; one current architecture document replaces it. | Sensible | — |
 
 ## 4. What must not be traded away
@@ -89,15 +92,19 @@ A lean design is only acceptable if these remain intact. None of the recommendat
   name.
 - **Scope:** segment vs consolidated, parent vs total, GAAP vs non-GAAP, quarter vs YTD. Each is a
   contract distinction or a typed non-publication, never an approximation.
-- **Traceability:** every value resolves to fact ids, rule ids, filing and acceptance time.
+- **Traceability:** every value resolves to fact ids, decision ids, filing and acceptance time.
+- **Decision history:** accepted, rejected, and non-exact conclusions are explicit records, not
+  only Git diffs of active rules.
 - **LLM role:** LLMs never approve.
+- **Completeness:** every Arelle item fact is persisted or becomes an explicit issue.
 
 ## 5. Net judgement
 
 - **Sensible (T1, T5, T8–T12, T15).** These remove machinery whose only job was to protect state
   that is either rebuildable or better held in Git.
-- **Accept explicitly (T2, T3, T7, T13, T14).** Together they shift the assurance model from human
-  attestation per decision to measured quality per policy. That is the substantive change, and it
-  deserves an ADR.
+- **Accept explicitly (T2, T3, T7, T13).** Together they shift the assurance model from human
+  attestation per occurrence to measured quality per policy, while keeping decision records as
+  the authored knowledge. That is the substantive change, and it deserves an ADR.
+- **Not traded (T14).** Structural proofs do not auto-accept.
 - **Future risk (T4, T6).** These are real but observable. Global-rule blast radius is managed by
   measurement. Multi-user needs have a clear trigger and a known upgrade path.

@@ -9,7 +9,7 @@ The same exact rules produce:
 - **as-filed** (already in P1);
 - **first-reported** — earliest SEC acceptance that reports the slot;
 - **latest-as-of(T)** — latest acceptance ≤ T, including comparatives in
-  later filings, flagged when it differs from as-filed;
+  later filings; `value_changed` only when the number differs;
 - **direct 10-Q** three-month and YTD slots using the required context of
   that 10-Q;
 - **derived Q4** = annual − first-nine-months YTD, labelled `derived`, never
@@ -41,25 +41,31 @@ Amendments compete per slot. A 10-K/A without statement facts (eBay
 
 ### P5.1 — Slot identity
 
-Define a slot as:
+Primary identity (what two facts must share to be the same observation):
 
 ```text
-(cik, metric, fiscal_year, fiscal_period, period_start, period_end, unit)
+(cik, metric, period_start | instant, period_end, unit, scope)
 ```
 
-`fiscal_period` ∈ `FY | Q1 | Q2 | Q3 | Q4 | H1 | YTD` (start with FY, Q1–Q3,
-YTD).
+`fiscal_year` and `fiscal_period` (`FY | Q1 | Q2 | Q3 | Q4 | YTD`) are
+**derived** from those dates using the issuer's fiscal calendar. They are
+not copied from the supplying filing's DEI cover facts.
 
-Fiscal year / period come from DEI `DocumentFiscalYearFocus` /
-`DocumentFiscalPeriodFocus` on the required context. Do not infer quarter
-from duration length alone (KO YTD vs quarter is the counterexample).
+The supplying filing's `DocumentFiscalYearFocus` /
+`DocumentFiscalPeriodFocus` classify **that filing's own** reporting
+period (required context). A FY2022 comparative inside a FY2023 10-K has
+period dates in 2022; its slot is 2022 even though the 10-K says focus
+2023.
+
+Do not infer quarter from duration length alone (KO YTD vs quarter).
 
 **Validation gate P5.1**
 
 ```bash
 uv run pytest -q tests/unit/test_slot_identity.py
-# eBay 10-K → FY + calendar 2023-01-01/2023-12-31
-# Walmart 10-K → FY ending 2024-01-31 (not calendar 2023)
+# eBay 10-K own period → FY 2023 + 2023-01-01/2023-12-31
+# same 10-K comparative 2022-01-01/2022-12-31 → slot FY 2022, not 2023
+# Walmart 10-K own instant → FY ending 2024-01-31 (not calendar 2023)
 # KO 10-Q required context is YTD if DEI says so — pin from the real filing
 ```
 
@@ -73,8 +79,13 @@ Input: all observations with `status=value` for a slot, each with
 - `first-reported`: min `available_at` (nulls sort last and **cannot** win).
 - `latest-as-of(T)`: max `available_at` among those ≤ T. A later filing's
   **comparative** fact for the same slot is a candidate (same period start/end).
-- If the winner's accession ≠ the original as-filed accession, set
-  `restated=true` and keep `source_accession` of the winner.
+- Always store `supplying_accession`.
+- If a later filing repeats the same slot with a decimals-consistent
+  value, set `reported_again=true`. That is **not** a restatement.
+- If the later value is not consistent, set `value_changed=true` and
+  `restatement_candidate=true`.
+- Never set restatement merely because `supplying_accession` ≠ the
+  original 10-K accession.
 
 `edgar build --view as-filed|first|latest --as-of 2024-12-31`.
 
@@ -82,8 +93,10 @@ Input: all observations with `status=value` for a slot, each with
 
 ```bash
 uv run pytest -q tests/unit/test_time_views.py
-# two accessions, same slot, different values and acceptance times
-# T between them → first and latest disagree
+# two accessions, same slot, same value, different acceptance
+#   → latest supplying_accession changes, restatement_candidate is false
+# two accessions, same slot, inconsistent values
+#   → value_changed and restatement_candidate
 # T before both → missing
 # null accepted_at never selected
 ```
@@ -171,9 +184,10 @@ uv run pytest -q tests/unit/test_stability.py
 | Check | Pass |
 |---|---|
 | as-filed P1 gold unchanged | yes |
-| first/latest unit tests green | yes |
+| first/latest: same value on a later 10-K is `reported_again`, not restated | yes |
 | KO/JPM counterexamples still cannot publish as annual consolidated RFCWCEAT revenue | yes |
 | Derived Q4 never `kind=reported` | yes |
+| Comparative in a later 10-K uses period dates, not that 10-K's DEI FY | yes |
 | Null `accepted_at` cannot win a time view | yes |
 | Quality report includes stability | yes |
 | `make check` | green |

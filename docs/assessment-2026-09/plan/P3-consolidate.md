@@ -161,15 +161,17 @@ Delete, in one PR sequence after rules-check is in CI:
 | Remove | Replacement |
 |---|---|
 | `registry.canonical_metric` mirror + `edgar registry sync` | `edgar rules check` + `edgar metrics list` reading YAML |
-| `registry.mapping_assertion` ledger + propose/accept/reject | `registry/rules/**/*.yml` + PRs |
+| `registry.mapping_assertion` ledger + propose/accept/reject | `registry/decisions/**/*.yml` (accepted **and** rejected) + PRs |
 | `src/edgar/db/registry.py`, `registry_schema.py`, migration `0002` as a *live* requirement | historical files may remain until the DB is gone |
 | `semantic-registry/` archive in the working tree | git history |
 
-Update CLI help. Update `AGENTS.md` Phase 2C bullets: YAML is authority;
-there is no mirror and no ledger.
+Update CLI help. Update `AGENTS.md` Phase 2C bullets: YAML **decision
+records** are authority; there is no mirror and no PostgreSQL ledger.
+Do **not** delete the idea of a decision (relation, status, rationale,
+evidence, supersedes). Delete only the database implementation.
 
-Keep `definition_hash` in `src/edgar/registry/hashing.py` — rules still pin
-it.
+Keep `definition_hash` in `src/edgar/registry/hashing.py` — decisions still
+pin it.
 
 **Validation gate P3.5**
 
@@ -185,12 +187,15 @@ make check
 
 ### P3.6 — Receipts → manifest; acceptance → build
 
-- Stop threading `ExtractionReceipt` through persist. Identity fields
-  (bundle hash, extractor version, arelle version, lock digest) go on
-  `manifest.json` for extracts and builds.
+- Stop threading `ExtractionReceipt` through persist. Identity fields go on
+  `manifest.json` for extracts and builds: bundle hash, artifact hashes,
+  Arelle version, extractor version, taxonomy package hashes (if used),
+  **fact counts, issue counts**, lock digest, code version.
 - Keep `upstream_inventory` as a **test helper** if useful; remove it from
-  `SourceExtractService` runtime. One integrity check at commit: fact count
-  and FK anti-joins.
+  `SourceExtractService` runtime.
+- **Keep one runtime completeness boundary:** every Arelle item fact is
+  persisted or recorded as an explicit completeness issue. Check fact count
+  and FK anti-joins at commit. This is not “CI fixtures only.”
 - Fold `src/edgar/corpus_acceptance.py` checks that still matter into
   `edgar build --check-gold` and contract tests. Delete the rest.
 
