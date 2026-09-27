@@ -5,8 +5,8 @@ There are two "lean" architectures to weigh:
 - **The adopted plan (ADR 0012)** is lean in *breadth*: few metrics, few filings, no SQLMesh, no
   LLM approval. It is heavy in *mechanism*: claims per report, occurrence qualification, knowledge
   clocks, publication notices, hash schemes.
-- **This recommendation** is the reverse. It is broader early (market samples, global rules) and
-  lean in mechanism (rules in Git, deterministic selection, measured quality).
+- **This recommendation** is the reverse. It is broader early (market samples, global decisions) and
+  lean in mechanism (decision records in Git, deterministic selection, measured quality).
 
 Both give things up. This document makes the choices explicit.
 
@@ -46,13 +46,17 @@ Third-party capabilities replace bespoke work:
 - Arelle taxonomy packages replace closure capture.
 - DuckDB/Parquet replaces the schema, migrations and row persistence.
 - Git decision records + pull requests + CI replace the PostgreSQL ledger and
-  mirror. Decision *semantics* (relation, status, rationale, evidence,
-  supersedes) stay.
-- XBRL duplicate-fact rules replace bespoke accuracy review.
+  mirror. Decision *semantics* (relation, status, rationale, required
+  evidence on accepted records, `contract_hash`) stay. There is no
+  `supersedes` chain: Git current-state is the revision log.
+- XBRL OIM duplicate-fact intervals replace bespoke accuracy review.
 - The EDGAR required context replaces bespoke period-slot identity.
 - FASB documentation via `MetaLinks.json` is P1 evidence; official taxonomy
   packages remain the pinned authority after a P3 parity test.
-- SEC `companyfacts`/FSDS replace attestation as the quality signal.
+- SEC `companyfacts`/FSDS are **validation oracles**, not a replacement for
+  semantic proof. They check extraction, period matching, and cross-system
+  agreement. Exactness of C for contract M still needs taxonomy evidence,
+  reviewed decisions, and independently labeled gold.
 
 ## 3. What the leaner architecture gives up
 
@@ -65,10 +69,10 @@ Each trade-off is classified:
 
 | # | Given up | Why it is acceptable | Class | Trigger / mitigation |
 |---|---|---|---|---|
-| T1 | Queryable history of *unpublished* derived states ("what did the DB contain last Tuesday?") | Derived data is rebuildable. Publications are immutable snapshots with manifests (code, rules and extractor versions). | Sensible | Publish anything used in research |
-| T2 | A modelled `semantic_as_of` clock: which mappings were known at time T | Vintage knowledge = check out the rules commit and rebuild. Manifests record the commit. Market `available_at` (SEC acceptance) is still modelled per observation. | Accept explicitly | Revisit if backtests must use *mapping* vintages routinely; add a rules-commit dimension to builds, not a clock |
+| T1 | Queryable history of *unpublished* derived states ("what did the DB contain last Tuesday?") | Derived data is rebuildable. Publications are immutable snapshots with manifests (code, `decisions_commit` and extractor versions). | Sensible | Publish anything used in research |
+| T2 | A modelled `semantic_as_of` clock: which mappings were known at time T | Vintage knowledge = check out the `decisions_commit` and rebuild. Manifests record the commit. Market `available_at` (SEC acceptance) is still modelled per observation. | Accept explicitly | Revisit if backtests must use *mapping* vintages routinely; add a decisions-commit dimension to builds, not a clock |
 | T3 | Individual human sign-off on every published value | Precision is measured instead of attested. Tiers let users choose conservative subsets. | Accept explicitly | Publication gate: precision per tier on gold ≥ threshold; no regression in CI |
-| T4 | Error isolation: one wrong global rule affects many observations | Fixes are equally global. Identities and the oracle detect systematic errors quickly; per-report review hides them. | Future risk (moderate) | Quality-report diff on every rules PR; tier and industry breakdowns |
+| T4 | Error isolation: one wrong global decision affects many observations | Fixes are equally global. Identities and the oracle detect systematic errors quickly; per-report review hides them. | Future risk (moderate) | Quality-report diff on every decisions PR; tier and industry breakdowns |
 | T5 | Database-enforced constraints (FKs, CHECKs) on evidence tables | One code path writes derived tables. Integrity is checked once at commit by SQL anti-joins, and extensively in tests. | Sensible | Keep commit-time integrity SQL mandatory |
 | T6 | Concurrent writers, multi-user editing, a server endpoint | Single-user batch workload. Git handles concurrent knowledge edits through PRs. | Future risk | Revisit on a multi-user service or remote consumers; PostgreSQL is still an option for the serving layer |
 | T7 | Byte-exact capture of what each standard-taxonomy URL served at filing time | Official packages are the canonical content. Issuer extension files remain captured per filing. A parity test proves equivalence on the spike corpus. | Accept explicitly | Keep fetch-and-pin for non-packaged URLs; fail closed if a release is missing |

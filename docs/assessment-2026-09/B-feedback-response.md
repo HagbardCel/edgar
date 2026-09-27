@@ -5,6 +5,10 @@ authoritative. Where this file disagrees, the assessment and plan keep the
 earlier recommendation. Where it agrees, those documents were changed in the
 same revision as this file.
 
+A later hardening pass is recorded in [C](C-feedback-response.md). Treat C
+as current for decision-record schema, OIM duplicates, P0.3, and Tier-3
+measurement. This file remains the first-round verdict.
+
 The input argued, in short: adopt most of this assessment's *execution
 strategy* and lean runtime; do not throw away the current target's
 *semantic-governance* model; implement that model simply in Git.

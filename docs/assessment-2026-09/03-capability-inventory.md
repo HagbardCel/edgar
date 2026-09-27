@@ -62,7 +62,7 @@ The ten largest production files hold 10,492 lines (44% of production).
 | `db/source_schema.py` | 817 | 17-table schema; fewer, wider tables |
 | `migrations/0001_source_v2.py` | 792 | Schema for regenerable data |
 | `xbrl/worker.py` | 769 | Arelle worker; keep, write columnar output directly |
-| `registry/service.py` | 751 | Ledger and mirror workflow; replace with Git rules |
+| `registry/service.py` | 751 | Ledger and mirror workflow; replace with Git decision records |
 | `xbrl/source_wire.py` | 722 | Wire codec; delete once there is one schema |
 
 By capability, the largest concentrations are persistence (G, 7.6k production and test lines),

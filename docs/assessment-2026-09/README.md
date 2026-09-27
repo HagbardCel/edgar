@@ -70,10 +70,11 @@ contracts, `AGENTS.md` phase gates or ADR 0010–0013. Adopting any recommendati
 | [Implementation sequence](plan/README.md) | Junior-implementable steps P0–P6, one file each, with validation gates |
 | [A Evidence and method](A-evidence-and-method.md) | Commands run, raw measurements, experiment scripts |
 | [B Feedback response](B-feedback-response.md) | Independent reply to a hybrid-architecture critique; records what changed |
+| [C Hardening response](C-feedback-response.md) | Second critique: specification holes closed; architecture not reopened |
 
 Read 01 → 02 → 05 → 04 → 08 for the argument; 03, 06, 07 and A are reference
 material. Implement from [plan/](plan/README.md). Revisions after critique:
-[B](B-feedback-response.md).
+[B](B-feedback-response.md), then [C](C-feedback-response.md).
 
 ## Key measurements (2026-09-27, local corpus of six filings)
 

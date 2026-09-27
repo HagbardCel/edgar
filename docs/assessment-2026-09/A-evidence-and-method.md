@@ -72,6 +72,7 @@ US-GAAP releases used by facts:
 
 ```python
 """Ad hoc read-only statistics over the local `edgar` database. Not production code."""
+
 from sqlalchemy import create_engine, text
 
 e = create_engine("postgresql+psycopg://edgar:edgar@localhost:5432/edgar")
@@ -139,6 +140,7 @@ document, so the total is `O(n²)`.
 
 Usage: uv run python time_extract.py bundles/<cik>/<accession>/<opaque>
 """
+
 import sys
 import time
 from collections import Counter
@@ -157,7 +159,9 @@ bundle = loaded.bundle
 store = ObjectStore(root)
 
 schema = next(b for b in bundle.uri_bindings if b.document_uri.endswith("/elts/us-gaap-2023.xsd"))
-data = (root / "objects" / "sha256" / schema.content_sha256[:2] / schema.content_sha256).read_bytes()
+data = (
+    root / "objects" / "sha256" / schema.content_sha256[:2] / schema.content_sha256
+).read_bytes()
 doc = etree.fromstring(data, parser=etree.XMLParser(resolve_entities=False, no_network=True))
 with_id = [el for el in doc.iter() if isinstance(el.tag, str) and el.get("id")]
 t = time.perf_counter()
@@ -236,7 +240,9 @@ receive a value from the correct standard concept:
 - cash, from `CashAndCashEquivalentsAtCarryingValue`.
 
 The Walmart cash conflict consists of two facts, listed below. They are consistent under XBRL
-decimal rounding.
+OIM interval overlap (the P1 selector rule). They are also consistent under the
+incorrect “round both to coarser decimals” algorithm; that algorithm is **not**
+the contract. See [C](C-feedback-response.md) §1.
 
 ```text
 CashAndCashEquivalentsAtCarryingValue, 2024-01-31, undimensioned
@@ -263,6 +269,7 @@ statements: 0000003 - Statement - CONSOLIDATED BALANCE SHEET; 0000005 - Statemen
 
 Read-only against the local `edgar` database. Not production code.
 """
+
 import sys
 from decimal import Decimal
 
@@ -284,9 +291,11 @@ INSTANT = {"total_assets", "cash_excluding_restricted_cash"}
 e = create_engine("postgresql+psycopg://edgar:edgar@localhost:5432/edgar")
 bench = yaml.safe_load(open(sys.argv[1]))
 
+
 def required_context(c, accession):
     # EFM: dei cover facts sit in the document's required context (fiscal period of the report).
-    row = c.execute(text("""
+    row = c.execute(
+        text("""
         select x.start_lexical, x.end_lexical, x.entity_identifier
         from source.fact f
         join source.concept k on k.id = f.concept_id
@@ -296,11 +305,15 @@ def required_context(c, accession):
         where g.accession = :a and k.local_name = 'DocumentPeriodEndDate'
           and k.namespace_uri like 'http://xbrl.sec.gov/dei/%'
           and not exists (select 1 from source.context_dimension d where d.context_id = x.id)
-    """), {"a": accession}).one()
+    """),
+        {"a": accession},
+    ).one()
     return row
 
+
 def candidates(c, accession, local_names):
-    return c.execute(text("""
+    return c.execute(
+        text("""
         select k.local_name, f.resolved_numeric, x.period_kind, x.start_lexical, x.end_lexical,
                x.instant_lexical, x.entity_identifier, f.decimals
         from source.fact f
@@ -314,7 +327,10 @@ def candidates(c, accession, local_names):
           and not exists (select 1 from source.context_dimension d where d.context_id = x.id)
           and exists (select 1 from source.unit_measure m where m.unit_id = f.unit_id
                       and m.measure_local_name = 'USD')
-    """), {"a": accession, "names": local_names}).all()
+    """),
+        {"a": accession, "names": local_names},
+    ).all()
+
 
 results = []
 with e.connect() as c:
@@ -329,7 +345,9 @@ with e.connect() as c:
         try:
             start, end, entity = required_context(c, acc)
         except Exception:  # noqa: BLE001
-            results.append((case["case_id"], exp.get("state"), exp.get("value"), "no-required-context", None))
+            results.append(
+                (case["case_id"], exp.get("state"), exp.get("value"), "no-required-context", None)
+            )
             continue
         # benchmark may request a comparative period; honour the slot's explicit period when given
         want_start = per.get("start", start)
@@ -343,7 +361,7 @@ with e.connect() as c:
                     vals.add(Decimal(v))
             elif kind == "duration" and s == want_start and en == want_end:
                 vals.add(Decimal(v))
-        got = ("conflict" if len(vals) > 1 else (str(vals.pop()) if vals else "missing"))
+        got = "conflict" if len(vals) > 1 else (str(vals.pop()) if vals else "missing")
         results.append((case["case_id"], exp.get("state"), exp.get("value"), got, names))
 
 agree = 0
@@ -387,6 +405,7 @@ for this assessment.
 
 ```python
 """Ad hoc census: extension share of non-abstract line items on SEC-classified primary statements."""
+
 import json
 from pathlib import Path
 
@@ -399,9 +418,11 @@ root = Path("var").resolve()
 e = create_engine("postgresql+psycopg://edgar:edgar@localhost:5432/edgar")
 with e.connect() as c:
     c.execute(text("SET TRANSACTION READ ONLY"))
-    reports = c.execute(text("""
+    reports = c.execute(
+        text("""
         select g.accession, r.id from source.xbrl_report r join source.filing g on g.id = r.filing_id
-        order by g.accession""")).all()
+        order by g.accession""")
+    ).all()
     for accession, report_id in reports:
         cik = accession.split("-")[0]
         bundle_dirs = sorted((root / "bundles" / cik / accession).glob("*"))
@@ -418,17 +439,22 @@ with e.connect() as c:
             for rep in inst["report"].values()
             if rep.get("groupType") == "statement"
         }
-        rows = c.execute(text("""
+        rows = c.execute(
+            text("""
             select distinct k.namespace_uri, k.local_name
             from source.relationship rel
             join source.concept k on k.id = rel.target_concept_id
             join source.concept_declaration d on d.report_id = rel.report_id and d.concept_id = k.id
             where rel.report_id = :r and rel.network_type = 'presentation'
               and rel.link_role_uri = any(:roles) and coalesce(d.abstract, false) = false
-        """), {"r": report_id, "roles": list(roles)}).all()
+        """),
+            {"r": report_id, "roles": list(roles)},
+        ).all()
         ext = sum(1 for ns, _ in rows if not ns.startswith(STANDARD))
         share = f"{ext / len(rows):.0%}" if rows else "n/a"
-        print(f"{accession} statement_roles={len(roles)} line_items={len(rows)} extension={ext} share={share}")
+        print(
+            f"{accession} statement_roles={len(roles)} line_items={len(rows)} extension={ext} share={share}"
+        )
 ```
 
 </details>
@@ -442,28 +468,155 @@ The output is the table in [03](03-capability-inventory.md). The only unassigned
 
 ```python
 """Assign tracked Python files to capabilities; count physical and non-blank/non-comment lines."""
+
 import re, subprocess, collections
-files = subprocess.run(["git","ls-files","*.py"], capture_output=True, text=True, check=True).stdout.split()
+
+files = subprocess.run(
+    ["git", "ls-files", "*.py"], capture_output=True, text=True, check=True
+).stdout.split()
 CAPS = [
- ("A SEC access & acquisition", [r"src/edgar/sec/", r"src/edgar/ingestion/acquisition\.py", r"src/edgar/ingestion/report_input\.py",
-   r"tests/unit/test_acquisition_hardening", r"tests/unit/test_ssrf", r"tests/unit/test_report_input", r"tests/unit/test_accession_reconcile", r"tests/contract/test_live_sec_smoke", r"tests/unit/test_payload_budget", r"tests/unit/test_identifiers"]),
- ("B DTS closure capture & offline replay", [r"src/edgar/xbrl/closure\.py", r"src/edgar/xbrl/arelle_env\.py", r"src/edgar/xbrl/network_guard\.py", r"src/edgar/xbrl/replay", r"src/edgar/domain/uri\.py", r"src/edgar/xbrl/uri\.py",
-   r"tests/contract/test_arelle_closure_replay", r"tests/unit/test_closure_safeguards", r"tests/helpers/arelle_cache_fetcher", r"tests/unit/test_payload_and_uri", r"tests/unit/test_residue_deny_list"]),
- ("C Immutable storage & bundle model", [r"src/edgar/storage/", r"src/edgar/domain/(bundle|validation|decode|payload|identifiers|report_key|concept_id|issues|__init__)\.py", r"src/edgar/ingestion/payload\.py",
-   r"tests/unit/test_object_store_and_bundles", r"tests/unit/test_bundle_integrity", r"tests/unit/test_bundle_fingerprint"]),
- ("D XBRL extraction (Arelle adapter)", [r"src/edgar/xbrl/(extract|locators|resolved_text|config|diagnostics|target_identity|worker)\.py", r"src/edgar/xbrl/__init__\.py",
-   r"tests/contract/test_arelle_report_extraction", r"tests/unit/test_invalid_base_set_qname", r"tests/unit/test_semantic_", r"tests/unit/test_resolved_text", r"tests/unit/test_report_input_target", r"tests/helpers/(rich_xbrl|ixds_xbrl|invalid_transform|linkbase_qnames|xbrl_bundles)", r"tests/unit/test_source_datetime"]),
- ("E Extraction IR & wire codecs", [r"src/edgar/xbrl/(records|source_records|source_wire|_source_build)\.py", r"tests/unit/test_semantic_records", r"tests/unit/test_source_extract_adapt"]),
- ("F Extraction verification, receipts & orchestration", [r"src/edgar/xbrl/(upstream_inventory|integrity|extraction_receipt|report_set|semantic|source_extract)\.py", r"src/edgar/provenance\.py", r"src/edgar/ingestion/source_extract\.py", r"src/edgar/ingestion/__init__\.py",
-   r"tests/unit/test_upstream_inventory", r"tests/unit/test_xbrl_integrity", r"tests/unit/test_extraction_receipt", r"tests/helpers/extraction_receipt", r"tests/unit/test_report_set", r"tests/unit/test_source_extract_orchestration", r"tests/unit/test_cli_extract_json", r"tests/unit/test_source_identity", r"tests/integration/test_source_extract\.py", r"tests/contract/test_frozen_slice0"]),
- ("G Source persistence (PostgreSQL + migrations)", [r"src/edgar/db/(source|source_schema|source_persist|schema|engine|check|__init__)\.py", r"src/edgar/ingestion/catalog\.py", r"migrations/",
-   r"tests/integration/test_source_persist", r"tests/integration/test_source_catalog", r"tests/integration/test_v2_clean_head", r"tests/integration/test_migration_", r"tests/helpers/(migration_0005|preflight_0005|database|network_identity)", r"tests/integration/test_network_identity", r"tests/unit/test_catalog_service", r"tests/unit/test_v2_migration_freeze", r"tests/unit/test_database_guard"]),
- ("H Document structure & sections", [r"src/edgar/parsing/", r"src/edgar/xbrl/source_documents\.py", r"tests/unit/test_document_", r"tests/unit/test_source_documents", r"tests/helpers/document_fixtures"]),
- ("I Metric registry & mapping ledger", [r"src/edgar/registry/", r"src/edgar/db/registry", r"tests/unit/registry/", r"tests/integration/test_mapping_", r"tests/helpers/mapping_source_fixture", r"tests/unit/test_cli_metrics_mappings"]),
- ("J M0 benchmark validation", [r"tests/helpers/financial_cases", r"tests/unit/test_financial_benchmark"]),
- ("K Corpus acceptance", [r"src/edgar/corpus_", r"scripts/phase1_corpus_acceptance", r"tests/unit/test_corpus_manifest", r"tests/integration/test_source_corpus_acceptance", r"tests/unit/test_document_inventory_digest"]),
- ("L CLI & settings", [r"src/edgar/cli\.py", r"src/edgar/config\.py", r"src/edgar/__init__\.py"]),
+    (
+        "A SEC access & acquisition",
+        [
+            r"src/edgar/sec/",
+            r"src/edgar/ingestion/acquisition\.py",
+            r"src/edgar/ingestion/report_input\.py",
+            r"tests/unit/test_acquisition_hardening",
+            r"tests/unit/test_ssrf",
+            r"tests/unit/test_report_input",
+            r"tests/unit/test_accession_reconcile",
+            r"tests/contract/test_live_sec_smoke",
+            r"tests/unit/test_payload_budget",
+            r"tests/unit/test_identifiers",
+        ],
+    ),
+    (
+        "B DTS closure capture & offline replay",
+        [
+            r"src/edgar/xbrl/closure\.py",
+            r"src/edgar/xbrl/arelle_env\.py",
+            r"src/edgar/xbrl/network_guard\.py",
+            r"src/edgar/xbrl/replay",
+            r"src/edgar/domain/uri\.py",
+            r"src/edgar/xbrl/uri\.py",
+            r"tests/contract/test_arelle_closure_replay",
+            r"tests/unit/test_closure_safeguards",
+            r"tests/helpers/arelle_cache_fetcher",
+            r"tests/unit/test_payload_and_uri",
+            r"tests/unit/test_residue_deny_list",
+        ],
+    ),
+    (
+        "C Immutable storage & bundle model",
+        [
+            r"src/edgar/storage/",
+            r"src/edgar/domain/(bundle|validation|decode|payload|identifiers|report_key|concept_id|issues|__init__)\.py",
+            r"src/edgar/ingestion/payload\.py",
+            r"tests/unit/test_object_store_and_bundles",
+            r"tests/unit/test_bundle_integrity",
+            r"tests/unit/test_bundle_fingerprint",
+        ],
+    ),
+    (
+        "D XBRL extraction (Arelle adapter)",
+        [
+            r"src/edgar/xbrl/(extract|locators|resolved_text|config|diagnostics|target_identity|worker)\.py",
+            r"src/edgar/xbrl/__init__\.py",
+            r"tests/contract/test_arelle_report_extraction",
+            r"tests/unit/test_invalid_base_set_qname",
+            r"tests/unit/test_semantic_",
+            r"tests/unit/test_resolved_text",
+            r"tests/unit/test_report_input_target",
+            r"tests/helpers/(rich_xbrl|ixds_xbrl|invalid_transform|linkbase_qnames|xbrl_bundles)",
+            r"tests/unit/test_source_datetime",
+        ],
+    ),
+    (
+        "E Extraction IR & wire codecs",
+        [
+            r"src/edgar/xbrl/(records|source_records|source_wire|_source_build)\.py",
+            r"tests/unit/test_semantic_records",
+            r"tests/unit/test_source_extract_adapt",
+        ],
+    ),
+    (
+        "F Extraction verification, receipts & orchestration",
+        [
+            r"src/edgar/xbrl/(upstream_inventory|integrity|extraction_receipt|report_set|semantic|source_extract)\.py",
+            r"src/edgar/provenance\.py",
+            r"src/edgar/ingestion/source_extract\.py",
+            r"src/edgar/ingestion/__init__\.py",
+            r"tests/unit/test_upstream_inventory",
+            r"tests/unit/test_xbrl_integrity",
+            r"tests/unit/test_extraction_receipt",
+            r"tests/helpers/extraction_receipt",
+            r"tests/unit/test_report_set",
+            r"tests/unit/test_source_extract_orchestration",
+            r"tests/unit/test_cli_extract_json",
+            r"tests/unit/test_source_identity",
+            r"tests/integration/test_source_extract\.py",
+            r"tests/contract/test_frozen_slice0",
+        ],
+    ),
+    (
+        "G Source persistence (PostgreSQL + migrations)",
+        [
+            r"src/edgar/db/(source|source_schema|source_persist|schema|engine|check|__init__)\.py",
+            r"src/edgar/ingestion/catalog\.py",
+            r"migrations/",
+            r"tests/integration/test_source_persist",
+            r"tests/integration/test_source_catalog",
+            r"tests/integration/test_v2_clean_head",
+            r"tests/integration/test_migration_",
+            r"tests/helpers/(migration_0005|preflight_0005|database|network_identity)",
+            r"tests/integration/test_network_identity",
+            r"tests/unit/test_catalog_service",
+            r"tests/unit/test_v2_migration_freeze",
+            r"tests/unit/test_database_guard",
+        ],
+    ),
+    (
+        "H Document structure & sections",
+        [
+            r"src/edgar/parsing/",
+            r"src/edgar/xbrl/source_documents\.py",
+            r"tests/unit/test_document_",
+            r"tests/unit/test_source_documents",
+            r"tests/helpers/document_fixtures",
+        ],
+    ),
+    (
+        "I Metric registry & mapping ledger",
+        [
+            r"src/edgar/registry/",
+            r"src/edgar/db/registry",
+            r"tests/unit/registry/",
+            r"tests/integration/test_mapping_",
+            r"tests/helpers/mapping_source_fixture",
+            r"tests/unit/test_cli_metrics_mappings",
+        ],
+    ),
+    (
+        "J M0 benchmark validation",
+        [r"tests/helpers/financial_cases", r"tests/unit/test_financial_benchmark"],
+    ),
+    (
+        "K Corpus acceptance",
+        [
+            r"src/edgar/corpus_",
+            r"scripts/phase1_corpus_acceptance",
+            r"tests/unit/test_corpus_manifest",
+            r"tests/integration/test_source_corpus_acceptance",
+            r"tests/unit/test_document_inventory_digest",
+        ],
+    ),
+    (
+        "L CLI & settings",
+        [r"src/edgar/cli\.py", r"src/edgar/config\.py", r"src/edgar/__init__\.py"],
+    ),
 ]
+
+
 def count(path):
     phys = code = 0
     for line in open(path, encoding="utf-8"):
@@ -472,21 +625,26 @@ def count(path):
         if s and not s.startswith("#"):
             code += 1
     return phys, code
-agg = collections.defaultdict(lambda: [0,0,0,0])
+
+
+agg = collections.defaultdict(lambda: [0, 0, 0, 0])
 unassigned = []
 for f in files:
-    if f.startswith("var/"): continue
+    if f.startswith("var/"):
+        continue
     cap = next((name for name, pats in CAPS if any(re.search(p, f) for p in pats)), None)
     if cap is None:
-        unassigned.append(f); continue
+        unassigned.append(f)
+        continue
     p, c = count(f)
     is_test = f.startswith("tests/")
     agg[cap][2 if is_test else 0] += p
     agg[cap][3 if is_test else 1] += c
-tot = [0,0,0,0]
+tot = [0, 0, 0, 0]
 print(f"{'capability':52s} {'prod_phys':>9s} {'prod_code':>9s} {'test_phys':>9s} {'test_code':>9s}")
 for name, _ in CAPS:
-    v = agg[name]; tot = [a+b for a,b in zip(tot,v)]
+    v = agg[name]
+    tot = [a + b for a, b in zip(tot, v)]
     print(f"{name:52s} {v[0]:9d} {v[1]:9d} {v[2]:9d} {v[3]:9d}")
 print(f"{'TOTAL':52s} {tot[0]:9d} {tot[1]:9d} {tot[2]:9d} {tot[3]:9d}")
 print("unassigned:", unassigned)

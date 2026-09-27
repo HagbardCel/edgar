@@ -72,7 +72,7 @@ Suggested modules (do not add more without need):
 | `financials/metalinks.py` | Parse `MetaLinks.json` / `FilingSummary.xml` from a bundle |
 | `financials/period.py` | Required-context + fiscal focus from `source.*` |
 | `financials/decimals.py` | XBRL duplicate-fact consistency |
-| `financials/resolve.py` | Fact → `(metric, relation, rule_id)` |
+| `financials/resolve.py` | Fact → `(metric, relation, decision_id)` |
 | `financials/select.py` | Slot → observation |
 | `financials/validate.py` | Identities + gold comparison |
 | `financials/build.py` | Orchestrate one build; write files |
@@ -110,8 +110,8 @@ uv run edgar registry validate
 ```
 
 Record the new `definition_hash` for each of the eight keys
-(`edgar metrics show <key>`). You will paste those hashes into the rules in
-P1.2.
+(`edgar metrics show <key>`). You will paste those hashes into the
+decision records in P1.2.
 
 Do **not** run `edgar registry sync` unless you need the mirror for an
 existing test. P1 does not use the mirror.
@@ -158,39 +158,59 @@ Also record, as `relation: broader` or `related` (never exact):
 | `us-gaap:CashAndCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect` (only if you need it) | — | skip unless a test requires it |
 | `us-gaap:RestrictedCashAndCashEquivalentsAtCarryingValue` | `cash_excluding_restricted_cash` | `related` |
 
-Schema (Pydantic):
+Schema (Pydantic). This is a **Git current-state** record: one file is the
+current conclusion. There is **no** `supersedes` field. Git history is the
+revision log.
 
 ```text
 id: str
 metric: str                         # must exist in metrics.yml
-source: {family: us-gaap|dei|srt|issuer, local_name: str, issuer_cik?: str}
+source:
+  family: us-gaap | dei | srt | issuer
+  local_name: str
+  issuer_cik?: str                  # required when family=issuer
+  exclude_qnames?: [str]            # Clark QNames dropped from expansion
 relation: "exact" | "narrower" | "broader" | "related"
 scope: {exclude_ciks?: [str], exclude_sic_divisions?: [str]}
 status: "accepted" | "rejected"
 method: "curated" | "reviewed"
 rationale: str
-evidence: [{kind, quote}]           # optional, short
+evidence: [{kind, source?, artifact_sha256?, concept?, accession?, locator?, quote?}]
 reviewed: {by: str, on: date}
 contract_hash: str                  # definition_hash of that metric *now*
-supersedes: str | None
 ```
+
+Evidence rules:
+
+- `status: accepted` requires `rationale` **and at least one** evidence
+  item with enough to find the source (`kind` plus MetaLinks/taxonomy
+  artifact hash, or accession+locator). The quote is optional.
+- `status: rejected` requires `rationale`. Evidence is recommended, not
+  required.
 
 **Expansion (P1 algorithm, tested, not identity):**
 
 - `family=us-gaap` + `local_name=Assets` covers any fact whose
   `namespace_uri` starts with `http://fasb.org/us-gaap/` and whose
-  `local_name` is `Assets`.
+  `local_name` is `Assets`, except Clark QNames listed in
+  `exclude_qnames`.
 - Record the expanded Clark QName on each support (`source_qname`).
 - Do **not** store the family prefix as `source.concept` identity.
 
-`status: rejected` files are valid and must load. Resolve ignores them.
+`status: rejected` files are valid and must load. Resolve ignores them
+for supports. The review queue (P4) reads a rejected file **only when
+its `contract_hash` equals the current contract**. A stale rejected
+record is historical evidence and must **not** suppress a new review.
+
 Add one rejected example (e.g. `us-gaap:Revenues` as exact-for-`revenue`
 is rejected / filed as `broader` accepted instead) so the loader is
 tested.
 
 `contract_hash` must equal `definition_hash(metric)` at load time for
-`accepted` decisions. If a contract changes and the decision is not
-re-affirmed, load fails. Do not add `metric-v2`.
+**every** decision that has operational effect: accepted (produces
+supports) **and** rejected (suppresses the queue). If a contract changes
+and the decision is not re-affirmed, load fails for that file. A stale
+rejection must not stay silently effective. Do not add `metric-v2`.
 
 For P1 it is enough to put JPM (`0000019617`) in
 `scope.exclude_ciks` on the revenue exact decision. A real SIC map waits
@@ -202,9 +222,13 @@ for P2/P6.
   are both in the expansion; `{http://fasb.org/us-gaap/2023}Liabilities`
   is not.
 - A support row carries the exact Clark QName, not `us-gaap:Assets`.
-- Stale `contract_hash` on an accepted decision raises.
+- Stale `contract_hash` on an **accepted** decision raises.
+- Stale `contract_hash` on a **rejected** decision raises (or the file
+  loads as history-only and is proven **not** to suppress review).
+- `exclude_qnames` drops that Clark QName from the expansion.
 - Unknown metric key raises.
 - `status: rejected` does not produce supports.
+- Accepted decisions without evidence fail schema validation.
 - Broader decisions never have `relation: exact`.
 
 **Validation gate P1.2**
@@ -262,7 +286,7 @@ Selector unit tests (not gold rows) must also cover:
 - `us-gaap:Revenues` is **broader**, never selected as `revenue`.
 - eBay extension
   `DisposalGroupIncludingDiscontinuedOperationProductDevelopment` is **not**
-  an exact rule for `research_and_development` (the FY2023 R&D slot still
+  an exact decision for `research_and_development` (the FY2023 R&D slot still
   comes from the standard concept).
 - Restricted cash is **related**, not exact.
 
@@ -301,29 +325,64 @@ period when provided, else the required-context period.
 Duration metrics match `period_kind='duration'` and start/end.
 Instant metrics match `period_kind='instant'` and `instant_lexical == end`.
 
-Entity match: strip leading zeros on both sides before comparing.
+Entity match uses the **SEC CIK scheme plus a 10-digit identifier**, not
+“strip zeros on any string”:
+
+```text
+context.entity_scheme == "http://www.sec.gov/CIK"
+normalize_cik(context.entity_identifier) == filing.cik
+  (10-digit zero-padded)
+```
+
+Do not treat an identifier that merely digits-equal after stripping zeros
+as a match if the scheme is missing or is not the SEC CIK scheme.
 
 **Duplicate consistency** (`financials/decimals.py`).
 
+Implement the **XBRL OIM interval rule**. Do **not** round both values to
+the coarser `decimals` with `ROUND_HALF_EVEN`. That algorithm is wrong
+(see the 2500/`-2` vs 3000/`-3` counterexample below).
+
 XBRL `decimals` is a text field (`"-6"`, `"-8"`, `"INF"`).
 
-- `INF` is exact. Two `INF` values agree only if the `Decimal`s are equal.
-- Otherwise the **coarser** accuracy is `min(int(dec_a), int(dec_b))`
-  (because `-8 < -6`). Round both values to that quantum
-  `10 ** (-decimals)` using `decimal.ROUND_HALF_EVEN`. They are consistent
-  if the rounded values are equal.
-- The **survivor** of a consistent pair is the more precise fact (larger
-  `decimals` integer; `INF` wins). Keep its `resolved_numeric` and its fact
-  id. Record the other fact ids as co-supports.
-
-Unit test that must exist:
-
 ```text
-9867000000 decimals=-6  vs  9900000000 decimals=-8  → consistent
-survivor = 9867000000
+d = int(decimals)                 # except INF
+half_width = 0.5 × 10^(-d)
+interval = [value − half_width, value + half_width]   # closed
+INF → [value, value]
+
+duplicates consistent ⇔
+  intersection(all intervals in the group) is non-empty
+
+additional rule:
+  same decimals ⇒ reported numeric values must be equal
 ```
 
-Inconsistent pair → selector status `conflict`.
+- The **survivor** of a consistent group is the most precise filed value
+  (largest `decimals` integer; `INF` wins). Keep its `resolved_numeric`
+  and **all** fact ids as co-supports.
+- Inconsistent group → selector status `conflict`.
+
+Unit tests that must exist:
+
+```text
+# Walmart cash (still consistent; survivor is the more precise)
+9867000000 decimals=-6  vs  9900000000 decimals=-8  → consistent
+survivor = 9867000000
+
+# OIM vs rounding counterexample (must be consistent, not conflict)
+2500 decimals=-2  → interval [2450, 2550]
+3000 decimals=-3  → interval [2500, 3500]
+intersection non-empty → consistent
+ROUND_HALF_EVEN to coarsest thousand would wrongly say conflict
+
+# same decimals, unequal values → inconsistent
+100 decimals=-2  vs  200 decimals=-2  → conflict
+
+# INF
+10 INF vs 10 INF → consistent
+10 INF vs 11 INF → conflict
+```
 
 **Validation gate P1.4**
 
@@ -341,13 +400,15 @@ No database in these tests. Fabricate tiny context/fact rows as dicts.
 
 ```text
 Support:
-  fact_id, accession, concept_namespace, concept_local_name
-  metric, relation, rule_id
+  fact_id, accession, concept_namespace, concept_local_name, source_qname
+  metric, relation, decision_id
 ```
 
-A support exists when the fact's concept matches a rule and the rule's
-`exclude_when` (if any) does not fire. Resolve does **not** look at period,
-unit, or dimensions. That is selection.
+A support exists when the fact's concept is in an **accepted** decision's
+QName expansion (family + local_name, minus `exclude_qnames`) and the
+decision's `scope` (if any) does not exclude this issuer. Resolve does
+**not** look at period, unit, or dimensions. That is selection. There is
+no `exclude_when` field and no `rule_id`.
 
 **Select (`as-filed`, annual-v1).** Forms **`10-K` and `10-K/A` only**.
 If `source.filing.form` is `10-Q` or `10-Q/A`, emit `unsupported` (or
@@ -361,8 +422,12 @@ Candidates are facts that have an **exact** support and all of:
 
 - `value_status = 'valid'` and not nil and `resolved_numeric` present;
 - no `context_dimension` rows;
-- entity = required-context entity;
-- USD unit (`unit_measure.measure_local_name = 'USD'`);
+- entity = required-context entity (SEC CIK scheme + padded CIK, P1.4);
+- **USD unit — complete structure**, not `EXISTS local_name='USD'`:
+  exactly one numerator measure whose QName is ISO 4217 USD
+  (`http://www.xbrl.org/2003/iso4217`, `USD`); no denominator.
+  `USD/shares` must not match. Use `source.unit_measure.side`,
+  `ordinal`, `measure_namespace_uri`, `measure_local_name`;
 - period matches the slot / required context as in P1.4.
 
 Then:
@@ -370,7 +435,8 @@ Then:
 1. Collapse identical `Decimal` values to one observation, many supports.
 2. Collapse consistent-but-unequal values (P1.4) to the survivor.
 3. Else `conflict`.
-4. No candidate → `missing`, unless the rule is excluded → `unsupported`.
+4. No candidate → `missing`, unless the decision's scope excludes this
+   issuer → `unsupported`.
 5. Never pick a `broader` / `related` / `narrower` support as the published
    value.
 
@@ -379,21 +445,26 @@ Observation fields (P1 minimum):
 ```text
 cik, accession, metric, fy, fp, period_start, period_end, period_type
 status, numeric, decimals, unit
-rule_ids, fact_ids, relation
+decision_ids, fact_ids, relation
 available_at          # source.filing.accepted_at (may be null; do not substitute)
 view                  # "as-filed"
 ```
 
 **SQL.** Keep it in one place (`select.py` or a `.sql` file). The experiment
-in [A](../A-evidence-and-method.md) is the starting query. Add the dimensions
-anti-join, USD check, and `value_status` filter as shown there.
+in [A](../A-evidence-and-method.md) is the starting query. Replace its
+`EXISTS local_name='USD'` with the complete unit-structure test above. Add
+the dimensions anti-join, entity-scheme match, and `value_status` filter.
 
 **Tests (unit, fake rows):**
 
-- Happy path: one undimensioned USD fact → `value`.
+- Happy path: one undimensioned USD fact (one numerator, ISO 4217 USD, no
+  denominator) → `value`.
 - Extra dimension → not a candidate.
+- `USD/shares` (numerator USD + denominator shares) → not a candidate.
+- Entity scheme not `http://www.sec.gov/CIK` → not a candidate.
 - Two inconsistent values → `conflict`.
 - Walmart pair → `value` `9867000000`.
+- 2500/`-2` vs 3000/`-3` → `value` (OIM-consistent), survivor most precise.
 - Broader-only → not `value` (and not silently used).
 - Amendment with no statement facts → `missing`.
 - 10-Q form → `unsupported` / `wrong_form`, even if RFCWCEAT exists.
@@ -425,9 +496,9 @@ is absent, return an empty view (do not fail the build). `FilingSummary.xml`
 is a fallback for statement titles only; skip it in P1 if MetaLinks exists
 on all six filings (it does).
 
-Use the documentation text when writing `basis` on rules (manual). Use
-statement roles in a unit test that eBay FY2023 has a consolidated income
-statement entry. Selection in P1 does **not** require statement membership
+Use the documentation text when writing `rationale` / evidence on
+decisions (manual). Use statement roles in a unit test that eBay FY2023
+has a consolidated income statement entry. Selection in P1 does **not** require statement membership
 (the required-context undimensioned fact is enough). P4 will use this for
 `unmapped_candidate`.
 
@@ -485,15 +556,16 @@ edgar build --data-root var --check-gold --output-dir var/builds/p1
 
 Behavior:
 
-1. Load rules + contracts; fail on hash mismatch.
+1. Load **decisions** + contracts; fail on hash mismatch (accepted and
+   rejected).
 2. For each cataloged accession (or `--accession` list), run resolve →
    select → validate.
 3. Write, atomically (temp dir + rename):
    - `observations.csv` — one row per slot; `Decimal` as string.
    - `observations.json` — same content, numbers as strings.
    - `findings.json`
-   - `manifest.json`: git commit, rules file hashes, extractor version,
-     accession list, built_at (UTC).
+   - `manifest.json`: git commit, `decisions_commit`, decision file hashes,
+     extractor version, accession list, built_at (UTC).
 
 No parquet dependency in P1 (`pyarrow` is not in `pyproject.toml`). CSV +
 JSON is enough. Add parquet in P3 if the storage ADR says so.
@@ -572,12 +644,13 @@ Paste `edgar build` summary output in the PR.
 
 - **Using `cash_and_cash_equivalents` for the gold cash slots.** Wrong
   contract. Use the new key.
-- **Treating namespace year as part of the rule.** Then eBay 2022 and 2023
-  need two rules. That is the failure mode 08 called out.
+- **Treating namespace year as part of the decision.** Then eBay 2022 and
+  2023 need two files. That is the failure mode 08 called out. Use
+  `exclude_qnames` only when drift is detected.
 - **Selecting dimensional facts.** Segment and LegalEntity breakdowns will
   look like “better” revenue. They are out of scope. Undimensioned only.
 - **Picking the rounded Walmart cash (`9.9` billion).** More precise is
-  `-6` → `9867000000`.
+  `-6` → `9867000000`. Do not implement “round both to coarser decimals.”
 - **Substituting filing date for `accepted_at`.** If `accepted_at` is null,
   leave `available_at` null.
 - **Adding observation tables.** Rebuildable output stays in

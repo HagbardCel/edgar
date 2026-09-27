@@ -38,9 +38,9 @@ The release artifact is a `edgar publish` snapshot: observations + support
 
 ### P6.1 — Remaining income-statement / balance-sheet / cash-flow metrics
 
-For each remaining key in `registry/metrics.yml`, add **one** exact standard
-concept (or an explicit `unsupported` with reason) in
-`registry/rules/standard.yml`.
+For each remaining key in `registry/metrics.yml`, add **one** exact
+accepted decision (or an explicit `unsupported` with reason) under
+`registry/decisions/<metric>/`.
 
 Suggested first wave (usually one obvious US-GAAP local name):
 
@@ -59,12 +59,13 @@ Suggested first wave (usually one obvious US-GAAP local name):
 | `diluted_eps` | `EarningsPerShareDiluted` |
 | `weighted_average_shares_diluted` | `WeightedAverageNumberOfDilutedSharesOutstanding` |
 
-**Rule:** if two standard concepts are both plausible and values can
-differ, do **not** pick. Either add conditions or leave `missing` /
-`unmapped_candidate` until a reviewer writes the rule.
+If two standard concepts are both plausible and values can differ, do
+**not** pick. Either add scope conditions or leave `missing` /
+`unmapped_candidate` until a reviewer writes the decision.
 
-Each new rule PR must include: MetaLinks documentation quote, FSDS or spike
-frequency, and 5 gold slots from rendered statements.
+Each new decision PR must include: at least one evidence pointer (MetaLinks
+or taxonomy artifact), FSDS or spike frequency, and 5 gold slots from
+rendered statements.
 
 **Validation gate P6.1** (repeat per wave)
 
@@ -83,7 +84,7 @@ Replace the P1 JPM hard-code with a real map:
 
 - CIK → SIC from submissions or a committed `registry/industry/sic.yml`
   built from retrieved submissions JSON (hashed in the object store).
-- `exclude_when: {sic_division: [H]}` on product-revenue rules.
+- `scope.exclude_sic_divisions: [H]` on product-revenue decisions.
 - New contracts if you need them, e.g. `net_interest_income` for banks —
   **new key**, do not overload `revenue`.
 
@@ -150,7 +151,7 @@ publications/<name>/<id>/
   observations.parquet-or-csv
   supports.csv
   findings.json
-  manifest.json      # code commit, rules commit, extractor, input hashes
+  manifest.json      # code commit, decisions_commit, extractor, input hashes
 ```
 
 The directory is write-once. A second publish gets a new id.
@@ -183,8 +184,8 @@ under `revenue`.
 ## Phase exit gate
 
 There is no single “P6 done”. A wave is done when its gate passes and the
-published report is updated. Stop expanding metrics when the next rule
-would be a guess.
+published report is updated. Stop expanding metrics when the next
+decision would be a guess.
 
 ## Pitfalls
 
@@ -196,7 +197,7 @@ would be a guess.
 
 ## Stop and ask if
 
-- A metric's spike coverage is < 40% after a careful rule — it may be a
+- A metric's spike coverage is < 40% after a careful decision — it may be a
   P4 residual, not a missing synonym.
 - You are about to add a generic mapping DSL or ontology. That is outside
   this sequence.

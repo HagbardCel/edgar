@@ -135,7 +135,7 @@ uv run edgar build --check-gold
    store and parses concepts, labels (including documentation), references,
    standard networks into `taxonomy/{release}/`.
 2. Extraction joins standard metadata by `(namespace_uri, local_name)`.
-   Per-report declarations stay at the P0.3 keep-set.
+   Per-report declarations stay at the P0.3 `base_concepts` grain.
 3. Closure capture for **standard** URIs is replaced by the package. Issuer
    extension files remain in the filing bundle. Missing package → fail
    closed (do not hit the network).
@@ -168,7 +168,9 @@ Delete, in one PR sequence after rules-check is in CI:
 Update CLI help. Update `AGENTS.md` Phase 2C bullets: YAML **decision
 records** are authority; there is no mirror and no PostgreSQL ledger.
 Do **not** delete the idea of a decision (relation, status, rationale,
-evidence, supersedes). Delete only the database implementation.
+required evidence on accepted records, `contract_hash`). Delete only the
+database implementation. Do **not** reintroduce `supersedes`; Git
+current-state is the revision log.
 
 Keep `definition_hash` in `src/edgar/registry/hashing.py` — decisions still
 pin it.

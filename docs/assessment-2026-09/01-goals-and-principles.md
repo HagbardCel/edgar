@@ -49,7 +49,7 @@ reviewer can read, test and change in one place.
 
 1. **One owner per kind of truth.**
    - Raw bytes live in the object store.
-   - Human knowledge (contracts, rules, gold values) lives in Git.
+   - Human knowledge (contracts, decision records, gold values) lives in Git.
    - Everything else is derived and rebuildable.
 
    Never keep two authoritative copies that need synchronization checks.

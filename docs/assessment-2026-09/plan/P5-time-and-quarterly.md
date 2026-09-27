@@ -28,10 +28,10 @@ Amendments compete per slot. A 10-K/A without statement facts (eBay
 
 ## Out of scope
 
-- Knowledge clocks (`semantic_as_of`, `acquired_as_of`). The rules Git
-  commit on the build manifest is the mapping vintage.
+- Knowledge clocks (`semantic_as_of`, `acquired_as_of`). The
+  `decisions_commit` on the build manifest is the mapping vintage.
 - “Unreviewed later coverage blocks latest.” That was an artifact of
-  per-report claims. Global rules apply to all filings.
+  per-report claims. Global decisions apply to all filings.
 - `amends` edge table. Replacement is derived per slot by accession +
   acceptance time.
 - Market/security joins (later product).
@@ -48,14 +48,33 @@ Primary identity (what two facts must share to be the same observation):
 ```
 
 `fiscal_year` and `fiscal_period` (`FY | Q1 | Q2 | Q3 | Q4 | YTD`) are
-**derived** from those dates using the issuer's fiscal calendar. They are
-not copied from the supplying filing's DEI cover facts.
+**derived labels**, not identity. Do **not** invent a generic issuer
+calendar (52/53-week years, fiscal-year changes) unless P5 data shows it
+is needed.
+
+Conservative derivation:
+
+```text
+own filing required context
++ that filing's DEI FY/FP
+        ↓
+creates an issuer-period **anchor**
+(cik, period_start|instant, period_end) → (fy, fp)
+
+comparative period
+        ↓
+match against known anchors
+        ↓
+unique match → derived FY/FP
+no unique match → FY/FP stay unknown
+```
 
 The supplying filing's `DocumentFiscalYearFocus` /
 `DocumentFiscalPeriodFocus` classify **that filing's own** reporting
 period (required context). A FY2022 comparative inside a FY2023 10-K has
 period dates in 2022; its slot is 2022 even though the 10-K says focus
-2023.
+2023. If no earlier 10-K created a 2022 anchor, leave FY/FP unknown
+rather than guessing a calendar.
 
 Do not infer quarter from duration length alone (KO YTD vs quarter).
 
@@ -205,5 +224,7 @@ uv run pytest -q tests/unit/test_stability.py
 
 - `accepted_at` is widely null in the spike. Fix acquisition before
   shipping latest/first as a product.
-- You think you need `semantic_as_of`. Check out the rules commit and
-  rebuild instead.
+- You think you need `semantic_as_of`. Check out the `decisions_commit`
+  and rebuild instead.
+- You want a generic fiscal-calendar engine. Stay on anchors until the
+  unknown-FY/FP rate on the spike demands more.

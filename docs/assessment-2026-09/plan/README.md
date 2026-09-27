@@ -42,7 +42,7 @@ P1 Walking skeleton ── 8 metrics × 6 filings, existing PostgreSQL
 P2 Scale spike ── 500–1,000 filings, oracles, measured decisions
         │
         ▼
-P3 Consolidate ── one schema, storage per P2 ADR, Git rules only
+P3 Consolidate ── one schema, storage per P2 ADR, Git decisions only
         │
         ├──────────► P4 Extensions and review queue
         │

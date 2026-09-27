@@ -4,7 +4,7 @@
 
 ## Goal
 
-Run Stage-1 rules (the eight P1 metrics, global exact rules only) on
+Run Stage-1 decisions (the eight P1 metrics, global exact decisions only) on
 **500–1,000 real 10-Ks**, then write down numbers that decide P3.
 
 This phase is a *measurement* phase. New product features are limited to:

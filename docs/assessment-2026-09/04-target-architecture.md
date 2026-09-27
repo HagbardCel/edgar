@@ -27,10 +27,10 @@ product.
 | **Documents** | HTML blocks and regulatory sections (current parser) | Filing manifest → `documents/{version}/…` | Derived |
 | **Knowledge** | Metric contracts; semantic **decision records** (accepted, rejected, non-exact); gold values | Git `registry/` → validated in CI | Durable (Git) |
 | **Resolve** | Expand accepted decisions to exact QNames; every fact gets zero or more `(metric, relation, decision_id)` supports | facts + taxonomy + decisions → `supports` | Derived |
-| **Select** | Per issuer × metric × fiscal period × view, choose supporting facts or a typed non-publication reason | supports + contexts + policy → `observations` | Derived |
+| **Select** | Per issuer × metric × period dates × unit × scope × view, choose supporting facts or a typed non-publication reason | supports + contexts + policy → `observations` | Derived |
 | **Validate** | Accounting identities, calculation consistency, SEC `companyfacts` agreement, gold values, cross-filing stability | observations + facts + oracles → `findings`, quality report | Derived |
-| **Review** | Rank exceptions; optionally attach LLM proposals; humans resolve them by editing rules in Git | findings + unmapped candidates → queue; decisions → PR | Queue derived; decisions in Git |
-| **Publish** | Freeze a dataset: observations + support + findings + manifest (code commit, rules commit, extractor version, input hashes) | derived tables → `publications/{name}/{id}/` | Durable once written |
+| **Review** | Rank exceptions; optionally attach LLM proposals; humans resolve them by editing **decision records** in Git | findings + unmapped candidates → queue; decisions → PR | Queue derived; decisions in Git |
+| **Publish** | Freeze a dataset: observations + support + findings + manifest (code commit, `decisions_commit`, extractor version, input hashes) | derived tables → `publications/{name}/{id}/` | Durable once written |
 
 ## Data flow
 
@@ -72,13 +72,14 @@ flowchart LR
   GIT --> VAL
   VAL --> Q
   LLM -.-> Q
-  Q -- "human edits rules (PR)" --> GIT
+  Q -- "human edits decisions (PR)" --> GIT
   OBS --> PUB
   VAL --> PUB
 ```
 
-The only cycle runs through Git. Review changes rules; rules change derived outputs; the next build
-re-measures quality. No database state feeds back into interpretation.
+The only cycle runs through Git. Review changes decision records; accepted
+decisions change derived outputs; the next build re-measures quality. No
+database state feeds back into interpretation.
 
 ## Durable vs derived state
 
@@ -86,12 +87,12 @@ re-measures quality. No database state feeds back into interpretation.
 |---|---|---|---|
 | Raw filing artifacts, SEC companions, taxonomy packages | Yes | SHA-256 | none (re-acquire) |
 | Filing manifest: metadata, acceptance timestamp, retrieval time, artifact list | Yes | accession + manifest hash | none |
-| Git registry: contracts, rules, policies, gold values | Yes | Git commit | none |
+| Git registry: contracts, decision records, gold values | Yes | Git commit | none |
 | Published snapshot | Yes (immutable once written) | publication id | none |
 | Taxonomy tables | No | taxonomy release + parser version | reparse packages |
 | Extraction tables | No | accession + report key + extractor version | re-run the worker |
 | Document blocks and sections | No | accession + parser version | re-parse |
-| Supports, observations, findings, queue | No | build id = (extractor version, rules commit, code version) | `edgar build` |
+| Supports, observations, findings, queue | No | build id = (extractor version, `decisions_commit`, code version) | `edgar build` |
 
 This split removes the need for schema migrations on evidence tables. When extraction output
 changes, the extractor version changes and the tables are rebuilt. Correctness is protected by
@@ -153,7 +154,7 @@ The existing `filings` and `documents sections` commands keep their behavior. Th
 
 - `extract_report(manifest, packages) -> ReportTables`: Arrow tables with a fixed schema. It is the
   only engine boundary.
-- `resolve(facts, taxonomy, rules) -> supports`, `select(supports, contexts, policy) -> observations`
+- `resolve(facts, taxonomy, decisions) -> supports`, `select(supports, contexts, policy) -> observations`
   and `validate(...) -> findings` are pure functions over tables, typically DuckDB SQL plus small
   Python.
 - One record schema per table, defined once. The worker writes it; the parent validates the schema
@@ -161,10 +162,17 @@ The existing `filings` and `documents sections` commands keep their behavior. Th
 
 ### Knowledge files (Git)
 
-Authored form is a **decision record**, not a bare runtime rule. `resolve`
-loads accepted decisions and expands them to exact QNames. Rejected
-decisions are not applied; the review queue reads them so the same question
-is not reopened without new evidence.
+Authored form is a **decision record**, not a bare runtime rule. One file is
+the **current** semantic conclusion (Git current-state). A PR edits the
+file; Git history is the revision log. There is no `supersedes` chain and
+no YAML ledger.
+
+`resolve` loads **accepted** decisions whose `contract_hash` equals the
+current contract and expands them to exact QNames. **Rejected** decisions
+with a current `contract_hash` are not applied; the review queue reads
+them so the same question is not reopened without new evidence. A rejected
+file whose `contract_hash` is stale remains visible as history but **must
+not** suppress a new review.
 
 ```yaml
 # registry/decisions/total_assets/us-gaap-Assets.yml
@@ -173,16 +181,20 @@ metric: total_assets
 source:
   family: us-gaap          # not a QName; see expansion below
   local_name: Assets
+  exclude_qnames: []       # optional; Clark QNames dropped from expansion
 relation: exact
 scope: {}                  # or {exclude_sic_divisions: [H]}
 status: accepted           # accepted | rejected
 method: curated
 rationale: "FASB documentation: carrying amount of all recognized assets"
-evidence:
-  - kind: documentation
-    quote: "Sum of the carrying amounts … of all assets that are recognized."
+evidence:                  # required when status=accepted; ≥ 1 item
+  - kind: taxonomy_documentation
+    source: metalinks
+    artifact_sha256: "<sha256 of MetaLinks.json or taxonomy artifact>"
+    concept: us-gaap:Assets
+    # quote is optional
 reviewed: {by: "<reviewer>", on: "<date>"}
-contract_hash: "<sha256 of contract>"
+contract_hash: "<sha256 of current contract>"   # required; accepted and rejected
 ```
 
 ```yaml
@@ -193,22 +205,45 @@ source:
   family: issuer
   issuer_cik: "0001065088"
   local_name: DisposalGroupIncludingDiscontinuedOperationProductDevelopment
+  exclude_qnames: []
 relation: narrower
 status: accepted
 method: reviewed
+rationale: "Disposal-group product development is a component of R&D, not the total."
+evidence:
+  - kind: filer_documentation
+    accession: "0001065088-24-000036"
+    locator: "us-gaap_ResearchAndDevelopmentExpense"
+reviewed: {by: "<reviewer>", on: "<date>"}
+contract_hash: "<sha256 of current contract>"
+```
+
+Terminology:
+
+```text
+authored object     = Decision          (this YAML)
+runtime derivative  = Support           (expanded exact QNames + fact ids)
+lineage key         = decision_id
+CLI name            = edgar rules check may stay (it validates decisions)
 ```
 
 **QName expansion** (runtime, not identity):
 
 ```text
-decision (family + local_name)
+decision (family + local_name − exclude_qnames)
     → exact QNames of facts this decision covers
 P1 algorithm: namespace starts with the family prefix
               (http://fasb.org/us-gaap/, …) and local_name equals
+              and Clark QName ∉ exclude_qnames
 Later: same, plus taxonomy-table drift checks (type / period / balance /
-       documentation). Material drift drops that release's QName from
-       the expansion and queues a review.
+       documentation). Material drift adds that release's QName to
+       exclude_qnames (or a reviewer does) and queues a review.
 ```
+
+Default is family-wide continuity. `exclude_qnames` is the escape hatch
+when a later release (or an issuer reusing a local name) is **not** the
+same concept. Do not require a per-year decision unless an exception
+exists.
 
 Source facts always keep the expanded QName
 `{http://fasb.org/us-gaap/2023}Assets`. The family string is never stored
@@ -218,7 +253,7 @@ The gold set lives beside decisions, for example `registry/gold/*.yml`.
 Values are verified against rendered statements. The M0 benchmark's values
 and counterexamples migrate there, without the review-process fields.
 
-A derived `registry/rules/` snapshot is optional for debugging. It must be
+A derived expansion snapshot is optional for debugging. It must be
 generated from decisions, never hand-edited as a second authority.
 
 ## Data model essentials
@@ -229,10 +264,10 @@ The per-report extraction tables are:
 - contexts;
 - context dimensions;
 - units;
-- declarations (filer extensions plus concepts used by facts, relationships,
-  or persisted labels/references);
-- labels and references (same keep-set; unused standard-taxonomy resources
-  are not stored per report);
+- declarations (`base_concepts` = fact concepts ∪ relationship endpoints ∪
+  all issuer-extension declarations);
+- labels and references whose subject is in `base_concepts` (unused
+  standard-taxonomy resources are not stored per report);
 - relationships (all networks in the filing DTS extension linkbases);
 - roles (URI, definition, `usedOn`);
 - statement classification (from `MetaLinks.json` / `FilingSummary.xml`);
@@ -249,12 +284,13 @@ Observation rows carry the following, and every published number resolves to exa
 through them:
 
 - issuer, metric, period (start/end or instant), unit, scope, and view;
-- derived `fiscal_year` / `fiscal_period` (issuer calendar, not the
-  supplying filing's DEI focus — that focus names only the filing's own
-  reporting period);
+- derived `fiscal_year` / `fiscal_period` when a unique issuer-period
+  **anchor** matches (own filing required context + that filing's DEI
+  FY/FP). No unique match → FY/FP unknown. Not copied from the supplying
+  filing's DEI focus;
 - value, unit and decimals;
 - status (`value | missing | conflict | unmapped_candidate | unsupported`);
-- supporting fact ids, rule ids and the relation;
+- supporting fact ids, `decision_id`s and the relation;
 - the filing supplying the value, and `available_at` (the SEC acceptance timestamp);
 - validator flags.
 

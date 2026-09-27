@@ -31,7 +31,7 @@ Effort is a rough estimate for one experienced developer. LOC deltas refer to pr
 - **Evidence.** No code turns facts into observations. The plan schedules the first values for M3,
   after M1A, M1B (conditional) and M2.
 - **Action.** Build the walking skeleton ([08](08-migration-plan-assessment.md), P1):
-  - Git rules for the eight benchmark contracts;
+  - Git decision records for the eight benchmark contracts;
   - the required-context selector with duplicate consistency;
   - identity validators;
   - a Parquet/CSV export with support fact ids.
@@ -136,11 +136,11 @@ Effort is a rough estimate for one experienced developer. LOC deltas refer to pr
   - the (never used) PostgreSQL ledger.
 
   The archived `semantic-registry/` is still in the tree.
-- **Action.** Make Git files the only authority: contracts, rules, conditions, gold values. Delete
+- **Action.** Make Git files the only authority: contracts, decision records, gold values. Delete
   the mirror, ledger and archive; Git history retains the archive. CI then checks:
   - schema;
-  - `contract_hash` consistency;
-  - rules referencing existing concepts;
+  - `contract_hash` consistency (accepted **and** rejected);
+  - decisions referencing existing concept families;
   - gold-set regressions.
 
 ### G10 — Parallel representations and repeated verification

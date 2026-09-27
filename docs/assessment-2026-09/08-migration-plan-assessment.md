@@ -33,11 +33,11 @@ Recommendation:
 | **M1A-4** inspector | Useful for review, but premature: no queue exists. SQL over the store plus an evidence-packet generator (05) covers it. | Defer to P4, as part of the review queue |
 | **M1A-5** official taxonomy packets (ADR 0013) | Solves a real gap (FASB definitions) with a per-case acquisition procedure. The same definitions are already in every bundle's `MetaLinks.json`. | Replace: parse `MetaLinks` in P1; taxonomy packages as a general capability in P3 |
 | **M1B** case-triggered evidence | The triggering discipline is sound. Role definitions become a trivial table in the new extraction. | Keep deferral; add the roles table in P3 |
-| **M2** precise contracts | Contract tightening (cash vs restricted cash, PP&E payments vs capex, basis and sign) is necessary. Everything else serves a ledger with zero rows: `metric-v1/v2` schemes, DB snapshot table, mutation triggers, locking, conditions in the ledger, correction links, profile validator, historical claim migration. | Do the contract edits in YAML in P1; replace the ledger with Git rules + `contract_hash` + CI |
+| **M2** precise contracts | Contract tightening (cash vs restricted cash, PP&E payments vs capex, basis and sign) is necessary. Everything else serves a ledger with zero rows: `metric-v1/v2` schemes, DB snapshot table, mutation triggers, locking, conditions in the ledger, correction links, profile validator, historical claim migration. | Do the contract edits in YAML in P1; replace the ledger with Git decision records + `contract_hash` + CI |
 | **M3** first annual release | Correct objective, correct deterministic-selector idea, correct "every slot gets a result" rule. It forbids consistent-duplicate resolution, requires per-occurrence human qualification, and adds status scans and notices. | Move to P1; adopt XBRL duplicate consistency and required-context anchoring; manifest export without notices |
 | **Optional DTO consolidation** (after M3) | Right idea, wrong time. Every M1A/M1B/M2 change pays the four-representation cost first; M1A-1–3 added 7.8k lines partly for that reason. | Do it in P3, immediately after the skeleton proves behavior; parity by golden diff |
-| **M4** time policies and quarterly | As-filed, first-reported and latest-as-of are right. Coverage-cohort blocking ("unreviewed later coverage blocks latest") is an artifact of per-report mapping scopes. Three knowledge clocks and `amends` edges are unnecessary for per-slot selection. | P5: views by acceptance time; per-slot selection handles partial amendments; rules commit replaces `semantic_as_of` |
-| **M5** menu | "Standard-taxonomy continuity" is labelled optional but is on the critical path (below). Parquet/DuckDB export is listed as a late option but is the natural research format. AI proposals are correctly gated. | Continuity in P1 (rules keyed on namespace family + local name); Parquet in P1; AI in P4 |
+| **M4** time policies and quarterly | As-filed, first-reported and latest-as-of are right. Coverage-cohort blocking ("unreviewed later coverage blocks latest") is an artifact of per-report mapping scopes. Three knowledge clocks and `amends` edges are unnecessary for per-slot selection. | P5: views by acceptance time; per-slot selection handles partial amendments; `decisions_commit` replaces `semantic_as_of` |
+| **M5** menu | "Standard-taxonomy continuity" is labelled optional but is on the critical path (below). Parquet/DuckDB export is listed as a late option but is the natural research format. AI proposals are correctly gated. | Continuity in P1 (decisions keyed on namespace family + local name); Parquet in P1; AI in P4 |
 
 ## Hidden dependencies
 
@@ -79,7 +79,7 @@ Recommendation:
 | DTO consolidation deferred to avoid risk | Every intermediate change is paid four times (M1A +7.8k lines) |
 | No workflow engine or profile database | A typed profile validator, capability states, relevance states and check groups in YAML and code |
 | Knowledge immutability without runtime roles | DB mutation triggers, definition locking, successor copies and correction links. This is a reimplementation of what Git gives by default. |
-| No point-in-time guessing | Three clocks, anchored evidence rules and `knowledge_time_unknown` states. A rules commit per build answers the same question. |
+| No point-in-time guessing | Three clocks, anchored evidence rules and `knowledge_time_unknown` states. A `decisions_commit` per build answers the same question. |
 
 ## Infrastructure ahead of demonstrated need
 
@@ -98,7 +98,7 @@ flowchart LR
   P0[P0 Freeze and fix<br/>~1 week] --> P1[P1 Walking skeleton<br/>8 metrics, 6 filings<br/>~2 weeks]
   P1 --> P2[P2 Scale spike<br/>500-1,000 filings,<br/>oracle, quality report<br/>~2-3 weeks]
   P2 --> D{Measured<br/>decisions}
-  D --> P3[P3 Consolidate<br/>one schema, storage,<br/>taxonomy tables, Git rules<br/>~3-4 weeks]
+  D --> P3[P3 Consolidate<br/>one schema, storage,<br/>taxonomy tables, Git decisions<br/>~3-4 weeks]
   P3 --> P4[P4 Extensions and<br/>review queue<br/>~2-4 weeks]
   P3 --> P5[P5 Time views and<br/>quarterly / YTD<br/>~2-3 weeks]
   P4 --> P6[P6 Breadth: 39 metrics,<br/>industries, full history]
@@ -114,7 +114,7 @@ in [plan/](plan/README.md):
 | **P1 Walking skeleton** | [plan/P1-walking-skeleton.md](plan/P1-walking-skeleton.md) | 13/13 gold values plus resolved parent NI and Walmart cash; counterexample statuses pinned; `edgar build --check-gold` |
 | **P2 Scale spike** | [plan/P2-scale-spike.md](plan/P2-scale-spike.md) | 500–1,000 10-Ks; quality + oracle report; storage and taxonomy ADRs |
 | **P3 Consolidate** | [plan/P3-consolidate.md](plan/P3-consolidate.md) | Fact-level parity; Git-only knowledge; production code ≤ ~18k lines |
-| **P4 Extensions and review** | [plan/P4-extensions-and-review.md](plan/P4-extensions-and-review.md) | Ranked queue; tier precision on gold; narrower never publishes as exact |
+| **P4 Extensions and review** | [plan/P4-extensions-and-review.md](plan/P4-extensions-and-review.md) | Ranked queue; observation precision on gold; Tier-3 candidate precision if reviewed; narrower never publishes as exact |
 | **P5 Time and quarterly** | [plan/P5-time-and-quarterly.md](plan/P5-time-and-quarterly.md) | first/latest views; KO/JPM counterexamples hold; derived Q4 flagged |
 | **P6 Breadth** | [plan/P6-breadth.md](plan/P6-breadth.md) | Published quality report per metric × industry × year |
 
@@ -125,7 +125,14 @@ reaches nine slots on six filings at M3, after M1A and M2.
 Revisions after the hybrid-architecture critique ([B](B-feedback-response.md)): Git holds
 **decision records** (not only active rules); Tier 3 does not auto-accept; `annual-v1` is
 10-K/10-K/A only; P5 slot identity is the period, not the supplying filing's DEI focus;
-accession change is not a restatement; P0.3 keep-set includes label/reference subjects.
+accession change is not a restatement.
+
+Specification hardening after the second critique ([C](C-feedback-response.md)): OIM
+interval duplicates; Git current-state decisions (no `supersedes`);
+`contract_hash` on rejected records; `exclude_qnames`; required evidence on
+accepted decisions; non-circular P0.3 keep-set; exact USD unit + SEC CIK
+scheme; conservative FY/FP anchors; observation precision vs Tier-3 candidate
+precision; `decision_id` lineage.
 
 ## What to keep from already-merged M1A work
 

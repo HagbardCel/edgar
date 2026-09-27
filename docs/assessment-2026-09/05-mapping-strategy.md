@@ -81,13 +81,13 @@ around.
 | Strategy | Accuracy | Coverage | Explainability | Cost | External dependence | Suitable for automation | How confidence is established |
 |---|---|---|---|---|---|---|---|
 | **S1** Per-report human review + occurrence qualification (adopted plan) | High on reviewed cases | Very low; bounded by reviewer hours | High | Very high, O(filings × metrics) | None | No | Human attestation, unmeasured |
-| **S2** Global rules on standard concepts + deterministic selector | High; residual is filer mis-tagging | High for standard-tagged metrics; zero for extension-only | Very high (one rule, one definition) | Very low (hundreds of rule decisions, once) | Taxonomy only | Full | Validators, oracle agreement, gold precision |
+| **S2** Global decisions on standard concepts + deterministic selector | High; residual is filer mis-tagging | High for standard-tagged metrics; zero for extension-only | Very high (one decision, one definition) | Very low (hundreds of decisions, once) | Taxonomy only | Full | Validators, oracle agreement, gold precision |
 | **S3** Issuer extension rules by review, reused via continuity | High | Targeted | High | Moderate, O(distinct extension patterns); amortized | None | Reuse is automatic, guarded by value continuity | Review + continuity checks |
 | **S4** Structural proof for extensions (calc position, value equality, statement role) | Medium–high when proof conditions are strict; zeros collide | Moderate | High (the proof is recorded) | Low (code + one policy review) | None | Candidate ranking only; not auto-accept | Per-policy precision on gold before any later ADR |
 | **S5** Third-party mapping tables | Unknown, varies | Broad | Low–medium | Low | Maintainer, license | Proposals only | Must be measured against gold |
 | **S6** Label or embedding similarity | Low–medium (labels do not prove equivalence) | Broad | Low | Low | Embedding model | Candidate retrieval only | Not a basis for acceptance |
 | **S7** Supervised classifier | Possibly good | Broad | Low | Labeled data + upkeep | Training data | Premature | Held-out precision |
-| **S8** LLM proposal (one structured call per candidate) | Medium–high on semantic reading; fails on broader/narrower subtleties | Broad | Medium (rationale, not proof) | Low per call | Model, prompt version | Proposals; accept only with deterministic corroboration or human review | Measured precision per model × prompt version |
+| **S8** LLM proposal (one structured call per candidate) | Medium–high on semantic reading; fails on broader/narrower subtleties | Broad | Medium (rationale, not proof) | Low per call | Model, prompt version | Proposals; accept only by human review | Measured precision per model × prompt version |
 | **S9** Autonomous agent framework | No gain over S8 for a bounded classification | Broad | Low (multi-step traces) | Higher; orchestration state | Framework + model | Poor | Hard to measure |
 | **S10** Use `companyfacts`/FSDS as the primary source | High for what it covers | Standard concepts only; no dimensions, no extensions; no statement structure in `companyfacts` | Medium (SEC-derived) | Very low | SEC's derivation | Full | Inherits SEC's choices |
 
@@ -112,8 +112,9 @@ Notes on the less obvious rows:
   accepted`.
 - **S8 must not decide.** It reads the evidence packet (definition, statement position, calc
   neighbours, values, prior mapping) and proposes `(metric, relation, rationale)`. Acceptance comes
-  from a human. A later ADR may allow a narrow S4 proof class only after gold precision is
-  effectively perfect. This is consistent with `AGENTS.md`.
+  from a human only. A later ADR may allow a narrow S4 proof class only after **candidate**
+  precision (reviewed exact/non-exact labels) is effectively perfect. This is consistent with
+  `AGENTS.md`.
 - **S9 adds nothing** that one structured LLM call plus deterministic tools does not. A
   general-purpose coding agent is useful for *investigating* the review queue through the CLI and
   SQL. Nothing in the pipeline should depend on an agent framework.
@@ -142,9 +143,9 @@ flowchart TB
   S --> O[Observation or typed<br/>non-publication reason]
 ```
 
-**Stage 1: global rules and selector.** Build this first.
+**Stage 1: global decisions and selector.** Build this first.
 
-- Global rules for the eight benchmark contracts, then all 39. Each metric gets its exact concept
+- Global decisions for the eight benchmark contracts, then all 39. Each metric gets its exact concept
   families, plus explicit broader and related concepts that are never published as exact.
 - Industry conditions from SIC for banks, insurers and REITs.
 - The annual selector (section 6).
@@ -195,10 +196,10 @@ save review time.
 | 3 Structural candidate | Value equality or verified calculation position | **Queue only.** Never publishes as exact until a human accepts, or a later ADR authorizes a proof class with measured ~perfect gold precision | Some new extensions |
 | 4 Reviewed | Human-reviewed issuer decision (possibly LLM-proposed) | Human | Residual |
 | — Unresolved | — | Not published; queued | — |
-| — Rejected | Prior decision `status: rejected` | Not published; queue suppresses unless new evidence | — |
+| — Rejected | Prior decision `status: rejected` with **current** `contract_hash` | Not published; queue suppresses unless new evidence. Stale-hash rejections are history only and do **not** suppress | — |
 
-Every observation records its tier and rule ids. Datasets can filter by tier; for example, a
-conservative study uses Tiers 1–2 only.
+Every observation records its tier and `decision_id`s. Datasets can filter by tier; for example, a
+conservative study uses Tiers 1–2 only. Tier 3 never produces a published observation.
 
 ## 6. Observation selection (deterministic, standards-based)
 
@@ -212,27 +213,34 @@ scope for this policy (P5). If invoked on a 10-Q it returns `unsupported` /
    **this filing's own** period. They are not the identity of comparative facts in the same
    instance.
 2. **Slot identity** is `(cik, metric, period_start|instant, period_end, unit, scope)`. Fiscal year
-   and period are derived from those dates against the issuer calendar. A FY2022 comparative
-   inside a FY2023 10-K belongs to the 2022 slot.
+   and period are derived labels: an own-filing required context plus that
+   filing's DEI FY/FP creates an issuer-period **anchor**; a comparative
+   fills FY/FP only on a unique anchor match, otherwise FY/FP stay unknown.
+   A FY2022 comparative inside a FY2023 10-K belongs to the 2022 slot.
 3. **Candidates.** A candidate fact must satisfy all of the following:
    - its exact QName is in the expansion of an applicable exact decision (Tiers 1–2 or 4;
      conditions satisfied);
-   - its entity is the registrant;
+   - its entity uses the SEC CIK scheme (`http://www.sec.gov/CIK`) and the
+     10-digit padded CIK;
    - it has no dimensions. Arelle is not allowed to invent defaults; undimensioned means the
      default (consolidated) member.
-   - its unit matches the contract's unit dimension;
+   - its unit matches the contract's unit **structure** (monetary: exactly
+     one ISO 4217 USD numerator, no denominator);
    - its period matches the *requested slot period* (the filing's required context for as-filed
      current-period requests; explicit start/end for comparatives);
    - it is valid and non-nil.
-4. **Duplicates.**
-   - Identical values collapse to one.
-   - Values consistent under decimal rounding collapse to the most precise.
+4. **Duplicates** (XBRL OIM interval consistency, not rounding-to-coarser).
+   - Treat each numeric as a closed interval of half-width `0.5 × 10^(-d)`.
+     `INF` is `[value, value]`. Same `decimals` additionally requires equal
+     reported numerics.
+   - Consistent ⇔ the intersection of all intervals in the group is non-empty.
+   - Survivor = most precise filed value; keep all fact ids as co-supports.
    - Otherwise the result is `conflict`.
 5. **Several exact concepts** with the same value give one observation with several supports. With
    different values the result is `conflict`. There is never silent precedence.
 6. **Non-publication reasons.**
    - `missing`: no candidate.
-   - `unmapped_candidate`: a primary-statement line item in the matching context has no rule.
+   - `unmapped_candidate`: a primary-statement line item in the matching context has no exact decision.
    - `unsupported`: the contract is excluded for this industry or the form is out of policy.
    - `broader_only`: only broader concepts are present.
 7. **Views.**
@@ -254,8 +262,9 @@ without statements, such as the eBay 10-K/A with 37 cover facts, contributes no 
 
 Confidence is evidence, not a model score, and it is reported at three levels:
 
-- **Rule:** basis (definition text, proof type, reviewer) and tier. The tier's *measured* precision
-  on the gold set.
+- **Decision:** rationale, evidence pointers, reviewer, and tier. Observation
+  precision is measured on gold **values**. Tier-3 **candidate** precision is
+  measured on reviewed exact/non-exact labels, not on published values.
 - **Observation:**
   - identity checks (pass / fail / not applicable);
   - oracle agreement (equal / differs / absent);
@@ -271,13 +280,19 @@ It must stay derivable from the flags.
 
 | Measure | Definition | Needs labels? |
 |---|---|---|
-| Precision | Published values equal to gold values, per metric × tier | Gold set |
+| Observation precision | Published values equal to gold **financial values**, per metric × publishing tier (1, 2, 4) | Gold value set |
+| Tier-3 candidate precision | Reviewed Tier-3 candidates later judged `exact` ÷ reviewed Tier-3 candidates | Mapping-relation labels (exact / not exact) |
 | Oracle agreement | Selected standard-concept values equal to SEC `companyfacts` for the same accession and period | No |
 | Identity pass rate | Share of issuer-years where applicable identities hold within rounding | No |
 | Coverage | Issuer-years with a value ÷ issuer-years where the metric applies (industry conditions) | No |
 | Conflict / unmapped rates | Typed non-publication shares | No |
 | Stability | As-filed values equal to next year's comparative, or explained by a restatement flag | No |
 | Review load | Queue items per 1,000 filings; resolution time; items per tier | No |
+
+`companyfacts` / FSDS validate extraction, period matching, selected standard
+facts, and cross-system agreement. They **cannot** independently prove that
+concept C is semantically exact for contract M. That remains taxonomy
+evidence + reviewed decisions + independently labeled gold.
 
 **Gold set.**
 
@@ -286,13 +301,15 @@ It must stay derivable from the flags.
   intensity.
 - Label values from the SEC-rendered statements (R files), and double-label ~10% to estimate label
   error.
-- With ~1,600 labels, a 99% observed precision has a 95% interval of about ±0.5 pp. That is enough
-  to compare tiers and releases.
+- Report `n`, errors, empirical precision, and breakdowns by metric / industry /
+  publishing tier. Do **not** quote an IID binomial confidence interval: the
+  gold set is stratified and clustered by issuer and issuer-year. Population
+  intervals require a probability sample and cluster-aware estimates.
 - Add a fresh stratified sample each quarter to detect drift.
 
 **Regression discipline.**
 
-- Every rules or selector change runs `edgar build` on the fixture corpus and the gold set in CI.
+- Every decision or selector change runs `edgar build` on the fixture corpus and the gold set in CI.
 - CI emits a quality-report diff.
 - A drop in precision beyond a threshold fails the build.
 - The M0 counterexamples become unit tests of the selector: bank, segment, YTD, amendment, broader,
@@ -321,27 +338,29 @@ Working hypotheses for P2 to confirm or refute:
 | Scale/sign errors (thousands vs units; negated labels) | All | Values come from resolved XBRL (`scale` applied by the transform); sign follows the concept's definition; DQC-style sanity checks |
 | Duplicate facts with inconsistent values | Selection | `conflict`, never pick |
 | Wrong period (YTD vs quarter; fiscal-year shifts) | Selection | Required-context anchoring; period-length checks; quarterly policy deferred to Stage 4 |
-| Contract changes silently invalidating rules | Knowledge | `contract_hash` in each rule; CI fails until re-affirmed |
-| LLM plausible-but-wrong proposals | Stage 3 | Never authoritative; measured precision; proof or human acceptance |
+| Contract changes silently invalidating decisions | Knowledge | `contract_hash` on every decision (accepted and rejected); CI fails until re-affirmed |
+| LLM plausible-but-wrong proposals | Stage 3 | Never authoritative; measured precision; human acceptance only |
 | Gold labels wrong | Measurement | Double labeling; disagreements reviewed |
 
 ## 10. Human effort model
 
 | Work | Adopted plan | Recommendation |
 |---|---|---|
-| Standard concepts | Claims plus per-occurrence qualification: O(filings × metrics) | ~150–300 rule decisions once (39 metrics × a few concept families) + industry conditions |
+| Standard concepts | Claims plus per-occurrence qualification: O(filings × metrics) | ~150–300 decision records once (39 metrics × a few concept families) + industry conditions |
 | Extensions | Claims scoped to issuer + listed reports; each new filing re-enters review | One decision per extension family; reuse checked automatically |
 | New filings | Qualification per new report | None unless a validator fails or an unmapped candidate appears |
-| Contract changes | Re-review of affected claims | Re-affirm rules whose `contract_hash` changed (CI lists them) |
+| Contract changes | Re-review of affected claims | Re-affirm decisions whose `contract_hash` changed (CI lists them) |
 | Quality assurance | Review attestation | Measured: gold set, identities, oracle |
 
 ## 11. Policy changes this requires (ADR)
 
 1. Replace claim-level and occurrence-level human qualification with **policy-level review plus
    measured precision**.
-2. Allow **deterministic** Tier 2 and Tier 3 auto-acceptance under reviewed policies. LLMs never
-   accept.
+2. Tier 2 may reuse an already-accepted issuer decision under continuity
+   guards. **Tier 3 never auto-accepts** and never publishes observations.
+   LLMs never accept.
 3. Accept FASB documentation, from `MetaLinks.json` or taxonomy packages, as the affirmative
-   definition evidence for standard concepts.
-4. Adopt XBRL duplicate-fact consistency and the EDGAR required context as the selection primitives.
-5. Move mapping authority from the PostgreSQL ledger to Git-reviewed rule files.
+   definition evidence for standard concepts. An accepted decision must carry
+   at least one lightweight evidence pointer.
+4. Adopt XBRL OIM duplicate-fact consistency (interval overlap) and the EDGAR required context as the selection primitives.
+5. Move mapping authority from the PostgreSQL ledger to Git-reviewed **decision records**.

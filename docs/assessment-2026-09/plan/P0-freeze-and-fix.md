@@ -48,16 +48,19 @@ The ADR must state, in this order:
 
 1. **Assurance model.** Quality is measured per policy (gold set, identities,
    oracle) rather than attested per report and occurrence. This is 07 T3.
-2. **Mapping authority.** Git-reviewed rule files replace the PostgreSQL
-   ledger as the destination of new decisions. The existing ledger stays
-   readable until P3 deletes it. No new `propose`/`accept` features.
-3. **Standard-concept continuity.** A rule keyed on namespace *family* + local
-   name (`us-gaap:Assets`) applies to every US-GAAP release where that concept
-   exists. Exact Clark QNames remain the *source* identity. This unblocks
-   multi-year data without M5.
-4. **Selection primitives.** EDGAR required context + XBRL duplicate-fact
-   consistency. Affirmative definition evidence for standard concepts may come
-   from `MetaLinks.json` or pinned taxonomy packages.
+2. **Mapping authority.** Git-reviewed **decision records** replace the
+   PostgreSQL ledger as the destination of new decisions. The existing
+   ledger stays readable until P3 deletes it. No new `propose`/`accept`
+   features.
+3. **Standard-concept continuity.** A decision keyed on namespace *family* +
+   local name (`us-gaap:Assets`) applies to every US-GAAP release where that
+   concept exists, minus any `exclude_qnames`. Exact Clark QNames remain the
+   *source* identity. This unblocks multi-year data without M5.
+4. **Selection primitives.** EDGAR required context + XBRL OIM duplicate-fact
+   consistency (interval overlap, not rounding-to-coarser). Affirmative
+   definition evidence for standard concepts may come from `MetaLinks.json`
+   or pinned taxonomy packages. Accepted decisions require at least one
+   evidence pointer.
 5. **Paused work.** M1A-4, M1A-5, and M2 as written are not the next
    implementation. P1–P6 in this directory replace that sequence.
 6. **What is not decided yet.** Storage (PostgreSQL vs DuckDB) and taxonomy
@@ -163,28 +166,30 @@ remaining extract time, and ~47% of database bytes.
 `src/edgar/xbrl/source_records.py` (`EXTRACTOR_VERSION`),
 `src/edgar/corpus_acceptance.py` (declaration counts).
 
-**Keep a declaration when any of these is true:**
+Do **not** use a fixed-point keep-set (declaration kept because a resource
+is kept, resource kept because the declaration is in the keep-set). That
+can retain most of the 17k unused US-GAAP concepts.
 
-1. The concept appears on a fact in this report.
-2. The concept is a source or target of a persisted relationship.
-3. The concept is the subject of a **label or reference we still persist**.
-4. The concept's namespace is **not** a standard family:
-   - `http://fasb.org/us-gaap/`
-   - `http://fasb.org/srt/`
-   - `http://xbrl.sec.gov/dei/`
+Define the grain in one pass, no fixed point:
 
-   (issuer extensions are kept even if unused by facts.)
+```text
+base_concepts =
+    fact concepts
+  ∪ relationship endpoints
+  ∪ all issuer-extension declarations
+    (namespace is not us-gaap / srt / dei)
 
-Build the keep-set **after** facts, relationships, labels, and references
-are collected. Then:
+persisted labels/references =
+    resources whose subject ∈ base_concepts
 
-- filter declarations to the keep-set;
-- filter **labels and references** for standard-taxonomy concepts to the
-  same keep-set (do not persist 17k unused US-GAAP labels).
+persisted declarations =
+    base_concepts
+```
 
-If you persist a label/reference, its concept **must** remain in the
-declaration keep-set (foreign-key / provenance). Do not drop the resource
-and keep an orphan, or keep the resource and drop the declaration.
+A filing-specific resource that genuinely needs another standard concept
+must be added through an **explicit later resource policy**, not by
+walking every collected label. Do not start from “all labels we parsed”
+and close under subjects.
 
 Do not change fact, context, unit, or relationship extraction.
 
@@ -192,11 +197,11 @@ Do not change fact, context, unit, or relationship extraction.
 Any output-shape change requires this (standing rule 9).
 
 **Expected count change.** Declarations per full 10-K should drop from ~18.5k
-to roughly the size of (fact concepts ∪ relationship endpoints ∪ persisted
-label/reference subjects ∪ extensions), typically low thousands. Facts and
-relationships must match the previous extract exactly (same counts, same
-source locators, same values). Label/reference counts for unused standard
-concepts should fall in line with declarations.
+to the size of `base_concepts` (fact concepts ∪ relationship endpoints ∪
+issuer extensions), typically hundreds to low thousands depending on
+relationship-endpoint volume. Facts and relationships must match the
+previous extract exactly (same counts, same source locators, same values).
+Label/reference counts follow `base_concepts`, not the full taxonomy.
 
 **Tests**
 
@@ -297,11 +302,11 @@ Put the timing command and output in the PR.
 - **Changing locator output.** If a test or persist golden wants a path where
   it previously wanted an `id`, the index is wrong (you treated a duplicate
   as unique, or the reverse).
-- **Filtering declarations before relationships exist.** The keep-set must
+- **Filtering declarations before relationships exist.** `base_concepts` must
   include relationship endpoints or presentation trees lose declaration
   metadata.
-- **Dropping extension declarations.** Rule 3 exists so unused issuer
-  concepts remain inspectable.
+- **Dropping extension declarations.** Issuer-extension declarations are
+  always in `base_concepts`, even when unused by facts.
 - **Editing migration `0005`.** Never. Grain changes are extractor-only in
   P0.
 - **Starting P1 before the ADR.** Project rules will fight you, and reviewers
