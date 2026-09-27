@@ -1,6 +1,7 @@
 # H — Response to the last contract inconsistencies
 
 **Status:** independent reply. Architecture review stays **closed**.
+Later pins are in [I](I-feedback-response.md).
 
 I agree with all three inconsistencies and with both implementation notes.
 

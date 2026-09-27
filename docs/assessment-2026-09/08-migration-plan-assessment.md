@@ -158,7 +158,12 @@ non-value gold assertions are gated.
 Cleanup ([H](H-feedback-response.md)): stale rejected hashes do not fail
 CI; `broader_only` is `missing` plus a reason; scope exclusion is over
 the set of exact decisions; gold ids are unique; `--baseline-ref` names
-the regression commit. **Architecture review stays closed.**
+the regression commit.
+
+Pins ([I](I-feedback-response.md)): `--baseline-ref` is the PR base, and
+both cohort membership and gold assertions are read from that ref; P6
+does not invent an `unsupported` decision. **Architecture review stays
+closed.**
 
 ## What to keep from already-merged M1A work
 

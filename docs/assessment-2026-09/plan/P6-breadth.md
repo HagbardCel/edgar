@@ -40,9 +40,13 @@ The release artifact is a `edgar publish` snapshot: observations + support
 
 ### P6.1 — Remaining income-statement / balance-sheet / cash-flow metrics
 
-For each remaining key in `registry/metrics.yml`, add **one** exact
-accepted decision (or an explicit `unsupported` with reason) under
-`registry/decisions/<metric>/`.
+For each remaining key in `registry/metrics.yml`, add one or more
+reviewed decisions where an exact (or explicitly non-exact) relation is
+justified, under `registry/decisions/<metric>/`. There is no
+`status: unsupported` on a decision. `unsupported` is an observation
+status from selection (`wrong_form`, `decision_scope`). If no exact
+mapping, scoped policy, or explicit derivation is justified, leave the
+metric unresolved (`missing` / `unmapped_candidate`).
 
 Suggested first wave (usually one obvious US-GAAP local name):
 
@@ -50,7 +54,7 @@ Suggested first wave (usually one obvious US-GAAP local name):
 |---|---|
 | `cost_of_revenue` | `CostOfRevenue` or `CostOfGoodsAndServicesSold` — **measure both; do not guess** |
 | `gross_profit` | `GrossProfit` |
-| `operating_expenses` | often **no** single exact tag → `unsupported` or derived |
+| `operating_expenses` | often **no** single exact tag → measure candidates; leave unresolved unless an exact scoped mapping or a derivation is justified |
 | `interest_expense` | `InterestExpense` |
 | `income_tax_expense` | `IncomeTaxExpenseBenefit` |
 | `net_income` | `ProfitLoss` (total, including NCI) — distinct from parent |
@@ -135,8 +139,9 @@ Label from SEC-rendered statements (R files in the bundle), not from
 **Validation gate P6.4**
 
 ```bash
-uv run edgar build --check-gold --require-precision-floor --baseline-ref HEAD
-# union of base-branch cohorts: no gold-assertion regression
+uv run edgar build --check-gold --require-no-gold-regressions --baseline-ref <base-sha>
+# <base-sha> is the PR base, never HEAD
+# baseline labels at that ref are the regression target
 # new cohort file; current value_precision reported, not gated by a numeric floor
 # gold/README.md states n, double-label rate, last sample date
 ```

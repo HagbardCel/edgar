@@ -179,7 +179,8 @@ consolidated.
 ```bash
 uv run pytest -q tests/unit/test_quarterly_select.py
 # KO: YTD vs quarter periods are distinct; dimensional segment ≠ consolidated
-# JPM: revenue remains unsupported under the P1 industry exclude
+# JPM: revenue remains unsupported under the P1 CIK exclusion
+#   (SIC industry exclusion is P6)
 uv run edgar build --view as-filed --forms 10-Q --check-gold
 ```
 

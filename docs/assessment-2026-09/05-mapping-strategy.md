@@ -329,11 +329,12 @@ evidence + reviewed decisions + independently labeled gold.
 
 - Every decision or selector change runs `edgar build` on the fixture corpus and the gold set in CI.
 - CI emits a quality-report diff.
-- A failed **gold assertion** on the union of cohort files already on
-  the base branch fails the build (values and non-value statuses). A
-  drop in current **value precision** after adding a new cohort file
-  does not. No numeric publication floor is hardcoded; a later ADR sets
-  one from P2/P6 evidence.
+- `--require-no-gold-regressions --baseline-ref <base-sha>` compares
+  output to the gold **assertions** at that ref (cohort membership and
+  expected values/statuses), not to the working tree. CI passes the PR
+  base commit, never `HEAD`. A drop in current **value precision** after
+  adding a new cohort does not fail the build. No numeric publication
+  floor is hardcoded; a later ADR sets one from P2/P6 evidence.
 - The M0 counterexamples become unit tests of the selector: bank, segment, YTD, amendment, broader,
   related, narrower extension, NCI.
 

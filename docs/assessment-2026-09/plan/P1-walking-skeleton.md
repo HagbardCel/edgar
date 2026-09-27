@@ -532,7 +532,8 @@ applicable is empty
 
 no candidate from applicable
     → status=missing
-      reason=broader_only when broader concepts are present and nothing exact is
+      reason=broader_only when broader concepts are present and no exact
+      candidate is present
 
 otherwise
     → normal selection above
@@ -774,4 +775,5 @@ Paste `edgar build` summary output in the PR.
   period may be a comparative; re-read the benchmark slot).
 - You think you need a new hash scheme or a ledger row to ship P1.
 - JPM unexpectedly returns a revenue value (then the exact concept is
-  present and the industry exclude is required, not optional).
+  present and the P1 CIK exclusion on the revenue decision is required,
+  not optional). SIC industry exclusion is P6.

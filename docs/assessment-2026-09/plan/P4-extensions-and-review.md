@@ -266,46 +266,54 @@ Precision CI is **two numbers**, not one:
 registry/gold/cohorts/<id>.yml     # slot ids; append-only new files
                                    # m0.yml exists from P1.3
 
-regression set = union of every cohort file on the base branch
-current set    = regression set ∪ cohorts added in this change
+regression membership = union of cohort files **at --baseline-ref**
+regression labels    = the gold assertions for those ids, **also at
+                       --baseline-ref** (expected value and status)
+current labels       = gold files in the working tree
 
-gold_assertion_pass on the regression set must not drop
-  (every prior assertion: value, missing, unsupported, conflict)
-  → fails --check-gold --require-precision-floor --baseline-ref <sha>
+current program output is compared to the **baseline** labels.
+Editing an old expected value in this PR does not change the regression
+target.
 
-value_precision on the current set is reported only
+value_precision uses current labels and is reported only.
 ```
 
 Checking only the newest cohort is wrong: a break in `m0.yml` must fail
-even if a later cohort is clean.
+even if a later cohort is clean. Resolving baseline ids against the PR's
+gold files is also wrong: rewriting `expected: 100` to `expected: 110`
+must still fail if the output is `110` and the baseline said `100`.
 
 Every gold slot id resolves to **exactly one** assertion across all gold
 files. Duplicate ids fail `edgar rules check`.
 
 ```text
-edgar build --check-gold --require-precision-floor --baseline-ref <sha>
+edgar build --check-gold --require-no-gold-regressions --baseline-ref <base-sha>
 ```
 
-The regression set is the union of cohort files at `--baseline-ref`. CI
-passes the PR base SHA. Locally, pass the same ref explicitly; do not
-guess “whatever is on disk.”
+CI sets `<base-sha>` to the pull-request base commit. Locally, pass that
+same ref. Do **not** pass `HEAD`: on a PR branch `HEAD` already contains
+the new gold.
 
-`--require-precision-floor` does **not** apply a numeric publication
-floor. That threshold, if any, is set by an ADR from P2/P6 measurements.
+`--require-no-gold-regressions` checks historical assertions. It does
+**not** apply a numeric publication floor. That threshold, if any, is set
+by an ADR from P2/P6 measurements.
 
-New labels go in a **new** cohort file. Do not rewrite an older file to
-hide a regression. Adding harder cases may lower current
-`value_precision`. That must **not** fail CI. A failed prior assertion
-must.
+New labels go in a **new** cohort file. Adding harder cases may lower
+current `value_precision`. That must **not** fail CI. A mismatch against
+a baseline assertion must.
+
+Required unit test: baseline slot X expected `100`; working-tree gold
+edited to `110`; selector output `110` → regression **fails**.
 
 Do not treat `tier3_candidate_precision` as observation precision.
 
 **Validation gate P4.5**
 
 ```bash
-uv run edgar build --check-gold --require-precision-floor --baseline-ref HEAD
-# union of base-branch cohorts: no assertion regression
-# new cohort file may exist; current value_precision reported, not gated
+uv run edgar build --check-gold --require-no-gold-regressions --baseline-ref <base-sha>
+# <base-sha> is the PR base, never HEAD
+# baseline labels (not the edited working tree) are the regression target
+# new cohort may exist; current value_precision reported, not gated
 # each new slot cites accession + R-file locator or statement line
 ```
 
