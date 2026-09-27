@@ -3,6 +3,9 @@
 **Status:** independent reply. Architecture review stays **closed**. This
 file records the last contract pins only.
 
+Later corrections are in [G](G-feedback-response.md): issuer expansion,
+`slot_eligible` without decision exclusions, and the union of gold cohorts.
+
 I agree with all five items and with the two semantic notes. None of them
 reopens Git decisions, the selector, P0→P1→P2, storage, or the semantic
 model.

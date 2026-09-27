@@ -217,12 +217,28 @@ Evidence rules:
 
 **Expansion (P1 algorithm, tested, not identity):**
 
-- `family=us-gaap` + `local_name=Assets` covers any fact whose
-  `semantic_family(namespace_uri) == "us-gaap"` and whose `local_name`
-  is `Assets`, except Clark QNames listed in `exclude_qnames`.
-  That includes `{http://xbrl.us/us-gaap/2009-01-31}Assets`.
+`source.family: issuer` is **not** a `semantic_family`. Filer namespaces
+classify as `semantic_family=other`, `origin=issuer`. Comparing
+`semantic_family == "issuer"` never matches.
+
+```text
+if family in {us-gaap, dei, srt}:
+    semantic_family(namespace) == family
+if family == issuer:
+    origin(namespace) == issuer
+    AND filing.cik == source.issuer_cik
+local_name equals
+Clark QName ∉ exclude_qnames
+```
+
+- `family=us-gaap` + `local_name=Assets` covers
+  `{http://fasb.org/us-gaap/2024}Assets` and
+  `{http://xbrl.us/us-gaap/2009-01-31}Assets`.
+- `family=issuer` + the same `local_name` covers two year-specific filer
+  namespaces for that CIK (the Tier-2 case). It does not cover another
+  issuer's namespace, and it does not cover `us-gaap`.
 - Record the expanded Clark QName on each support (`source_qname`).
-- Do **not** store the family prefix as `source.concept` identity.
+- Do **not** store the family string as `source.concept` identity.
 
 `status: rejected` files are valid and must load. Resolve ignores them
 for supports. The review queue (P4) reads a rejected file **only when
@@ -255,6 +271,9 @@ for P2/P6.
 - Expansion: `{http://fasb.org/us-gaap/2022}Assets`, `.../2024}Assets`,
   and `{http://xbrl.us/us-gaap/2009-01-31}Assets` are in the expansion;
   `{http://fasb.org/us-gaap/2023}Liabilities` is not.
+- Issuer decision: same local name on two year-specific filer namespaces
+  for that CIK both expand; another CIK's namespace does not;
+  `semantic_family == "issuer"` is not the test.
 - Two files for the same `(metric, family, issuer_cik, local_name)` fail
   `edgar rules check` (scope is not part of the key).
 - A support row carries the exact Clark QName, not `us-gaap:Assets`.
@@ -284,6 +303,12 @@ Create `registry/gold/m0-annual.yml`. Copy **periods and accessions** from
 fields (`capability_state`, evidence pins, reviewers, `metric-v2` hashes).
 
 Use live metric keys from P1.1.
+
+Also create `registry/gold/cohorts/m0.yml` listing every slot id in
+`m0-annual.yml`. Later cohorts are additional files. Regression (P4)
+checks the **union** of cohort files already on the base branch. P1's
+`--check-gold` must pass every assertion in `m0.yml`, including
+non-value statuses.
 
 **Value slots (status `value`):**
 
@@ -338,6 +363,7 @@ concept matching.
 uv run pytest -q tests/unit/test_gold_schema.py
 # file parses; 15 value rows; required counterexample rows present
 # no capability_state / evidence_pins / metric-v2 fields
+# registry/gold/cohorts/m0.yml lists every slot id in m0-annual.yml
 ```
 
 ---
@@ -619,8 +645,10 @@ edgar build --data-root var --check-gold --output-dir var/builds/p1
 
 Behavior:
 
-1. Load **decisions** + contracts; fail on hash mismatch (accepted and
-   rejected).
+1. Load **decisions** + contracts.
+   Accepted `contract_hash` mismatch → fail the build.
+   Rejected stale hash → load as inactive history; do **not** fail the
+   build (`edgar rules check` reports it). This matches P1.2.
 2. For each cataloged accession (or `--accession` list), run resolve →
    select → validate.
 3. Write, atomically (temp dir + rename):

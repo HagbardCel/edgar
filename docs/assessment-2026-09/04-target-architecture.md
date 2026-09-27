@@ -277,9 +277,15 @@ lookup, MetaLinks joins, and P2 reporting. 2009 `xbrl.us` and 2011
 ```text
 decision (family + local_name − exclude_qnames)
     → exact QNames of facts this decision covers
-P1 algorithm: semantic_family(namespace) == decision.family
-              and local_name equals
-              and Clark QName ∉ exclude_qnames
+P1 algorithm:
+  if family in {us-gaap, dei, srt}:
+      semantic_family(namespace) == family
+  if family == issuer:
+      origin(namespace) == issuer
+      AND filing.cik == source.issuer_cik
+      # semantic_family is "other" for filer namespaces; never "issuer"
+  and local_name equals
+  and Clark QName ∉ exclude_qnames
 Later: same, plus taxonomy-table drift checks (type / period / balance /
        documentation). Material drift **queues / proposes** an
        exclude_qnames edit. Derived validation must not mutate Git.

@@ -190,10 +190,10 @@ division or the bucket from P2.2). Columns:
 | Column | Definition |
 |---|---|
 | `n_filings` | issuer-years in the cell |
-| `n_slot_eligible` | requested metric **and** form allowed by the policy **and** not excluded by an explicit decision scope (`exclude_ciks` / `exclude_sic_divisions`). No economic “does this issuer have R&D?” predicate |
-| `n_value` / `n_missing` / `n_conflict` / `n_unsupported` | from observations, among eligible slots |
-| `n_decision_applicable` | eligible slots where the **current** exact decision's concept exists in that taxonomy release |
-| `n_no_era_decision` | eligible slots with no era-appropriate exact concept |
+| `n_slot_eligible` | requested metric **and** form allowed by the selector policy. **Not** decision `exclude_ciks` / `exclude_sic_divisions`. No economic “does this issuer have R&D?” predicate. JPM revenue stays eligible |
+| `n_value` / `n_missing` / `n_conflict` / `n_unsupported` | from observations on eligible slots (a scope exclusion is `unsupported` and stays in this denominator) |
+| `n_decision_applicable` | eligible slots with **≥1** exact decision whose concept exists in that release **and** whose scope does not exclude this issuer |
+| `n_no_applicable_decision` | eligible slots with no such decision (taxonomy-era gap **or** scope exclusion with no alternative) |
 | `publication_rate` | `n_value / n_slot_eligible` |
 | `selector_yield` | `n_value / n_decision_applicable` |
 | `oracle_agree` / `oracle_differ` / `oracle_absent` | P2.4 |
@@ -207,7 +207,7 @@ Working hypotheses to confirm or refute (from [05](../05-mapping-strategy.md)
   non-financial issuers; treat this as a hypothesis, not a release gate.
 - Revenue: **selector_yield** 75–90% where RFCWCEAT (or the era decision)
   exists and is relevant, lower for banks. Pre-ASC-606
-  `n_no_era_decision` is expected. **publication_rate** for 2010–2017
+  `n_no_applicable_decision` is expected. **publication_rate** for 2010–2017
   will be lower until an era-appropriate revenue decision exists — that
   is a mapping gap, not a selector bug.
 - R&D: many correct `missing`. A low `publication_rate` is legitimate.
@@ -294,8 +294,10 @@ stratified across:
 ```
 
 Record each label in `registry/gold/p2-audit.yml` (accession, metric,
-period dates, expected numeric or expected `missing`, R-file locator).
-Do not label from the selector or from `companyfacts`.
+period dates, expected numeric or expected `missing`, R-file locator)
+and list those slot ids in `registry/gold/cohorts/p2-audit.yml`.
+Do not label from the selector or from `companyfacts`. Do not rewrite
+`cohorts/m0.yml`.
 
 Also measure **metadata drift** for each P1 exact standard decision
 across every taxonomy release seen in the spike:

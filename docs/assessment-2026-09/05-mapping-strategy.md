@@ -290,11 +290,13 @@ It must stay derivable from the flags.
 
 | Measure | Definition | Needs labels? |
 |---|---|---|
-| Observation precision | Published values equal to gold **financial values**, per metric × publishing tier (1, 2, 4) | Gold value set |
+| Value precision | Published values equal to gold **financial values**, per metric × publishing tier (1, 2, 4) | Gold value slots |
+| Gold assertion pass | Every gold label matches (`value`, `missing`, `unsupported`, `conflict`, …) | All gold assertions |
 | Tier-3 candidate precision | Reviewed Tier-3 candidates later judged `exact` ÷ reviewed Tier-3 candidates | Mapping-relation labels (exact / not exact) |
 | Oracle agreement | Selected standard-concept values equal to SEC `companyfacts` for the same accession and period | No |
 | Identity pass rate | Share of issuer-years where applicable identities hold within rounding | No |
-| Coverage | Issuer-years with a value ÷ issuer-years where the metric applies (industry conditions) | No |
+| Publication rate | `n_value / n_slot_eligible` (requested metric and allowed form; decision exclusions stay in the denominator) | No |
+| Selector yield | `n_value / n_decision_applicable` (≥1 exact decision whose concept exists and whose scope includes this issuer) | No |
 | Conflict / unmapped rates | Typed non-publication shares | No |
 | Stability | As-filed values equal to next year's comparative, or explained by a restatement flag | No |
 | Review load | Queue items per 1,000 filings; resolution time; items per tier | No |
@@ -321,11 +323,11 @@ evidence + reviewed decisions + independently labeled gold.
 
 - Every decision or selector change runs `edgar build` on the fixture corpus and the gold set in CI.
 - CI emits a quality-report diff.
-- A drop in **regression_precision** (the prior
-  `registry/gold/cohorts/*.yml` file) fails the build. A drop in
-  **current_precision** after adding a new cohort file does not. No
-  numeric publication floor is hardcoded; a later ADR sets one from
-  P2/P6 evidence.
+- A failed **gold assertion** on the union of cohort files already on
+  the base branch fails the build (values and non-value statuses). A
+  drop in current **value precision** after adding a new cohort file
+  does not. No numeric publication floor is hardcoded; a later ADR sets
+  one from P2/P6 evidence.
 - The M0 counterexamples become unit tests of the selector: bank, segment, YTD, amendment, broader,
   related, narrower extension, NCI.
 
@@ -334,10 +336,11 @@ coverage, oracle agreement and identity pass rates per metric, **and** a
 bounded independent semantic audit (30–50 issuer-years on high-risk
 metrics) plus a metadata-drift census across taxonomy releases. Coverage
 denominators are mechanical: **publication_rate** is values over
-`slot_eligible` (requested metric, supported form, not excluded by
-explicit decision scope — no economic applicability guess);
-**selector_yield** is values only where the current exact decision's
-concept exists in that taxonomy release. FSDS (historical quarters, or
+`slot_eligible` (requested metric and supported form only — a decision's
+`exclude_*` does **not** remove the slot);
+**selector_yield** is values over slots with at least one applicable
+exact decision (concept exists in that release and scope does not
+exclude the issuer). FSDS (historical quarters, or
 the extracted sample) can
 estimate concept usage per era. The Stage 2 investment should be sized by
 the measured residual, not by assumption.
@@ -349,7 +352,8 @@ Working hypotheses for P2 to confirm or refute:
 - Revenue: 75–90% **selector_yield** where RFCWCEAT (or the era's exact
   revenue concept) exists and is relevant. 2010–2017 **publication_rate**
   will be lower until an era-appropriate decision exists.
-- R&D: coverage limited by applicability, where `missing` is often correct.
+- R&D: a low **publication_rate** can be legitimate. Correct `missing`
+  stays slot-eligible. Do not drop those issuer-years as “not applicable.”
 
 ## 9. Failure modes and mitigations
 

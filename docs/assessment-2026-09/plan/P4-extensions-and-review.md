@@ -112,8 +112,9 @@ change year to year.
 
 **Auto-reuse** on a later eBay filing when **all** of:
 
-1. An accepted issuer decision exists for that `local_name` (ignore
-   namespace date suffix) and its `contract_hash` is current;
+1. An accepted issuer decision exists for that `local_name`. Expansion
+   is `origin=issuer` and matching CIK (two year-specific namespaces
+   both match). `contract_hash` is current;
 2. A comparable overlap period **exists** and the values **agree**
    (as-filed t-1 equals comparative in t, OIM-consistent);
 3. Documentation / preferred label did not change (string compare);
@@ -237,11 +238,17 @@ R-file values, not selector output). Tag each published observation with
 its **publishing** tier (`1 | 2 | 4`). Tier 3 does not publish, so it
 does not appear here.
 
-Report in CI (on the gold **value** set only):
+Report **value precision** in CI (numeric gold slots only):
 
 ```text
-precision_tier1, precision_tier2, precision_tier4, n_gold, n_errors
+value_precision_tier1, value_precision_tier2, value_precision_tier4
+n_value_gold, n_value_errors
 ```
+
+Also report **gold_assertion_pass**: every gold assertion matches,
+including non-value labels (`missing`, `unsupported` + reason,
+`conflict`). A change that publishes a value where gold says `missing`
+fails this check even though it is not a numeric-precision miss.
 
 Separately, if any Tier-3 candidates were reviewed, report **candidate**
 precision from mapping-relation labels (not financial values):
@@ -257,23 +264,28 @@ Precision CI is **two numbers**, not one:
 
 ```text
 registry/gold/cohorts/<id>.yml     # slot ids; append-only new files
-regression_precision
-  = precision on the newest cohort file already on the base branch
-  must not drop → fails --check-gold --require-precision-floor
+                                   # m0.yml exists from P1.3
 
-current_precision
-  = precision on all cohort files
-  reported only
+regression set = union of every cohort file on the base branch
+current set    = regression set ∪ cohorts added in this change
+
+gold_assertion_pass on the regression set must not drop
+  (every prior assertion: value, missing, unsupported, conflict)
+  → fails --check-gold --require-precision-floor
+
+value_precision on the current set is reported only
 ```
 
-`--require-precision-floor` compares the prior cohort. It does **not**
-apply a numeric publication floor. That threshold, if any, is set by an
-ADR from P2/P6 measurements, not hardcoded here.
+Checking only the newest cohort is wrong: a break in `m0.yml` must fail
+even if a later cohort is clean.
 
-New labels go in a **new** cohort file. Do not rewrite the prior file to
-make the regression disappear. Adding harder cases may lower
-`current_precision`. That must **not** fail CI. A drop on the prior
-cohort is a real regression.
+`--require-precision-floor` does **not** apply a numeric publication
+floor. That threshold, if any, is set by an ADR from P2/P6 measurements.
+
+New labels go in a **new** cohort file. Do not rewrite an older file to
+hide a regression. Adding harder cases may lower current
+`value_precision`. That must **not** fail CI. A failed prior assertion
+must.
 
 Do not treat `tier3_candidate_precision` as observation precision.
 
@@ -281,8 +293,8 @@ Do not treat `tier3_candidate_precision` as observation precision.
 
 ```bash
 uv run edgar build --check-gold --require-precision-floor
-# prior cohort file: no regression_precision drop
-# new cohort file may exist; current_precision reported, not gated
+# union of base-branch cohorts: no assertion regression
+# new cohort file may exist; current value_precision reported, not gated
 # each new slot cites accession + R-file locator or statement line
 ```
 

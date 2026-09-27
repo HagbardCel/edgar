@@ -148,7 +148,12 @@ uncertainty; oracle is taxonomy+tag.
 Contract pins ([F](F-feedback-response.md)): generic standard origin
 (host, then packages); mechanical `slot_eligible` / `publication_rate`;
 observation `period_role`; gold cohort files and no hardcoded floor;
-derived Q4 dates and scope. **Architecture review stays closed.**
+derived Q4 dates and scope.
+
+Corrections ([G](G-feedback-response.md)): issuer expansion uses
+`origin=issuer` plus CIK; decision scope is not slot eligibility; gold
+regression is the union of base cohorts, bootstrapped by `m0.yml`;
+non-value gold assertions are gated. **Architecture review stays closed.**
 
 ## What to keep from already-merged M1A work
 
