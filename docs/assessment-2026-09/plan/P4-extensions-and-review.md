@@ -84,22 +84,52 @@ rationale: "Disposal-group product development is a component of R&D."
 evidence:
   - kind: filer_documentation
     accession: "0001065088-24-000036"
-    locator: "us-gaap_ResearchAndDevelopmentExpense"
+    locator: "ebay_DisposalGroupIncludingDiscontinuedOperationProductDevelopment"
 reviewed: {by: "<reviewer>", on: "<date>"}
+reviewed_occurrences:
+  - accession: "0001065088-24-000036"
+    source_qname: "{…}DisposalGroupIncludingDiscontinuedOperationProductDevelopment"
 contract_hash: "<hash of current contract>"
 ```
+
+The evidence locator is the **extension concept being justified**, not the
+standard `ResearchAndDevelopmentExpense` tag.
+
+**Overlap-period continuity** (not “this year equals last year”):
+
+```text
+filing t-1:
+  FY2023 as-filed extension = 100
+
+filing t:
+  FY2023 comparative extension = 100   ← continuity evidence
+  FY2024 current extension     = 120   ← economic change; still reuse
+```
+
+Compare the **same period dates** (as-filed in t-1 vs comparative in t).
+Do **not** require FY2024 current == FY2023 comparative. Values normally
+change year to year.
 
 **Auto-reuse** on a later eBay filing when:
 
 1. An accepted issuer decision exists for that `local_name` (ignore
    namespace date suffix) and its `contract_hash` is current;
-2. Comparative values are continuous: this year's fact equals last year's
-   comparative, or the identity residual still closes;
+2. Overlap-period values are continuous (as-filed t-1 equals comparative
+   in t), or the identity residual still closes;
 3. Documentation / preferred label did not change (string compare);
 4. The later filing's expanded QName is not in `exclude_qnames`.
 
 If (2), (3), or (4) fails → queue, do not auto-accept. Exact QNames remain
 distinct in `source.*`; the *decision* is what is reused.
+
+**Tier provenance.** The decision file is one; the **application** differs:
+
+```text
+fact QName ∈ reviewed_occurrences  → application_method=reviewed, tier=4
+otherwise, continuity guards pass  → application_method=continuity, tier=2
+```
+
+Precision-by-tier reports these support fields, not the file alone.
 
 `narrower` and `related` decisions **never** publish as the metric's value.
 They only explain why a nearby concept is not exact. Exact issuer
@@ -109,9 +139,11 @@ decisions (rare) may publish.
 
 ```bash
 uv run pytest -q tests/unit/test_tier2_continuity.py
-# same local_name, new namespace year, continuous values → reused
-# label change → queued
+# same local_name, new namespace year, overlap-period match → reused
+# new year's current value differs from last year's as-filed → still reused
+# overlap-period mismatch or label change → queued
 # narrower decision does not fill research_and_development
+# reviewed_occurrences → tier 4; later filing → tier 2
 ```
 
 ---

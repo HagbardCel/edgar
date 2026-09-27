@@ -47,34 +47,46 @@ Primary identity (what two facts must share to be the same observation):
 (cik, metric, period_start | instant, period_end, unit, scope)
 ```
 
-`fiscal_year` and `fiscal_period` (`FY | Q1 | Q2 | Q3 | Q4 | YTD`) are
-**derived labels**, not identity. Do **not** invent a generic issuer
-calendar (52/53-week years, fiscal-year changes) unless P5 data shows it
-is needed.
+`fiscal_year` and `report_focus` are **derived labels**, not identity.
+`report_focus` is the DEI cover classification of **that report**
+(`Q1 | Q2 | Q3 | FY`). It is **not** the duration kind of a fact.
+
+`period_kind` (`annual | quarter | YTD | instant`) is taken from the
+**dates** (and, for own-period facts, from whether the duration is the
+fiscal year, a ~90-day quarter, or year-to-date). A Q2 10-Q typically has:
+
+```text
+DocumentFiscalPeriodFocus = Q2     → report_focus = Q2
+required duration = FY start→Q2 end → period_kind = YTD
+```
+
+DEI does **not** say YTD. Do not store `fiscal_period = YTD` from focus.
+
+Do **not** invent a generic issuer calendar (52/53-week years, fiscal-year
+changes) unless P5 data shows it is needed.
 
 Conservative derivation:
 
 ```text
 own filing required context
-+ that filing's DEI FY/FP
++ that filing's DEI FY + DocumentFiscalPeriodFocus
         ↓
 creates an issuer-period **anchor**
-(cik, period_start|instant, period_end) → (fy, fp)
+(cik, period_start|instant, period_end) → (fiscal_year, report_focus)
 
 comparative period
         ↓
 match against known anchors
         ↓
-unique match → derived FY/FP
-no unique match → FY/FP stay unknown
+unique match → derived year + report_focus
+no unique match → those labels stay unknown
+period_kind always from the dates
 ```
 
-The supplying filing's `DocumentFiscalYearFocus` /
-`DocumentFiscalPeriodFocus` classify **that filing's own** reporting
-period (required context). A FY2022 comparative inside a FY2023 10-K has
-period dates in 2022; its slot is 2022 even though the 10-K says focus
-2023. If no earlier 10-K created a 2022 anchor, leave FY/FP unknown
-rather than guessing a calendar.
+A FY2022 comparative inside a FY2023 10-K has period dates in 2022; its
+slot is 2022 even though the 10-K says focus 2023. If no earlier 10-K
+created a 2022 anchor, leave year/focus unknown rather than guessing a
+calendar.
 
 Do not infer quarter from duration length alone (KO YTD vs quarter).
 
@@ -85,7 +97,8 @@ uv run pytest -q tests/unit/test_slot_identity.py
 # eBay 10-K own period → FY 2023 + 2023-01-01/2023-12-31
 # same 10-K comparative 2022-01-01/2022-12-31 → slot FY 2022, not 2023
 # Walmart 10-K own instant → FY ending 2024-01-31 (not calendar 2023)
-# KO 10-Q required context is YTD if DEI says so — pin from the real filing
+# KO 10-Q: DEI focus is Q2; required-context dates are YTD
+#   → report_focus=Q2, period_kind=YTD (not "DEI says YTD")
 ```
 
 ---
@@ -133,12 +146,12 @@ days, but **only if a fact with that exact start/end exists**).
 
 Selector policy `quarterly-v1`:
 
-1. Read DEI fiscal period (`Q1`/`Q2`/`Q3`).
-2. YTD metric slot: required-context duration.
+1. Read DEI `DocumentFiscalPeriodFocus` as `report_focus` (`Q1`/`Q2`/`Q3`).
+   That is the **report**, not the duration kind.
+2. YTD metric slot: required-context duration (`period_kind=YTD` from dates).
 3. Three-month slot: only an undimensioned exact fact whose start/end match
-   an explicit quarterly period present in the filing (or a dedicated DEI
-   quarterly context if you find one). If absent → `missing`, do not
-   subtract yet (that is P5.4 and only for Q4).
+   an explicit quarterly period present in the filing (`period_kind=quarter`).
+   If absent → `missing`, do not subtract yet (that is P5.4 and only for Q4).
 
 KO (`0000021344-24-000044`) and JPM (`0000019617-24-000453`) are the
 fixtures. Their annual-selector revenue stays `missing`/`unsupported`.
@@ -207,6 +220,7 @@ uv run pytest -q tests/unit/test_stability.py
 | KO/JPM counterexamples still cannot publish as annual consolidated RFCWCEAT revenue | yes |
 | Derived Q4 never `kind=reported` | yes |
 | Comparative in a later 10-K uses period dates, not that 10-K's DEI FY | yes |
+| Q2 10-Q: `report_focus=Q2` and required-context `period_kind=YTD` | yes |
 | Null `accepted_at` cannot win a time view | yes |
 | Quality report includes stability | yes |
 | `make check` | green |

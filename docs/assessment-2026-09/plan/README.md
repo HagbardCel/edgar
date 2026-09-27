@@ -49,7 +49,7 @@ P3 Consolidate ── one schema, storage per P2 ADR, Git decisions only
         └──────────► P5 Time views and quarterly / YTD
                          │
                          ▼
-                    P6 Breadth (39 metrics, industries, history)
+                    P6 Breadth (live metrics, industries, history)
 ```
 
 | File | Duration | First user-visible result |

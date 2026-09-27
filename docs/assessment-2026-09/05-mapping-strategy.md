@@ -204,19 +204,21 @@ conservative study uses Tiers 1–2 only. Tier 3 never produces a published obse
 ## 6. Observation selection (deterministic, standards-based)
 
 The `annual-v1` selector runs only on forms `10-K` and `10-K/A`. A 10-Q is out of
-scope for this policy (P5). If invoked on a 10-Q it returns `unsupported` /
-`wrong_form`, never an annual value.
+scope for this policy (P5). If invoked on a 10-Q it returns `status=unsupported`,
+`reason=wrong_form`, never an annual value.
 
 1. **Filing's own report period.** Take the EDGAR required context: the undimensioned context of
    the DEI cover facts, such as `DocumentPeriodEndDate`. Duration metrics use its start and end;
    instant metrics use its end. `DocumentFiscalYearFocus` and `DocumentFiscalPeriodFocus` classify
    **this filing's own** period. They are not the identity of comparative facts in the same
    instance.
-2. **Slot identity** is `(cik, metric, period_start|instant, period_end, unit, scope)`. Fiscal year
-   and period are derived labels: an own-filing required context plus that
-   filing's DEI FY/FP creates an issuer-period **anchor**; a comparative
-   fills FY/FP only on a unique anchor match, otherwise FY/FP stay unknown.
-   A FY2022 comparative inside a FY2023 10-K belongs to the 2022 slot.
+2. **Slot identity** is `(cik, metric, period_start|instant, period_end, unit, scope)`. Derived
+   labels: an own-filing required context plus that filing's DEI FY/focus
+   creates an issuer-period **anchor** (`fiscal_year`, `report_focus`).
+   `period_kind` (`annual | quarter | YTD | instant`) comes from the dates.
+   A comparative fills year/focus only on a unique anchor match, otherwise
+   those labels stay unknown. A FY2022 comparative inside a FY2023 10-K
+   belongs to the 2022 slot.
 3. **Candidates.** A candidate fact must satisfy all of the following:
    - its exact QName is in the expansion of an applicable exact decision (Tiers 1–2 or 4;
      conditions satisfied);
@@ -230,18 +232,23 @@ scope for this policy (P5). If invoked on a 10-Q it returns `unsupported` /
      current-period requests; explicit start/end for comparatives);
    - it is valid and non-nil.
 4. **Duplicates** (XBRL OIM interval consistency, not rounding-to-coarser).
+   Group candidates by **XBRL data point** (exact source QName / concept,
+   plus the other aspects already matched). OIM overlap applies **inside**
+   each group only. Two different exact concepts are not XBRL duplicates.
    - Treat each numeric as a closed interval of half-width `0.5 × 10^(-d)`.
      `INF` is `[value, value]`. Same `decimals` additionally requires equal
      reported numerics.
    - Consistent ⇔ the intersection of all intervals in the group is non-empty.
    - Survivor = most precise filed value; keep all fact ids as co-supports.
-   - Otherwise the result is `conflict`.
-5. **Several exact concepts** with the same value give one observation with several supports. With
-   different values the result is `conflict`. There is never silent precedence.
+   - Otherwise that concept's group is `conflict`.
+5. **Several exact concepts.** After one survivor per exact QName: same
+   value → one observation, several supports; different values →
+   `conflict`. There is never silent precedence via OIM across concepts.
 6. **Non-publication reasons.**
    - `missing`: no candidate.
    - `unmapped_candidate`: a primary-statement line item in the matching context has no exact decision.
-   - `unsupported`: the contract is excluded for this industry or the form is out of policy.
+   - `unsupported`: the contract is excluded for this industry or the form
+     is out of policy (`reason=wrong_form` for 10-Q under `annual-v1`).
    - `broader_only`: only broader concepts are present.
 7. **Views.**
    - `as-filed`: the filing's own period (required context).
@@ -316,15 +323,21 @@ evidence + reviewed decisions + independently labeled gold.
   related, narrower extension, NCI.
 
 **Scale measurement before building Stage 2.** Run Stage 1 on 500–1,000 filings (08, P2) and report
-coverage, oracle agreement and identity pass rates per metric. FSDS can estimate market-wide
-concept usage per metric before extracting anything. The Stage 2 investment should be sized by the
-measured residual, not by assumption.
+coverage, oracle agreement and identity pass rates per metric, **and** a
+bounded independent semantic audit (30–50 issuer-years on high-risk
+metrics) plus a metadata-drift census across taxonomy releases. Coverage
+denominators are era-aware: a concept that does not exist / is not used
+in that taxonomy year is not a selector miss. FSDS (historical quarters, or
+the extracted sample) can estimate concept usage per era. The Stage 2
+investment should be sized by the measured residual, not by assumption.
 
 Working hypotheses for P2 to confirm or refute:
 
 - Total assets and operating cash flow: ≥95% coverage for non-financial issuers, with ≥99.5%
   precision.
-- Revenue: 75–90% coverage, depending on industry and concept diversity.
+- Revenue: 75–90% coverage **where RFCWCEAT (or the era's exact revenue
+  concept) exists and is relevant** — not across 2010–2025 as if ASC 606
+  tags were always in use.
 - R&D: coverage limited by applicability, where `missing` is often correct.
 
 ## 9. Failure modes and mitigations
@@ -333,7 +346,7 @@ Working hypotheses for P2 to confirm or refute:
 |---|---|---|
 | Filer mis-tags a standard concept (e.g., consolidated NI as `NetIncomeLoss`) | Tier 1 | Identities; oracle; issuer-level override rule |
 | Standard concept broader than the contract in some industries (bank revenue) | Tier 1 | SIC conditions; `unsupported` status; separate contract |
-| Extension semantics change under the same local name | Tier 2 | Require comparative-value continuity; label/documentation diff triggers review |
+| Extension semantics change under the same local name | Tier 2 | Overlap-period continuity (as-filed t-1 vs comparative in t); label/documentation diff triggers review |
 | Calculation linkbase errors | Tier 3 | Verify arithmetic on facts, not only arcs |
 | Scale/sign errors (thousands vs units; negated labels) | All | Values come from resolved XBRL (`scale` applied by the transform); sign follows the concept's definition; DQC-style sanity checks |
 | Duplicate facts with inconsistent values | Selection | `conflict`, never pick |

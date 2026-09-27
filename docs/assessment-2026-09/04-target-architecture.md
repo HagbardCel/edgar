@@ -172,7 +172,25 @@ current contract and expands them to exact QNames. **Rejected** decisions
 with a current `contract_hash` are not applied; the review queue reads
 them so the same question is not reopened without new evidence. A rejected
 file whose `contract_hash` is stale remains visible as history but **must
-not** suppress a new review.
+not** suppress a new review. Stale **accepted** records are fatal to
+resolve/build. Stale **rejected** records load as inactive history;
+`edgar rules check` lists them as stale/review-needed and does not fail
+`edgar build`.
+
+**Uniqueness.** One current file per semantic key:
+
+```text
+(metric, source.family, source.issuer_cik or "", source.local_name,
+ canonical scope)
+```
+
+Overlapping-scope duplicates fail `edgar rules check`.
+`relation: broader` + `status: accepted` already means “reviewed, not
+exact.” Do not also keep `exact`/`rejected` for the same key. `rejected`
+is only for a proposed relation with no affirmative alternative.
+
+A **current** rejected decision (suppression power) needs the same
+minimal evidence pointer as an accepted one.
 
 ```yaml
 # registry/decisions/total_assets/us-gaap-Assets.yml
@@ -213,8 +231,11 @@ rationale: "Disposal-group product development is a component of R&D, not the to
 evidence:
   - kind: filer_documentation
     accession: "0001065088-24-000036"
-    locator: "us-gaap_ResearchAndDevelopmentExpense"
+    locator: "ebay_DisposalGroupIncludingDiscontinuedOperationProductDevelopment"
 reviewed: {by: "<reviewer>", on: "<date>"}
+reviewed_occurrences:
+  - accession: "0001065088-24-000036"
+    source_qname: "{<issuer-namespace>}DisposalGroupIncludingDiscontinuedOperationProductDevelopment"
 contract_hash: "<sha256 of current contract>"
 ```
 
@@ -227,17 +248,30 @@ lineage key         = decision_id
 CLI name            = edgar rules check may stay (it validates decisions)
 ```
 
+**Taxonomy family** is a shared prefix table, not “starts with fasb.org”:
+
+```text
+us-gaap:  http://xbrl.us/us-gaap/     http://fasb.org/us-gaap/
+dei:      http://xbrl.us/dei/         http://xbrl.sec.gov/dei/
+srt:      http://fasb.org/srt/
+```
+
+The same classifier is used for P0.3 grain, QName expansion, required-context
+lookup, MetaLinks/taxonomy joins, and P2 reporting. 2009 `xbrl.us` and
+2011 `xbrl.sec.gov` DEI must classify correctly.
+
 **QName expansion** (runtime, not identity):
 
 ```text
 decision (family + local_name − exclude_qnames)
     → exact QNames of facts this decision covers
-P1 algorithm: namespace starts with the family prefix
-              (http://fasb.org/us-gaap/, …) and local_name equals
+P1 algorithm: taxonomy_family(namespace) == decision.family
+              and local_name equals
               and Clark QName ∉ exclude_qnames
 Later: same, plus taxonomy-table drift checks (type / period / balance /
-       documentation). Material drift adds that release's QName to
-       exclude_qnames (or a reviewer does) and queues a review.
+       documentation). Material drift **queues / proposes** an
+       exclude_qnames edit. Derived validation must not mutate Git.
+       A human PR edits the decision.
 ```
 
 Default is family-wide continuity. `exclude_qnames` is the escape hatch
@@ -284,10 +318,12 @@ Observation rows carry the following, and every published number resolves to exa
 through them:
 
 - issuer, metric, period (start/end or instant), unit, scope, and view;
-- derived `fiscal_year` / `fiscal_period` when a unique issuer-period
-  **anchor** matches (own filing required context + that filing's DEI
-  FY/FP). No unique match → FY/FP unknown. Not copied from the supplying
-  filing's DEI focus;
+- derived `fiscal_year` and `report_focus` (`Q1 | Q2 | Q3 | FY`) when a
+  unique issuer-period **anchor** matches (own filing required context +
+  that filing's DEI FY/focus). `period_kind` (`annual | quarter | YTD |
+  instant`) is taken from the **dates**, not from DEI focus. A Q2 10-Q
+  typically has `report_focus=Q2` and `period_kind=YTD`. No unique match →
+  year/focus unknown. Not copied from a later filing's DEI focus;
 - value, unit and decimals;
 - status (`value | missing | conflict | unmapped_candidate | unsupported`);
 - supporting fact ids, `decision_id`s and the relation;

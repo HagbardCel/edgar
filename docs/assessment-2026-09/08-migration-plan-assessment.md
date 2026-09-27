@@ -101,7 +101,7 @@ flowchart LR
   D --> P3[P3 Consolidate<br/>one schema, storage,<br/>taxonomy tables, Git decisions<br/>~3-4 weeks]
   P3 --> P4[P4 Extensions and<br/>review queue<br/>~2-4 weeks]
   P3 --> P5[P5 Time views and<br/>quarterly / YTD<br/>~2-3 weeks]
-  P4 --> P6[P6 Breadth: 39 metrics,<br/>industries, full history]
+  P4 --> P6[P6 Breadth: live metrics,<br/>industries, full history]
   P5 --> P6
 ```
 
@@ -133,6 +133,13 @@ interval duplicates; Git current-state decisions (no `supersedes`);
 accepted decisions; non-circular P0.3 keep-set; exact USD unit + SEC CIK
 scheme; conservative FY/FP anchors; observation precision vs Tier-3 candidate
 precision; `decision_id` lineage.
+
+Third hardening pass ([D](D-feedback-response.md)): historical taxonomy-family
+prefixes; OIM grouped by data point; one conclusion per semantic key; stale
+rejection is history-only; P2 semantic audit + era-aware coverage; oracle on
+period dates; P3 dimensional parity; overlap-period Tier 2; tier on the
+application; `report_focus` vs `period_kind`. Architecture review is
+**finished**; remaining work is implementation.
 
 ## What to keep from already-merged M1A work
 

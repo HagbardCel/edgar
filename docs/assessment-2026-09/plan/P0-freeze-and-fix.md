@@ -11,8 +11,9 @@ P0.1) and faster extraction (after P0.2).
 2. Offline 10-K extraction of Walmart (`0000104169-24-000056`) finishes in
    **≤ 25 seconds** on the same machine class used in
    [A](../A-evidence-and-method.md) (it was 93–94 s).
-3. Facts and relationships on the fixture corpus are unchanged. Declaration
-   *counts* may fall; that change is reviewed.
+3. Facts, contexts, units, and relationships on the fixture corpus are
+   unchanged. Declaration **and** filtered label/reference *counts* may
+   fall; those changes are reviewed.
 4. `make check` is green.
 
 ## Preconditions
@@ -54,8 +55,10 @@ The ADR must state, in this order:
    features.
 3. **Standard-concept continuity.** A decision keyed on namespace *family* +
    local name (`us-gaap:Assets`) applies to every US-GAAP release where that
-   concept exists, minus any `exclude_qnames`. Exact Clark QNames remain the
-   *source* identity. This unblocks multi-year data without M5.
+   concept exists, minus any `exclude_qnames`. Family membership uses the
+   shared prefix table (2009 `xbrl.us` **and** modern `fasb.org` /
+   `xbrl.sec.gov`). Exact Clark QNames remain the *source* identity. This
+   unblocks multi-year data without M5.
 4. **Selection primitives.** EDGAR required context + XBRL OIM duplicate-fact
    consistency (interval overlap, not rounding-to-coarser). Affirmative
    definition evidence for standard concepts may come from `MetaLinks.json`
@@ -166,6 +169,29 @@ remaining extract time, and ~47% of database bytes.
 `src/edgar/xbrl/source_records.py` (`EXTRACTOR_VERSION`),
 `src/edgar/corpus_acceptance.py` (declaration counts).
 
+**First land a shared family classifier**
+(`src/edgar/xbrl/taxonomy_family.py`, name is fine) so P0.3 does not treat
+2009 `xbrl.us` concepts as issuer extensions:
+
+```text
+taxonomy_family(namespace_uri) -> "us-gaap" | "dei" | "srt" | "issuer"
+
+us-gaap prefixes:  http://xbrl.us/us-gaap/     http://fasb.org/us-gaap/
+dei prefixes:      http://xbrl.us/dei/         http://xbrl.sec.gov/dei/
+srt prefixes:      http://fasb.org/srt/
+```
+
+P1 expansion, required-context lookup, MetaLinks joins, and P2 reporting
+**must import this same function**. Do not copy prefix strings.
+
+Unit tests (URI strings only; no full taxonomy zip):
+
+- `http://xbrl.us/us-gaap/2009-01-31` → `us-gaap`
+- `http://fasb.org/us-gaap/2023` → `us-gaap`
+- `http://xbrl.us/dei/2009-01-31` → `dei`
+- `http://xbrl.sec.gov/dei/2023` → `dei`
+- `http://ebay.com/20131231` → `issuer`
+
 Do **not** use a fixed-point keep-set (declaration kept because a resource
 is kept, resource kept because the declaration is in the keep-set). That
 can retain most of the 17k unused US-GAAP concepts.
@@ -177,7 +203,7 @@ base_concepts =
     fact concepts
   ∪ relationship endpoints
   ∪ all issuer-extension declarations
-    (namespace is not us-gaap / srt / dei)
+    (taxonomy_family(namespace) == "issuer")
 
 persisted labels/references =
     resources whose subject ∈ base_concepts
@@ -205,9 +231,11 @@ Label/reference counts follow `base_concepts`, not the full taxonomy.
 
 **Tests**
 
+- Unit: `taxonomy_family` on the 2009 / 2011 / modern URIs listed above.
 - Unit: a small in-memory or rich-xbrl fixture where a standard concept is
   declared but unused is omitted; a used standard concept is kept; an unused
-  extension is kept.
+  extension is kept; a 2009 `xbrl.us` unused standard concept is **not**
+  kept as an issuer extension.
 - Contract / corpus: review changed declaration counts. **Do not** silently
   refresh goldens. The PR description lists old vs new counts per accession.
 
@@ -217,12 +245,14 @@ Label/reference counts follow `base_concepts`, not the full taxonomy.
 uv run pytest -q -m "not network" tests/contract/test_arelle_report_extraction.py
 uv run pytest -q -m "not network" tests/unit/test_source_extract_adapt.py
 # after extract of the six corpus filings:
-#   facts and relationships unchanged vs previous persist
+#   facts, contexts, units, relationships unchanged vs previous persist
+#   concept_declaration and unused-standard label/reference counts fall
 #   concept_declaration count per full report << 18500
 ```
 
-If any fact or relationship locator or value changed, revert and fix. Only
-declaration cardinality is allowed to change.
+If any fact, context, unit, or relationship locator or value changed,
+revert and fix. The allowed extract delta is **declaration cardinality
+and filtered label/reference counts**, not facts/contexts/units/relationships.
 
 ---
 

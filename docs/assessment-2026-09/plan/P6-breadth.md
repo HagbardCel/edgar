@@ -6,8 +6,10 @@
 
 A published annual (and, where P5 exists, quarterly) dataset covering:
 
-- all **39** contracts in `registry/metrics.yml` that still make sense after
-  P1's two added keys (41 total, or 39 if you later merge unused ones);
+- all **live** contracts in `registry/metrics.yml` (41 keys after P1 unless
+  a later PR deprecates `cash_and_cash_equivalents` and
+  `capital_expenditure`; those two are legacy and are not the P1 cash/PP&E
+  slots);
 - industry-specific contracts where a global exact rule is wrong (bank
   revenue is the type case);
 - an explicit **segment** policy or an honest `unsupported` for dimensional

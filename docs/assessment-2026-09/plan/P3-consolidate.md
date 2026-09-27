@@ -45,9 +45,21 @@ Before deleting anything, freeze a parity snapshot:
 
 ```text
 For each accession in {six corpus} ∪ {P2 spike sample of ≥ 20}:
-  hash of sorted (concept_clark, context_period, entity, unit, decimals,
-                  resolved_numeric or lexical, source_locator)
+  hash of sorted fact-aspect tuples:
+    exact concept QName
+    entity scheme + identifier
+    period (start/end or instant)
+    sorted explicit dimensions (axis QName, member QName)
+    typed dimensions
+    full unit structure (side, ordinal, measure QName)
+    value_status / nil
+    resolved value + lexical value
+    decimals / precision
+    source locator
 ```
+
+Omitting dimensions is a defect: dropping `GeographyAxis=EuropeMember`
+while keeping concept/period/entity/value must **fail** parity.
 
 Store hashes under `fixtures/parity/p3-facts-<extractor>.json`. This is the
 guardrail for P3.2–P3.4.
@@ -250,7 +262,7 @@ make check
   `UPDATE`s to reshape `source.*`.
 - **Keeping a “compatibility” wire.** That is the four-representation
   problem again.
-- **Deleting `definition_hash`.** Rules need it.
+- **Deleting `definition_hash`.** Decisions need it.
 - **Dropping issuer extension files** when adding packages. Only standard
   URIs come from packages.
 

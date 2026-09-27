@@ -4,6 +4,10 @@
 architecture reopening. The feedback is not authoritative; every item below
 was accepted or rejected on its own merits.
 
+A later pass is recorded in [D](D-feedback-response.md). Treat D as current
+for taxonomy-family prefixes, OIM grouping, decision uniqueness, P2 audit,
+and P5 focus-vs-kind. This file remains the second-round verdict.
+
 The input argued: the revised direction is now the right one; do not return
 to M1A–M4; make one focused commit that closes remaining correctness holes
 before P0.1 treats this as governing.

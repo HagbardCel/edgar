@@ -68,7 +68,7 @@ Suggested modules (do not add more without need):
 
 | Module | Responsibility |
 |---|---|
-| `financials/decisions.py` | Load `registry/decisions/**/*.yml`; expand to QNames |
+| `financials/decisions.py` | Load `registry/decisions/**/*.yml`; expand via `taxonomy_family` |
 | `financials/metalinks.py` | Parse `MetaLinks.json` / `FilingSummary.xml` from a bundle |
 | `financials/period.py` | Required-context + fiscal focus from `source.*` |
 | `financials/decimals.py` | XBRL duplicate-fact consistency |
@@ -101,7 +101,14 @@ keys that do not exist: `cash_excluding_restricted_cash`,
 3. **Add** `cash_purchases_of_ppe` (duration, monetary). Definition: cash paid
    to acquire PP&E only. Do not reuse `capital_expenditure` — that key is
    broader (“similar long-lived productive assets”).
-4. Leave the other 31 keys untouched.
+4. Leave the other **33** original keys untouched. After this edit the
+   registry has **41** keys (39 + 2). The P1 selector set is the eight
+   named above. `cash_and_cash_equivalents` and `capital_expenditure`
+   stay in YAML as **legacy contracts** (different meaning). Do not
+   delete or reuse them in P1–P5. P6 either deprecates them explicitly
+   or keeps them as distinct published metrics. Diagrams that still say
+   “39 metrics” mean the original family; the live count is 41 until a
+   deprecation PR.
 
 After the edit:
 
@@ -134,8 +141,10 @@ rg -n "cash_excluding_restricted_cash|cash_purchases_of_ppe" registry/metrics.ym
 Create one accepted decision file per exact P1 mapping under
 `registry/decisions/<metric>/`, plus broader/related files as below.
 Do **not** treat the family string as a QName. Source facts keep
-`{http://fasb.org/us-gaap/2023}Assets`. The decision names the family
-and local name; `expand_decision` produces the matching exact QNames.
+`{http://fasb.org/us-gaap/2023}Assets` (or a 2009
+`{http://xbrl.us/us-gaap/2009-01-31}Assets`). The decision names the
+family and local name; `expand_decision` uses
+`taxonomy_family(namespace)` from P0.3, not a `fasb.org` prefix check.
 
 One exact **accepted** decision per P1 metric:
 
@@ -177,40 +186,61 @@ method: "curated" | "reviewed"
 rationale: str
 evidence: [{kind, source?, artifact_sha256?, concept?, accession?, locator?, quote?}]
 reviewed: {by: str, on: date}
+reviewed_occurrences?: [{accession, source_qname}]   # issuer decisions; P4
 contract_hash: str                  # definition_hash of that metric *now*
 ```
+
+**Uniqueness.** `edgar rules check` allows **one** current file per
+
+```text
+(metric, family, issuer_cik or "", local_name, canonical scope)
+```
+
+Overlapping-scope duplicates fail the check.
 
 Evidence rules:
 
 - `status: accepted` requires `rationale` **and at least one** evidence
   item with enough to find the source (`kind` plus MetaLinks/taxonomy
   artifact hash, or accession+locator). The quote is optional.
-- `status: rejected` requires `rationale`. Evidence is recommended, not
-  required.
+- A **current** `status: rejected` record (it can suppress the queue)
+  requires the same minimal evidence pointer. Otherwise “new evidence”
+  cannot be detected.
+- `rejected` is for a proposed relation with **no** affirmative
+  alternative. Do **not** also file `exact`/`rejected` when
+  `relation: broader` + `status: accepted` already records the
+  conclusion.
 
 **Expansion (P1 algorithm, tested, not identity):**
 
 - `family=us-gaap` + `local_name=Assets` covers any fact whose
-  `namespace_uri` starts with `http://fasb.org/us-gaap/` and whose
-  `local_name` is `Assets`, except Clark QNames listed in
-  `exclude_qnames`.
+  `taxonomy_family(namespace_uri) == "us-gaap"` and whose `local_name`
+  is `Assets`, except Clark QNames listed in `exclude_qnames`.
+  That includes `{http://xbrl.us/us-gaap/2009-01-31}Assets`.
 - Record the expanded Clark QName on each support (`source_qname`).
 - Do **not** store the family prefix as `source.concept` identity.
 
 `status: rejected` files are valid and must load. Resolve ignores them
 for supports. The review queue (P4) reads a rejected file **only when
-its `contract_hash` equals the current contract**. A stale rejected
-record is historical evidence and must **not** suppress a new review.
+its `contract_hash` equals the current contract**.
 
-Add one rejected example (e.g. `us-gaap:Revenues` as exact-for-`revenue`
-is rejected / filed as `broader` accepted instead) so the loader is
-tested.
+Stale-hash behaviour is **not** a choice:
+
+```text
+accepted + stale contract_hash  → fatal for resolve / edgar build
+rejected + stale contract_hash  → load as inactive history
+                                 → does not suppress the queue
+                                 → edgar rules check lists stale/review-needed
+                                 → does not fail edgar build
+```
+
+Add one **broader accepted** example for `us-gaap:Revenues` / `revenue`.
+That single file is the current conclusion. Do not add a second
+exact/rejected file for the same key. Add a **separate** rejected
+example only for a concept where no affirmative relation was chosen.
 
 `contract_hash` must equal `definition_hash(metric)` at load time for
-**every** decision that has operational effect: accepted (produces
-supports) **and** rejected (suppresses the queue). If a contract changes
-and the decision is not re-affirmed, load fails for that file. A stale
-rejection must not stay silently effective. Do not add `metric-v2`.
+every decision with operational effect. Do not add `metric-v2`.
 
 For P1 it is enough to put JPM (`0000019617`) in
 `scope.exclude_ciks` on the revenue exact decision. A real SIC map waits
@@ -218,13 +248,16 @@ for P2/P6.
 
 **Tests (no database):**
 
-- Expansion: `{http://fasb.org/us-gaap/2022}Assets` and `.../2024}Assets`
-  are both in the expansion; `{http://fasb.org/us-gaap/2023}Liabilities`
-  is not.
+- Expansion: `{http://fasb.org/us-gaap/2022}Assets`, `.../2024}Assets`,
+  and `{http://xbrl.us/us-gaap/2009-01-31}Assets` are in the expansion;
+  `{http://fasb.org/us-gaap/2023}Liabilities` is not.
+- Two files for the same `(metric, family, local_name, scope)` fail
+  `edgar rules check`.
 - A support row carries the exact Clark QName, not `us-gaap:Assets`.
-- Stale `contract_hash` on an **accepted** decision raises.
-- Stale `contract_hash` on a **rejected** decision raises (or the file
-  loads as history-only and is proven **not** to suppress review).
+- Stale `contract_hash` on an **accepted** decision raises at resolve/build.
+- Stale `contract_hash` on a **rejected** decision loads as history and is
+  proven **not** to suppress review; `edgar rules check` reports it.
+- Current rejected decisions without evidence fail schema validation.
 - `exclude_qnames` drops that Clark QName from the expansion.
 - Unknown metric key raises.
 - `status: rejected` does not produce supports.
@@ -278,8 +311,8 @@ publishing the two resolved cases is an additional requirement.
 |---|---|---|---|
 | `walmart_fy2024_rnd` | `0000104169-24-000056` | `research_and_development` | `missing` |
 | `ebay_10ka_revenue` | `0001065088-24-000094` | `revenue` | `missing` |
-| `jpm_2024q2_revenue` | `0000019617-24-000453` | `revenue` | `unsupported` (`wrong_form` — 10-Q) |
-| `ko_2024q2_revenue` | `0000021344-24-000044` | `revenue` | `unsupported` (`wrong_form` — 10-Q) |
+| `jpm_2024q2_revenue` | `0000019617-24-000453` | `revenue` | `unsupported` (`reason=wrong_form`) |
+| `ko_2024q2_revenue` | `0000021344-24-000044` | `revenue` | `unsupported` (`reason=wrong_form`) |
 
 Selector unit tests (not gold rows) must also cover:
 
@@ -290,7 +323,7 @@ Selector unit tests (not gold rows) must also cover:
   comes from the standard concept).
 - Restricted cash is **related**, not exact.
 
-JPM/KO under `annual-v1` are **form-guard** tests (`wrong_form`), not
+JPM/KO under `annual-v1` are **form-guard** tests (`reason=wrong_form`), not
 industry or missing-fact tests. Industry exclude for banks is still
 worth a **unit** test with a fake 10-K. A real 10-Q must not reach
 concept matching.
@@ -312,7 +345,8 @@ uv run pytest -q tests/unit/test_gold_schema.py
 From `source.*` for one accession:
 
 1. Find the undimensioned fact whose concept is `dei:DocumentPeriodEndDate`
-   (`namespace_uri` like `http://xbrl.sec.gov/dei/%`).
+   (`taxonomy_family(namespace_uri) == "dei"`, not only
+   `http://xbrl.sec.gov/dei/%`).
 2. That fact's context is the required context. Read
    `entity_identifier`, `start_lexical`, `end_lexical` / `instant_lexical`.
 3. From the same context (or any undimensioned DEI cover fact in that
@@ -402,6 +436,8 @@ No database in these tests. Fabricate tiny context/fact rows as dicts.
 Support:
   fact_id, accession, concept_namespace, concept_local_name, source_qname
   metric, relation, decision_id
+  application_method    # curated | reviewed | continuity  (P4 fills last two)
+  tier                  # 1 | 2 | 4  (P4; P1 global exact = 1)
 ```
 
 A support exists when the fact's concept is in an **accepted** decision's
@@ -411,9 +447,11 @@ decision's `scope` (if any) does not exclude this issuer. Resolve does
 no `exclude_when` field and no `rule_id`.
 
 **Select (`as-filed`, annual-v1).** Forms **`10-K` and `10-K/A` only**.
-If `source.filing.form` is `10-Q` or `10-Q/A`, emit `unsupported` (or
-`wrong_form`) for every annual metric and stop. Do not look at facts.
-JPM and KO are regression tests for this guard, not annual slots.
+If `source.filing.form` is `10-Q` or `10-Q/A`, emit
+`status=unsupported`, `reason=wrong_form` for every annual metric and
+stop. Do not look at facts. JPM and KO are regression tests for this
+guard, not annual slots. Do not invent a separate status named
+`wrong_form`.
 
 For each (accession, metric) in the build request (P1: the eight metrics ×
 the three annual 10-Ks and the 10-K/A, plus gold comparative slots):
@@ -432,20 +470,38 @@ Candidates are facts that have an **exact** support and all of:
 
 Then:
 
-1. Collapse identical `Decimal` values to one observation, many supports.
-2. Collapse consistent-but-unequal values (P1.4) to the survivor.
-3. Else `conflict`.
-4. No candidate → `missing`, unless the decision's scope excludes this
+```text
+candidates
+    ↓
+group by XBRL data point (exact source QName + already-matched aspects)
+    ↓
+OIM duplicate reduction **within each group** (P1.4)
+    ↓
+one survivor per exact concept
+    ↓
+compare exact concepts
+same Decimal value → one observation, many supports
+different value    → conflict
+```
+
+Do **not** run OIM across different concepts. Two exact mappings
+`A=10000 d=-3` and `B=10100 d=-2` may overlap as intervals and still
+**conflict**.
+
+Then:
+
+1. No candidate → `missing`, unless the decision's scope excludes this
    issuer → `unsupported`.
-5. Never pick a `broader` / `related` / `narrower` support as the published
+2. Never pick a `broader` / `related` / `narrower` support as the published
    value.
 
 Observation fields (P1 minimum):
 
 ```text
-cik, accession, metric, fy, fp, period_start, period_end, period_type
-status, numeric, decimals, unit
-decision_ids, fact_ids, relation
+cik, accession, metric, fy, report_focus, period_kind
+period_start, period_end
+status, reason, numeric, decimals, unit
+decision_ids, fact_ids, relation, tier
 available_at          # source.filing.accepted_at (may be null; do not substitute)
 view                  # "as-filed"
 ```
@@ -462,12 +518,14 @@ the dimensions anti-join, entity-scheme match, and `value_status` filter.
 - Extra dimension → not a candidate.
 - `USD/shares` (numerator USD + denominator shares) → not a candidate.
 - Entity scheme not `http://www.sec.gov/CIK` → not a candidate.
-- Two inconsistent values → `conflict`.
-- Walmart pair → `value` `9867000000`.
-- 2500/`-2` vs 3000/`-3` → `value` (OIM-consistent), survivor most precise.
+- Two inconsistent values **of the same concept** → `conflict`.
+- Two different exact concepts with unequal values → `conflict` even if
+  OIM intervals overlap.
+- Walmart pair (same concept) → `value` `9867000000`.
+- 2500/`-2` vs 3000/`-3` **same concept** → `value` (OIM-consistent).
 - Broader-only → not `value` (and not silently used).
 - Amendment with no statement facts → `missing`.
-- 10-Q form → `unsupported` / `wrong_form`, even if RFCWCEAT exists.
+- 10-Q form → `unsupported` / `reason=wrong_form`, even if RFCWCEAT exists.
 
 **Validation gate P1.5**
 
@@ -579,7 +637,7 @@ CLI belongs in `src/edgar/cli.py` as a new typer app `build`, same style as
 uv run edgar build --check-gold --output-dir /tmp/edgar-p1-build
 # exit 0
 # observations.csv has the 15 value rows with exact Decimals
-# jpm and ko 10-Qs are unsupported / wrong_form
+# jpm and ko 10-Qs are unsupported / reason=wrong_form
 # ebay 10-K/A revenue is missing
 # walmart rnd is missing
 # manifest.json contains extractor version and a commit hash
@@ -633,7 +691,7 @@ Expected:
 | Walmart cash | `9867000000`, not `conflict` |
 | Walmart R&D | `missing` |
 | eBay 10-K/A revenue | `missing` |
-| JPM 10-Q under `annual-v1` | `unsupported` / `wrong_form` (form guard), not an annual value |
+| JPM 10-Q under `annual-v1` | `unsupported` / `reason=wrong_form` (form guard), not an annual value |
 | KO 10-Q under `annual-v1` | same form guard |
 | Broader `Revenues` | never published as `revenue` |
 | `make check` | green |
