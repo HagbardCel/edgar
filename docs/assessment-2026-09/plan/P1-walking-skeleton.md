@@ -364,6 +364,7 @@ uv run pytest -q tests/unit/test_gold_schema.py
 # file parses; 15 value rows; required counterexample rows present
 # no capability_state / evidence_pins / metric-v2 fields
 # registry/gold/cohorts/m0.yml lists every slot id in m0-annual.yml
+# every gold slot id is unique across all gold files
 ```
 
 ---
@@ -519,12 +520,28 @@ Do **not** run OIM across different concepts. Two exact mappings
 `A=10000 d=-3` and `B=10100 d=-2` may overlap as intervals and still
 **conflict**.
 
-Then:
+Then, over the **set** of exact accepted decisions for the metric (not
+one decision):
 
-1. No candidate → `missing`, unless the decision's scope excludes this
-   issuer → `unsupported`.
-2. Never pick a `broader` / `related` / `narrower` support as the published
-   value.
+```text
+applicable = exact accepted decisions whose scope includes this issuer
+
+applicable is empty
+  and exact decisions exist but all exclude this issuer
+    → status=unsupported, reason=decision_scope
+
+no candidate from applicable
+    → status=missing
+      reason=broader_only when broader concepts are present and nothing exact is
+
+otherwise
+    → normal selection above
+```
+
+One applicable exact decision with no fact is `missing`, even if another
+exact decision excludes this issuer. Never pick a `broader` / `related` /
+`narrower` support as the published value. Do not add a `broader_only`
+status.
 
 Observation fields (P1 minimum):
 
@@ -554,7 +571,10 @@ the dimensions anti-join, entity-scheme match, and `value_status` filter.
   OIM intervals overlap.
 - Walmart pair (same concept) → `value` `9867000000`.
 - 2500/`-2` vs 3000/`-3` **same concept** → `value` (OIM-consistent).
-- Broader-only → not `value` (and not silently used).
+- Broader-only → `missing` / `reason=broader_only`, not a published value.
+- All exact decisions exclude the issuer → `unsupported` / `decision_scope`.
+- One exact decision applies and has no fact, another excludes the issuer
+  → `missing`, not `unsupported`.
 - Amendment with no statement facts → `missing`.
 - 10-Q form → `unsupported` / `reason=wrong_form`, even if RFCWCEAT exists.
 

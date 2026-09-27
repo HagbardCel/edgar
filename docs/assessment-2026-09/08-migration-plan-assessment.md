@@ -153,7 +153,12 @@ derived Q4 dates and scope.
 Corrections ([G](G-feedback-response.md)): issuer expansion uses
 `origin=issuer` plus CIK; decision scope is not slot eligibility; gold
 regression is the union of base cohorts, bootstrapped by `m0.yml`;
-non-value gold assertions are gated. **Architecture review stays closed.**
+non-value gold assertions are gated.
+
+Cleanup ([H](H-feedback-response.md)): stale rejected hashes do not fail
+CI; `broader_only` is `missing` plus a reason; scope exclusion is over
+the set of exact decisions; gold ids are unique; `--baseline-ref` names
+the regression commit. **Architecture review stays closed.**
 
 ## What to keep from already-merged M1A work
 

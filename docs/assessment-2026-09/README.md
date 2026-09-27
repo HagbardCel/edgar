@@ -75,10 +75,11 @@ contracts, `AGENTS.md` phase gates or ADR 0010–0013. Adopting any recommendati
 | [E Hardening response](E-feedback-response.md) | Fourth critique: last contract pins; architecture review closed |
 | [F Contract notes](F-feedback-response.md) | Implementation-contract pins; architecture review stays closed |
 | [G Contract bugs](G-feedback-response.md) | Issuer expansion, slot eligibility, gold union; architecture stays closed |
+| [H Contract cleanup](H-feedback-response.md) | Stale rejection, `broader_only`, multi-decision scope; architecture stays closed |
 
 Read 01 → 02 → 05 → 04 → 08 for the argument; 03, 06, 07 and A are reference
 material. Implement from [plan/](plan/README.md). Revisions after critique:
-[B](B-feedback-response.md) through [G](G-feedback-response.md).
+[B](B-feedback-response.md) through [H](H-feedback-response.md).
 
 ## Key measurements (2026-09-27, local corpus of six filings)
 

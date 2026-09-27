@@ -247,12 +247,18 @@ scope for this policy (P5). If invoked on a 10-Q it returns `status=unsupported`
 5. **Several exact concepts.** After one survivor per exact QName: same
    value → one observation, several supports; different values →
    `conflict`. There is never silent precedence via OIM across concepts.
-6. **Non-publication reasons.**
-   - `missing`: no candidate.
-   - `unmapped_candidate`: a primary-statement line item in the matching context has no exact decision.
-   - `unsupported`: the contract is excluded for this industry or the form
-     is out of policy (`reason=wrong_form` for 10-Q under `annual-v1`).
-   - `broader_only`: only broader concepts are present.
+6. **Non-publication.** Statuses are only `value | missing | conflict |
+   unmapped_candidate | unsupported`. Extra detail is `reason`, not a new
+   status.
+   - `missing`: no candidate from an applicable exact decision. If the only
+     nearby concepts are broader, `reason=broader_only`.
+   - `unmapped_candidate`: a primary-statement line item in the matching
+     context has no exact decision.
+   - `unsupported` / `reason=wrong_form`: form is out of policy (10-Q under
+     `annual-v1`).
+   - `unsupported` / `reason=decision_scope`: exact decisions exist and
+     **every** one excludes this issuer. If any exact decision still
+     applies and has no fact, the status is `missing`, not `unsupported`.
 7. **Views.**
    - `as-filed`: the filing's own period (required context).
    - `first-reported`: earliest `available_at` that reports the slot.
@@ -366,7 +372,7 @@ Working hypotheses for P2 to confirm or refute:
 | Scale/sign errors (thousands vs units; negated labels) | All | Values come from resolved XBRL (`scale` applied by the transform); sign follows the concept's definition; DQC-style sanity checks |
 | Duplicate facts with inconsistent values | Selection | `conflict`, never pick |
 | Wrong period (YTD vs quarter; fiscal-year shifts) | Selection | Required-context anchoring; period-length checks; quarterly policy deferred to Stage 4 |
-| Contract changes silently invalidating decisions | Knowledge | `contract_hash` on every decision (accepted and rejected); CI fails until re-affirmed |
+| Contract changes silently invalidating decisions | Knowledge | Accepted stale `contract_hash` fails CI/build until re-affirmed. Rejected stale hash is inactive history: report review-needed, do not suppress the queue, do not fail the build |
 | LLM plausible-but-wrong proposals | Stage 3 | Never authoritative; measured precision; human acceptance only |
 | Gold labels wrong | Measurement | Double labeling; disagreements reviewed |
 

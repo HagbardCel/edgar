@@ -1,6 +1,7 @@
 # G — Response to the last implementation-contract bugs
 
 **Status:** independent reply. Architecture review stays **closed**.
+Later cleanup is in [H](H-feedback-response.md).
 
 I agree with all six items. They are contradictions introduced by earlier
 pins, not a new design.

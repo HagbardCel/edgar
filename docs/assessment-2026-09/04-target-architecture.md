@@ -346,6 +346,8 @@ through them:
   Identity remains the dates. No unique match → year/focus unknown;
 - value, unit and decimals;
 - status (`value | missing | conflict | unmapped_candidate | unsupported`);
+  `reason` carries `wrong_form`, `decision_scope`, and `broader_only`
+  (`missing` + `broader_only` when only broader concepts are present);
 - supporting fact ids, `decision_id`s and the relation;
 - the filing supplying the value, and `available_at` (the SEC acceptance timestamp);
 - validator flags.

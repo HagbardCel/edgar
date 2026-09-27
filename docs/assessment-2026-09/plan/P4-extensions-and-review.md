@@ -271,13 +271,24 @@ current set    = regression set ∪ cohorts added in this change
 
 gold_assertion_pass on the regression set must not drop
   (every prior assertion: value, missing, unsupported, conflict)
-  → fails --check-gold --require-precision-floor
+  → fails --check-gold --require-precision-floor --baseline-ref <sha>
 
 value_precision on the current set is reported only
 ```
 
 Checking only the newest cohort is wrong: a break in `m0.yml` must fail
 even if a later cohort is clean.
+
+Every gold slot id resolves to **exactly one** assertion across all gold
+files. Duplicate ids fail `edgar rules check`.
+
+```text
+edgar build --check-gold --require-precision-floor --baseline-ref <sha>
+```
+
+The regression set is the union of cohort files at `--baseline-ref`. CI
+passes the PR base SHA. Locally, pass the same ref explicitly; do not
+guess “whatever is on disk.”
 
 `--require-precision-floor` does **not** apply a numeric publication
 floor. That threshold, if any, is set by an ADR from P2/P6 measurements.
@@ -292,7 +303,7 @@ Do not treat `tier3_candidate_precision` as observation precision.
 **Validation gate P4.5**
 
 ```bash
-uv run edgar build --check-gold --require-precision-floor
+uv run edgar build --check-gold --require-precision-floor --baseline-ref HEAD
 # union of base-branch cohorts: no assertion regression
 # new cohort file may exist; current value_precision reported, not gated
 # each new slot cites accession + R-file locator or statement line
