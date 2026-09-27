@@ -39,6 +39,29 @@ def engine() -> Iterator[Engine]:
     eng.dispose()
 
 
+@pytest.fixture
+def upstream_check_row(engine: Engine) -> dict[str, int]:
+    url = test_database_url()
+    command.upgrade(alembic_config(url), "head")
+    with engine.begin() as conn:
+        truncate_all_tables(conn)
+        ids = seed_two_reports(conn)
+        row = conn.execute(
+            text(
+                """
+                SELECT id, arelle_item_fact_count
+                FROM source.xbrl_report
+                WHERE id = :id
+                """
+            ),
+            {"id": ids["report_a"]},
+        ).one()
+    return {
+        "report_id": int(row[0]),
+        "arelle_item_fact_count": int(row[1]),
+    }
+
+
 def _column_exists(engine: Engine, column: str) -> bool:
     with engine.connect() as conn:
         return bool(
@@ -99,32 +122,33 @@ def test_populated_0004_to_0005_upgrade(engine: Engine) -> None:
     command.upgrade(cfg, "head")
 
 
-def test_upstream_check_rejects_half_paired(engine: Engine) -> None:
+def test_upstream_check_rejects_half_paired(
+    engine: Engine, upstream_check_row: dict[str, int]
+) -> None:
+    report_id = upstream_check_row["report_id"]
+    fact_count = upstream_check_row["arelle_item_fact_count"]
     with engine.connect() as conn:
-        report_id = conn.execute(
-            text("SELECT id FROM source.xbrl_report ORDER BY id LIMIT 1")
-        ).scalar_one()
         nested = conn.begin_nested()
         with pytest.raises(DBAPIError):
             conn.execute(
                 text(
                     """
                     UPDATE source.xbrl_report
-                    SET upstream_item_fact_count = 1,
+                    SET upstream_item_fact_count = :fc,
                         upstream_inventory_version = NULL
                     WHERE id = :id
                     """
                 ),
-                {"id": report_id},
+                {"id": report_id, "fc": fact_count},
             )
         nested.rollback()
 
 
-def test_upstream_check_rejects_null_count_with_version(engine: Engine) -> None:
+def test_upstream_check_rejects_null_count_with_version(
+    engine: Engine, upstream_check_row: dict[str, int]
+) -> None:
+    report_id = upstream_check_row["report_id"]
     with engine.connect() as conn:
-        report_id = conn.execute(
-            text("SELECT id FROM source.xbrl_report ORDER BY id LIMIT 1")
-        ).scalar_one()
         nested = conn.begin_nested()
         with pytest.raises(DBAPIError):
             conn.execute(
@@ -141,17 +165,12 @@ def test_upstream_check_rejects_null_count_with_version(engine: Engine) -> None:
         nested.rollback()
 
 
-def test_upstream_check_rejects_wrong_version(engine: Engine) -> None:
+def test_upstream_check_rejects_wrong_version(
+    engine: Engine, upstream_check_row: dict[str, int]
+) -> None:
+    report_id = upstream_check_row["report_id"]
+    fact_count = upstream_check_row["arelle_item_fact_count"]
     with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                """
-                SELECT id, arelle_item_fact_count
-                FROM source.xbrl_report ORDER BY id LIMIT 1
-                """
-            )
-        ).one()
-        report_id, fact_count = row[0], row[1]
         nested = conn.begin_nested()
         with pytest.raises(DBAPIError):
             conn.execute(
@@ -168,17 +187,12 @@ def test_upstream_check_rejects_wrong_version(engine: Engine) -> None:
         nested.rollback()
 
 
-def test_upstream_check_accepts_matching_upstream_v1(engine: Engine) -> None:
+def test_upstream_check_accepts_matching_upstream_v1(
+    engine: Engine, upstream_check_row: dict[str, int]
+) -> None:
+    report_id = upstream_check_row["report_id"]
+    fact_count = upstream_check_row["arelle_item_fact_count"]
     with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                """
-                SELECT id, arelle_item_fact_count
-                FROM source.xbrl_report ORDER BY id LIMIT 1
-                """
-            )
-        ).one()
-        report_id, fact_count = row[0], row[1]
         nested = conn.begin_nested()
         conn.execute(
             text(
@@ -206,11 +220,11 @@ def test_upstream_check_accepts_matching_upstream_v1(engine: Engine) -> None:
         nested.rollback()
 
 
-def test_upstream_check_rejects_count_mismatch(engine: Engine) -> None:
+def test_upstream_check_rejects_count_mismatch(
+    engine: Engine, upstream_check_row: dict[str, int]
+) -> None:
+    report_id = upstream_check_row["report_id"]
     with engine.connect() as conn:
-        report_id = conn.execute(
-            text("SELECT id FROM source.xbrl_report ORDER BY id LIMIT 1")
-        ).scalar_one()
         nested = conn.begin_nested()
         with pytest.raises(DBAPIError):
             conn.execute(

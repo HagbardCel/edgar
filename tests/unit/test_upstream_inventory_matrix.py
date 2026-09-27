@@ -288,8 +288,9 @@ def test_inline_tuple_on_alternate_target_only(tmp_path: Path) -> None:
       xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
       xmlns:xbrli="http://www.xbrl.org/2003/instance">
   <xbrli:context id="c1"/>
-  <ix:nonNumeric name="t:Foo" contextRef="c1">1</ix:nonNumeric>
-  <ix:tuple target="alt" contextRef="c1"/>
+  <ix:tuple target="alt">
+    <ix:nonNumeric name="t:Foo" contextRef="c1">1</ix:nonNumeric>
+  </ix:tuple>
 </html>
 """
     outcomes = build_inventory_outcomes(_inline_bundle(store, tmp_path, xml), store)
@@ -417,4 +418,4 @@ def test_ixds_shared_membership_two_outcomes_one_scan(tmp_path: Path) -> None:
     assert len(outcomes) == 2
     assert all(isinstance(o, InventorySuccess) for o in outcomes)
     assert {o.report_key for o in outcomes} == {key_ab, key_ba}
-    assert len(scan_calls) == 2
+    assert sorted(scan_calls) == sorted([path_a, path_b])
