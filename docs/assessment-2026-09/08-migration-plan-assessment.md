@@ -138,8 +138,13 @@ Third hardening pass ([D](D-feedback-response.md)): historical taxonomy-family
 prefixes; OIM grouped by data point; one conclusion per semantic key; stale
 rejection is history-only; P2 semantic audit + era-aware coverage; oracle on
 period dates; P3 dimensional parity; overlap-period Tier 2; tier on the
-application; `report_focus` vs `period_kind`. Architecture review is
-**finished**; remaining work is implementation.
+application; `report_focus` vs `period_kind`.
+
+Fourth pass ([E](E-feedback-response.md)): Tier-2 mismatch never overridden
+by identities; contract_coverage vs selector_yield; frozen-cohort gold CI;
+`other_standard` vs issuer; Tier-4 keyed by accession+QName; operational
+`period_kind` / `quarter_ytd`; derived Q4 duration-only with a derived
+error bound; oracle is taxonomy+tag. **Architecture review is closed.**
 
 ## What to keep from already-merged M1A work
 

@@ -180,11 +180,12 @@ resolve/build. Stale **rejected** records load as inactive history;
 **Uniqueness.** One current file per semantic key:
 
 ```text
-(metric, source.family, source.issuer_cik or "", source.local_name,
- canonical scope)
+(metric, source.family, source.issuer_cik or "", source.local_name)
 ```
 
-Overlapping-scope duplicates fail `edgar rules check`.
+Scope (`exclude_ciks`, `exclude_sic_divisions`) is an attribute of that
+one file, not part of the key. A second file for the same key fails
+`edgar rules check`. There is no scope-overlap algebra.
 `relation: broader` + `status: accepted` already means “reviewed, not
 exact.” Do not also keep `exact`/`rejected` for the same key. `rejected`
 is only for a proposed relation with no affirmative alternative.
@@ -251,14 +252,21 @@ CLI name            = edgar rules check may stay (it validates decisions)
 **Taxonomy family** is a shared prefix table, not “starts with fasb.org”:
 
 ```text
-us-gaap:  http://xbrl.us/us-gaap/     http://fasb.org/us-gaap/
-dei:      http://xbrl.us/dei/         http://xbrl.sec.gov/dei/
-srt:      http://fasb.org/srt/
+us-gaap:         http://xbrl.us/us-gaap/     http://fasb.org/us-gaap/
+dei:             http://xbrl.us/dei/         http://xbrl.sec.gov/dei/
+srt:             http://fasb.org/srt/
+other_standard:  country, currency, exch, naics, sic, stpr
+                 (xbrl.sec.gov and historical xbrl.us)
+issuer:          everything else (filer-owned)
 ```
 
-The same classifier is used for P0.3 grain, QName expansion, required-context
-lookup, MetaLinks/taxonomy joins, and P2 reporting. 2009 `xbrl.us` and
-2011 `xbrl.sec.gov` DEI must classify correctly.
+Return type is `us-gaap | dei | srt | other_standard | issuer`.
+`other_standard` is the SEC reference families (country, currency, exch,
+naics, sic, stpr) and their `xbrl.us` historical prefixes — not issuer
+extensions. Unknown custom namespaces are `issuer`. The same classifier is
+used for P0.3 grain, QName expansion, required-context lookup,
+MetaLinks/taxonomy joins, and P2 reporting. 2009 `xbrl.us` and 2011
+`xbrl.sec.gov` DEI must classify correctly.
 
 **QName expansion** (runtime, not identity):
 
@@ -320,10 +328,11 @@ through them:
 - issuer, metric, period (start/end or instant), unit, scope, and view;
 - derived `fiscal_year` and `report_focus` (`Q1 | Q2 | Q3 | FY`) when a
   unique issuer-period **anchor** matches (own filing required context +
-  that filing's DEI FY/focus). `period_kind` (`annual | quarter | YTD |
-  instant`) is taken from the **dates**, not from DEI focus. A Q2 10-Q
-  typically has `report_focus=Q2` and `period_kind=YTD`. No unique match →
-  year/focus unknown. Not copied from a later filing's DEI focus;
+  that filing's DEI FY/focus). `period_kind` is operational (see P5):
+  10-K required duration → `annual`; Q2/Q3 required → `YTD`; explicit
+  three-month duration → `quarter`; Q1 required duration → `quarter_ytd`
+  (quarter and YTD are the same dates). Instant facts are `instant`.
+  Identity remains the dates. No unique match → year/focus unknown;
 - value, unit and decimals;
 - status (`value | missing | conflict | unmapped_candidate | unsupported`);
 - supporting fact ids, `decision_id`s and the relation;

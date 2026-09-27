@@ -4,6 +4,10 @@
 architecture reopening. The feedback is not authoritative; every item below
 was accepted or rejected on its own merits.
 
+A later pass is recorded in [E](E-feedback-response.md). Treat E as current
+for Tier-2, coverage split, gold CI, `other_standard`, and Q4 decimals.
+This file remains the third-round verdict.
+
 The input argued: the direction is settled; current CI is green; make one
 more focused commit so P0–P6 is an implementation contract, not another
 redesign.

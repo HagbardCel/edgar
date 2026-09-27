@@ -174,12 +174,23 @@ remaining extract time, and ~47% of database bytes.
 2009 `xbrl.us` concepts as issuer extensions:
 
 ```text
-taxonomy_family(namespace_uri) -> "us-gaap" | "dei" | "srt" | "issuer"
+taxonomy_family(namespace_uri) ->
+  "us-gaap" | "dei" | "srt" | "other_standard" | "issuer"
 
 us-gaap prefixes:  http://xbrl.us/us-gaap/     http://fasb.org/us-gaap/
 dei prefixes:      http://xbrl.us/dei/         http://xbrl.sec.gov/dei/
 srt prefixes:      http://fasb.org/srt/
+
+other_standard (SEC reference families + historical xbrl.us twins):
+  country, currency, exch, naics, sic, stpr
+  e.g. http://xbrl.sec.gov/country/  http://xbrl.us/country/
+
+unknown custom namespace → issuer
 ```
+
+Do **not** treat every non-us-gaap/dei/srt namespace as an issuer
+extension. `other_standard` unused declarations follow the same grain as
+unused US-GAAP (dropped unless they are fact/relationship subjects).
 
 P1 expansion, required-context lookup, MetaLinks joins, and P2 reporting
 **must import this same function**. Do not copy prefix strings.
@@ -190,6 +201,8 @@ Unit tests (URI strings only; no full taxonomy zip):
 - `http://fasb.org/us-gaap/2023` → `us-gaap`
 - `http://xbrl.us/dei/2009-01-31` → `dei`
 - `http://xbrl.sec.gov/dei/2023` → `dei`
+- `http://xbrl.sec.gov/country/2023` → `other_standard`
+- `http://xbrl.us/sic/2009-01-31` → `other_standard`
 - `http://ebay.com/20131231` → `issuer`
 
 Do **not** use a fixed-point keep-set (declaration kept because a resource
@@ -204,6 +217,7 @@ base_concepts =
   ∪ relationship endpoints
   ∪ all issuer-extension declarations
     (taxonomy_family(namespace) == "issuer")
+    # other_standard is not issuer; unused other_standard is dropped
 
 persisted labels/references =
     resources whose subject ∈ base_concepts
@@ -235,7 +249,8 @@ Label/reference counts follow `base_concepts`, not the full taxonomy.
 - Unit: a small in-memory or rich-xbrl fixture where a standard concept is
   declared but unused is omitted; a used standard concept is kept; an unused
   extension is kept; a 2009 `xbrl.us` unused standard concept is **not**
-  kept as an issuer extension.
+  kept as an issuer extension; an unused `other_standard` (e.g. country)
+  concept is dropped, not kept as issuer.
 - Contract / corpus: review changed declaration counts. **Do not** silently
   refresh goldens. The PR description lists old vs new counts per accession.
 

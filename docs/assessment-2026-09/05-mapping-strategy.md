@@ -11,7 +11,7 @@ different costs.
 | Question | Example | Who knows the answer | How often it must be answered |
 |---|---|---|---|
 | **Q1 Concept meaning:** what does filed concept C mean? | `us-gaap:NetIncomeLoss` is "profit or loss … attributable to the parent" | FASB for standard concepts; the filer for extensions | Once per standard concept (per release); once per extension family |
-| **Q2 Contract relation:** how does C relate to metric M? | `Revenues` is *broader* than `revenue`; `RevenueFromContractWithCustomer…` is *exact* (outside banks) | Us, as a reviewed rule with conditions | Once per (metric, concept family, condition) |
+| **Q2 Contract relation:** how does C relate to metric M? | `Revenues` is *broader* than `revenue`; `RevenueFromContractWithCustomer…` is *exact* (outside banks) | Us, as a reviewed **decision** with conditions | Once per (metric, concept family, condition) |
 | **Q3 Selection:** which fact is the value for issuer × metric × period? | the undimensioned, registrant-entity, required-period fact; consistent duplicates reduced to the most precise | Deterministic policy using EDGAR and XBRL conventions | Computed for every filing; never reviewed by hand |
 
 The adopted plan folds all three into **per-report claims with per-occurrence human
@@ -82,7 +82,7 @@ around.
 |---|---|---|---|---|---|---|---|
 | **S1** Per-report human review + occurrence qualification (adopted plan) | High on reviewed cases | Very low; bounded by reviewer hours | High | Very high, O(filings × metrics) | None | No | Human attestation, unmeasured |
 | **S2** Global decisions on standard concepts + deterministic selector | High; residual is filer mis-tagging | High for standard-tagged metrics; zero for extension-only | Very high (one decision, one definition) | Very low (hundreds of decisions, once) | Taxonomy only | Full | Validators, oracle agreement, gold precision |
-| **S3** Issuer extension rules by review, reused via continuity | High | Targeted | High | Moderate, O(distinct extension patterns); amortized | None | Reuse is automatic, guarded by value continuity | Review + continuity checks |
+| **S3** Issuer extension decisions by review, reused via overlap-period continuity | High | Targeted | High | Moderate, O(distinct extension patterns); amortized | None | Reuse when overlap agrees; mismatch or no overlap queues | Review + continuity checks |
 | **S4** Structural proof for extensions (calc position, value equality, statement role) | Medium–high when proof conditions are strict; zeros collide | Moderate | High (the proof is recorded) | Low (code + one policy review) | None | Candidate ranking only; not auto-accept | Per-policy precision on gold before any later ADR |
 | **S5** Third-party mapping tables | Unknown, varies | Broad | Low–medium | Low | Maintainer, license | Proposals only | Must be measured against gold |
 | **S6** Label or embedding similarity | Low–medium (labels do not prove equivalence) | Broad | Low | Low | Embedding model | Candidate retrieval only | Not a basis for acceptance |
@@ -98,10 +98,10 @@ Notes on the less obvious rows:
   reviewers is not measured. Reviews also go stale when contracts change.
 - **S2's main risks are known and testable:**
   - Filer mis-tagging, caught by identities and the oracle.
-  - Industry semantics, such as bank revenue. These are handled by rule conditions on SIC-derived
+  - Industry semantics, such as bank revenue. These are handled by decision scope on SIC-derived
     industry, not by per-report review.
   - Taxonomy deprecations. The taxonomy table lists concepts per release, so a deprecated concept
-    simply stops matching new filings. Its replacement gets a rule.
+    simply stops matching new filings. Its replacement gets a decision.
 - **S4 is evidence, not acceptance.** Examples:
   - An extension's value equals a standard-concept fact for the same context (zeros collide).
   - An extension is the calculation parent of the same children as a standard total, and the
@@ -126,9 +126,9 @@ Notes on the less obvious rows:
 
 ```mermaid
 flowchart TB
-  F[Facts of a filing] --> T1{Standard concept<br/>with global rule?}
-  T1 -- yes --> A1[Tier 1: standard rule]
-  T1 -- no --> T2{Issuer rule for this<br/>extension family, values<br/>continuous?}
+  F[Facts of a filing] --> T1{Standard concept<br/>with global decision?}
+  T1 -- yes --> A1[Tier 1: standard decision]
+  T1 -- no --> T2{Issuer decision for this<br/>extension family, overlap<br/>agrees?}
   T2 -- yes --> A2[Tier 2: continuity]
   T2 -- no --> T3{Structural proof<br/>value equality / verified<br/>calc position?}
   T3 -- yes --> Q3[Tier 3: proof on queue<br/>not accepted]
@@ -151,7 +151,7 @@ flowchart TB
 - The annual selector (section 6).
 - Validators and the SEC `companyfacts` oracle.
 - The gold set.
-- Expected effort is a few days of rule authoring, because the rules are decided once per concept
+- Expected effort is a few days of decision authoring, because the decisions are decided once per concept
   family.
 
 **Stage 2: extensions by continuity and candidates.** Rank the residual:
@@ -215,7 +215,9 @@ scope for this policy (P5). If invoked on a 10-Q it returns `status=unsupported`
 2. **Slot identity** is `(cik, metric, period_start|instant, period_end, unit, scope)`. Derived
    labels: an own-filing required context plus that filing's DEI FY/focus
    creates an issuer-period **anchor** (`fiscal_year`, `report_focus`).
-   `period_kind` (`annual | quarter | YTD | instant`) comes from the dates.
+   `period_kind` is operational (`annual | YTD | quarter | quarter_ytd |
+   instant`); see P5. Q1 required duration is `quarter_ytd` because quarter
+   and YTD share one interval.
    A comparative fills year/focus only on a unique anchor match, otherwise
    those labels stay unknown. A FY2022 comparative inside a FY2023 10-K
    belongs to the 2022 slot.
@@ -318,7 +320,9 @@ evidence + reviewed decisions + independently labeled gold.
 
 - Every decision or selector change runs `edgar build` on the fixture corpus and the gold set in CI.
 - CI emits a quality-report diff.
-- A drop in precision beyond a threshold fails the build.
+- A drop in **regression_precision** (frozen prior gold cohort) fails the
+  build. A drop in **current_precision** after adding harder labels does
+  not, unless it breaches the absolute publication floor.
 - The M0 counterexamples become unit tests of the selector: bank, segment, YTD, amendment, broader,
   related, narrower extension, NCI.
 
@@ -326,25 +330,27 @@ evidence + reviewed decisions + independently labeled gold.
 coverage, oracle agreement and identity pass rates per metric, **and** a
 bounded independent semantic audit (30–50 issuer-years on high-risk
 metrics) plus a metadata-drift census across taxonomy releases. Coverage
-denominators are era-aware: a concept that does not exist / is not used
-in that taxonomy year is not a selector miss. FSDS (historical quarters, or
-the extracted sample) can estimate concept usage per era. The Stage 2
-investment should be sized by the measured residual, not by assumption.
+denominators are split: **contract_coverage** over issuer-years where the
+metric applies (a missing era decision stays in the denominator);
+**selector_yield** only where the current exact decision's concept exists
+and is relevant. FSDS (historical quarters, or the extracted sample) can
+estimate concept usage per era. The Stage 2 investment should be sized by
+the measured residual, not by assumption.
 
 Working hypotheses for P2 to confirm or refute:
 
-- Total assets and operating cash flow: ≥95% coverage for non-financial issuers, with ≥99.5%
+- Total assets and operating cash flow: ≥95% **selector_yield** for non-financial issuers, with ≥99.5%
   precision.
-- Revenue: 75–90% coverage **where RFCWCEAT (or the era's exact revenue
-  concept) exists and is relevant** — not across 2010–2025 as if ASC 606
-  tags were always in use.
+- Revenue: 75–90% **selector_yield** where RFCWCEAT (or the era's exact
+  revenue concept) exists and is relevant. 2010–2017 **contract_coverage**
+  will be lower until an era-appropriate decision exists.
 - R&D: coverage limited by applicability, where `missing` is often correct.
 
 ## 9. Failure modes and mitigations
 
 | Failure mode | Where it bites | Mitigation |
 |---|---|---|
-| Filer mis-tags a standard concept (e.g., consolidated NI as `NetIncomeLoss`) | Tier 1 | Identities; oracle; issuer-level override rule |
+| Filer mis-tags a standard concept (e.g., consolidated NI as `NetIncomeLoss`) | Tier 1 | Identities; oracle; issuer-level override decision |
 | Standard concept broader than the contract in some industries (bank revenue) | Tier 1 | SIC conditions; `unsupported` status; separate contract |
 | Extension semantics change under the same local name | Tier 2 | Overlap-period continuity (as-filed t-1 vs comparative in t); label/documentation diff triggers review |
 | Calculation linkbase errors | Tier 3 | Verify arithmetic on facts, not only arcs |

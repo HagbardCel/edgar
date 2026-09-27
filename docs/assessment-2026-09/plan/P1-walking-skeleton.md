@@ -193,10 +193,11 @@ contract_hash: str                  # definition_hash of that metric *now*
 **Uniqueness.** `edgar rules check` allows **one** current file per
 
 ```text
-(metric, family, issuer_cik or "", local_name, canonical scope)
+(metric, family, issuer_cik or "", local_name)
 ```
 
-Overlapping-scope duplicates fail the check.
+Scope is an attribute of that file, not part of the key. A second file
+for the same key fails the check. There is no scope-overlap algebra.
 
 Evidence rules:
 
@@ -251,8 +252,8 @@ for P2/P6.
 - Expansion: `{http://fasb.org/us-gaap/2022}Assets`, `.../2024}Assets`,
   and `{http://xbrl.us/us-gaap/2009-01-31}Assets` are in the expansion;
   `{http://fasb.org/us-gaap/2023}Liabilities` is not.
-- Two files for the same `(metric, family, local_name, scope)` fail
-  `edgar rules check`.
+- Two files for the same `(metric, family, issuer_cik, local_name)` fail
+  `edgar rules check` (scope is not part of the key).
 - A support row carries the exact Clark QName, not `us-gaap:Assets`.
 - Stale `contract_hash` on an **accepted** decision raises at resolve/build.
 - Stale `contract_hash` on a **rejected** decision loads as history and is

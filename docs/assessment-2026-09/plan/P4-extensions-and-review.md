@@ -110,23 +110,38 @@ Compare the **same period dates** (as-filed in t-1 vs comparative in t).
 Do **not** require FY2024 current == FY2023 comparative. Values normally
 change year to year.
 
-**Auto-reuse** on a later eBay filing when:
+**Auto-reuse** on a later eBay filing when **all** of:
 
 1. An accepted issuer decision exists for that `local_name` (ignore
    namespace date suffix) and its `contract_hash` is current;
-2. Overlap-period values are continuous (as-filed t-1 equals comparative
-   in t), or the identity residual still closes;
+2. A comparable overlap period **exists** and the values **agree**
+   (as-filed t-1 equals comparative in t, OIM-consistent);
 3. Documentation / preferred label did not change (string compare);
 4. The later filing's expanded QName is not in `exclude_qnames`.
 
-If (2), (3), or (4) fails → queue, do not auto-accept. Exact QNames remain
-distinct in `source.*`; the *decision* is what is reused.
-
-**Tier provenance.** The decision file is one; the **application** differs:
+Overlap rules — no identity residual override:
 
 ```text
-fact QName ∈ reviewed_occurrences  → application_method=reviewed, tier=4
-otherwise, continuity guards pass  → application_method=continuity, tier=2
+overlap exists and agrees     → may reuse (if 1, 3, 4 also hold)
+overlap exists and disagrees  → queue
+no overlap exists             → queue
+```
+
+An accounting identity that still closes is **evidence on the queue
+item**, not automatic acceptance. That would be Tier-3-style structural
+auto-accept.
+
+Exact QNames remain distinct in `source.*`; the *decision* is what is
+reused.
+
+**Tier provenance.** The decision file is one; the **application** differs.
+Key is `(accession, source_qname)`, not QName alone:
+
+```text
+(accession, source_qname) ∈ reviewed_occurrences
+    → application_method=reviewed, tier=4
+otherwise, continuity guards pass
+    → application_method=continuity, tier=2
 ```
 
 Precision-by-tier reports these support fields, not the file alone.
@@ -139,11 +154,13 @@ decisions (rare) may publish.
 
 ```bash
 uv run pytest -q tests/unit/test_tier2_continuity.py
-# same local_name, new namespace year, overlap-period match → reused
+# same local_name, new namespace year, overlap agrees → reused
 # new year's current value differs from last year's as-filed → still reused
-# overlap-period mismatch or label change → queued
+# overlap exists and disagrees → queued (identity residual does not save it)
+# no overlap → queued (identity/label are evidence only)
 # narrower decision does not fill research_and_development
-# reviewed_occurrences → tier 4; later filing → tier 2
+# (accession, qname) in reviewed_occurrences → tier 4
+# later filing, same qname, different accession → tier 2
 ```
 
 ---
@@ -236,17 +253,34 @@ tier3_candidate_precision =
   reviewed Tier-3 candidates
 ```
 
-A drop in **observation** precision vs the previous commit fails
-`edgar build --check-gold` when `--require-precision-floor` is set
-(default floor: do not decrease). Do not treat `tier3_candidate_precision`
-as observation precision.
+Precision CI is **two numbers**, not one:
+
+```text
+regression_precision
+  = precision on the frozen prior gold cohort
+    (the slots that existed before this PR)
+  must not drop → fails --check-gold --require-precision-floor
+
+current_precision
+  = precision on the full current gold set
+  reported; compared to an absolute publication floor
+  may fall when harder labels are added
+```
+
+Adding independently labeled harder cases is allowed to lower
+`current_precision`. That is the point of growing gold. It must **not**
+fail CI and must **not** force an unrelated selector fix in the same PR.
+A drop on the **frozen prior cohort** is a real regression.
+
+Do not treat `tier3_candidate_precision` as observation precision.
 
 **Validation gate P4.5**
 
 ```bash
 uv run edgar build --check-gold --require-precision-floor
-# gold file grew; each new slot cites accession + R-file locator or
-# statement line in a comment
+# frozen prior cohort: no precision drop
+# current set: n grew; current_precision reported
+# each new slot cites accession + R-file locator or statement line
 ```
 
 ---
@@ -294,7 +328,8 @@ LLM_ENABLED=false uv run pytest -q
   calc linkbases.
 - **Writing ledger-like state for packets.** If you need a table, you have
   left this spec.
-- **Continuity on local_name alone** without value/label guards.
+- **Continuity on local_name alone** without overlap-period agreement.
+- **Letting an identity residual accept a mismatch.** That is not Tier 2.
 
 ## Stop and ask if
 

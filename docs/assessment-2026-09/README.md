@@ -72,11 +72,12 @@ contracts, `AGENTS.md` phase gates or ADR 0010–0013. Adopting any recommendati
 | [B Feedback response](B-feedback-response.md) | Independent reply to a hybrid-architecture critique; records what changed |
 | [C Hardening response](C-feedback-response.md) | Second critique: specification holes closed; architecture not reopened |
 | [D Hardening response](D-feedback-response.md) | Third critique: family namespaces, OIM grouping, P2 audit; architecture settled |
+| [E Hardening response](E-feedback-response.md) | Fourth critique: last contract pins; architecture review closed |
 
 Read 01 → 02 → 05 → 04 → 08 for the argument; 03, 06, 07 and A are reference
 material. Implement from [plan/](plan/README.md). Revisions after critique:
-[B](B-feedback-response.md), [C](C-feedback-response.md), then
-[D](D-feedback-response.md).
+[B](B-feedback-response.md), [C](C-feedback-response.md),
+[D](D-feedback-response.md), then [E](E-feedback-response.md).
 
 ## Key measurements (2026-09-27, local corpus of six filings)
 
