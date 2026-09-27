@@ -1,0 +1,195 @@
+# P5 — Time views and quarterly / YTD
+
+**Duration:** about two to three weeks. **Depends on:** P3. May overlap P4.
+
+## Goal
+
+The same exact rules produce:
+
+- **as-filed** (already in P1);
+- **first-reported** — earliest SEC acceptance that reports the slot;
+- **latest-as-of(T)** — latest acceptance ≤ T, including comparatives in
+  later filings, flagged when it differs from as-filed;
+- **direct 10-Q** three-month and YTD slots using the required context of
+  that 10-Q;
+- **derived Q4** = annual − first-nine-months YTD, labelled `derived`, never
+  `reported`.
+
+Amendments compete per slot. A 10-K/A without statement facts (eBay
+`0001065088-24-000094`) contributes nothing.
+
+## Preconditions
+
+- P1 selector is stable (`--check-gold` green).
+- `source.filing.accepted_at` is populated for spike filings you will use.
+  If it is null, leave `available_at` null — do not substitute filing date
+  (standing rule 6). You may backfill acceptance from the submissions API
+  via the existing client as a **retrieve** concern, not a selector guess.
+
+## Out of scope
+
+- Knowledge clocks (`semantic_as_of`, `acquired_as_of`). The rules Git
+  commit on the build manifest is the mapping vintage.
+- “Unreviewed later coverage blocks latest.” That was an artifact of
+  per-report claims. Global rules apply to all filings.
+- `amends` edge table. Replacement is derived per slot by accession +
+  acceptance time.
+- Market/security joins (later product).
+- Segment policies (P6).
+
+## Work items
+
+### P5.1 — Slot identity
+
+Define a slot as:
+
+```text
+(cik, metric, fiscal_year, fiscal_period, period_start, period_end, unit)
+```
+
+`fiscal_period` ∈ `FY | Q1 | Q2 | Q3 | Q4 | H1 | YTD` (start with FY, Q1–Q3,
+YTD).
+
+Fiscal year / period come from DEI `DocumentFiscalYearFocus` /
+`DocumentFiscalPeriodFocus` on the required context. Do not infer quarter
+from duration length alone (KO YTD vs quarter is the counterexample).
+
+**Validation gate P5.1**
+
+```bash
+uv run pytest -q tests/unit/test_slot_identity.py
+# eBay 10-K → FY + calendar 2023-01-01/2023-12-31
+# Walmart 10-K → FY ending 2024-01-31 (not calendar 2023)
+# KO 10-Q required context is YTD if DEI says so — pin from the real filing
+```
+
+---
+
+### P5.2 — first-reported and latest-as-of
+
+Input: all observations with `status=value` for a slot, each with
+`available_at`.
+
+- `first-reported`: min `available_at` (nulls sort last and **cannot** win).
+- `latest-as-of(T)`: max `available_at` among those ≤ T. A later filing's
+  **comparative** fact for the same slot is a candidate (same period start/end).
+- If the winner's accession ≠ the original as-filed accession, set
+  `restated=true` and keep `source_accession` of the winner.
+
+`edgar build --view as-filed|first|latest --as-of 2024-12-31`.
+
+**Validation gate P5.2**
+
+```bash
+uv run pytest -q tests/unit/test_time_views.py
+# two accessions, same slot, different values and acceptance times
+# T between them → first and latest disagree
+# T before both → missing
+# null accepted_at never selected
+```
+
+Use fabricated rows. Add one corpus test: eBay FY2022 as reported in the
+FY2022 10-K vs as a comparative in the FY2023 10-K (stability metric).
+
+---
+
+### P5.3 — 10-Q three-month vs YTD
+
+A 10-Q required context is usually **YTD**. The quarterly three-month
+figure, if filed, is a different duration (start = period end minus ~90
+days, but **only if a fact with that exact start/end exists**).
+
+Selector policy `quarterly-v1`:
+
+1. Read DEI fiscal period (`Q1`/`Q2`/`Q3`).
+2. YTD metric slot: required-context duration.
+3. Three-month slot: only an undimensioned exact fact whose start/end match
+   an explicit quarterly period present in the filing (or a dedicated DEI
+   quarterly context if you find one). If absent → `missing`, do not
+   subtract yet (that is P5.4 and only for Q4).
+
+KO (`0000021344-24-000044`) and JPM (`0000019617-24-000453`) are the
+fixtures. Their annual-selector revenue stays `missing`/`unsupported`.
+Their quarterly build must not publish segment-dimensional revenue as
+consolidated.
+
+**Validation gate P5.3**
+
+```bash
+uv run pytest -q tests/unit/test_quarterly_select.py
+# KO: YTD vs quarter periods are distinct; dimensional segment ≠ consolidated
+# JPM: revenue remains unsupported under the P1 industry exclude
+uv run edgar build --view as-filed --forms 10-Q --check-gold
+```
+
+Add gold rows for whatever KO **consolidated** figures you independently
+read from the rendered statement (not from the selector). If you cannot
+verify a number from the R file, do not put it in gold.
+
+---
+
+### P5.4 — Derived Q4
+
+```text
+Q4_derived = FY_annual - Q3_YTD
+```
+
+Same metric, same unit, decimals = coarsest of inputs. Kind =
+`derived`. Findings must name both input accessions.
+
+Do not emit derived Q4 when either input is missing/conflict, or when
+fiscal year ends do not align.
+
+**Validation gate P5.4**
+
+```bash
+uv run pytest -q tests/unit/test_derived_q4.py
+# constructed annual 100, YTD9 70 → Q4 30 kind=derived
+# missing YTD → no derived row
+```
+
+---
+
+### P5.5 — Stability metric
+
+For each gold or spike slot that appears as a comparative in a later 10-K:
+
+`stable` if as-filed value equals the later comparative (consistent
+decimals); else `changed` (possible restatement).
+
+Add `stability_agree` / `stability_changed` to the quality report.
+
+**Validation gate P5.5**
+
+```bash
+uv run pytest -q tests/unit/test_stability.py
+# eBay FY2022 revenue vs comparative in FY2023 10-K — measure and record
+```
+
+## Phase exit gate
+
+| Check | Pass |
+|---|---|
+| as-filed P1 gold unchanged | yes |
+| first/latest unit tests green | yes |
+| KO/JPM counterexamples still cannot publish as annual consolidated RFCWCEAT revenue | yes |
+| Derived Q4 never `kind=reported` | yes |
+| Null `accepted_at` cannot win a time view | yes |
+| Quality report includes stability | yes |
+| `make check` | green |
+
+## Pitfalls
+
+- **Using filing date as `available_at`.** Look-ahead and look-behind bugs.
+- **Treating YTD as the quarter.** That is the KO trap.
+- **Whole-filing supersession.** A 10-K/A that restates one note must not
+  blank other slots.
+- **Q4 subtraction across different accounting bases.** If an identity or
+  contract hash differs, do not derive.
+
+## Stop and ask if
+
+- `accepted_at` is widely null in the spike. Fix acquisition before
+  shipping latest/first as a product.
+- You think you need `semantic_as_of`. Check out the rules commit and
+  rebuild instead.
