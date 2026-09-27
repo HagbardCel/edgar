@@ -173,24 +173,34 @@ remaining extract time, and ~47% of database bytes.
 (`src/edgar/xbrl/taxonomy_family.py`, name is fine) so P0.3 does not treat
 2009 `xbrl.us` concepts as issuer extensions:
 
+Two axes, not an enum of reference families:
+
 ```text
-taxonomy_family(namespace_uri) ->
-  "us-gaap" | "dei" | "srt" | "other_standard" | "issuer"
+classify(namespace_uri) ->
+  semantic_family: us-gaap | dei | srt | other
+  origin:          standard | issuer
 
-us-gaap prefixes:  http://xbrl.us/us-gaap/     http://fasb.org/us-gaap/
-dei prefixes:      http://xbrl.us/dei/         http://xbrl.sec.gov/dei/
-srt prefixes:      http://fasb.org/srt/
+semantic_family first (special cases):
+  us-gaap prefixes:  http://xbrl.us/us-gaap/     http://fasb.org/us-gaap/
+  dei prefixes:      http://xbrl.us/dei/         http://xbrl.sec.gov/dei/
+  srt prefixes:      http://fasb.org/srt/
 
-other_standard (SEC reference families + historical xbrl.us twins):
-  country, currency, exch, naics, sic, stpr
-  e.g. http://xbrl.sec.gov/country/  http://xbrl.us/country/
+origin = standard when semantic_family is us-gaap|dei|srt, OR the host
+(http or https) is xbrl.sec.gov, fasb.org, or xbrl.us.
+origin = issuer otherwise (filer-owned hosts).
 
-unknown custom namespace → issuer
+semantic_family = other when origin is standard and the namespace is
+not one of the three families (country, cyd, ecd, ffd, exch, …).
 ```
 
-Do **not** treat every non-us-gaap/dei/srt namespace as an issuer
-extension. `other_standard` unused declarations follow the same grain as
-unused US-GAAP (dropped unless they are fact/relationship subjects).
+Do **not** maintain a list of CYD/ECD/country/… . A new SEC standard
+family on `xbrl.sec.gov` is `other` + `standard` without a code change.
+P3 taxonomy packages replace the host rule: origin comes from package
+provenance. Until then the host rule is the stand-in.
+
+Unused `origin=standard` declarations follow unused US-GAAP (dropped
+unless they are fact or relationship subjects). Only `origin=issuer`
+declarations are kept when unused.
 
 P1 expansion, required-context lookup, MetaLinks joins, and P2 reporting
 **must import this same function**. Do not copy prefix strings.
@@ -201,9 +211,10 @@ Unit tests (URI strings only; no full taxonomy zip):
 - `http://fasb.org/us-gaap/2023` → `us-gaap`
 - `http://xbrl.us/dei/2009-01-31` → `dei`
 - `http://xbrl.sec.gov/dei/2023` → `dei`
-- `http://xbrl.sec.gov/country/2023` → `other_standard`
-- `http://xbrl.us/sic/2009-01-31` → `other_standard`
-- `http://ebay.com/20131231` → `issuer`
+- `http://xbrl.sec.gov/country/2023` → `other` + `standard`
+- `http://xbrl.sec.gov/cyd/2026` → `other` + `standard` (not issuer)
+- `http://xbrl.us/sic/2009-01-31` → `other` + `standard`
+- `http://ebay.com/20131231` → `other` + `issuer`
 
 Do **not** use a fixed-point keep-set (declaration kept because a resource
 is kept, resource kept because the declaration is in the keep-set). That
@@ -216,8 +227,8 @@ base_concepts =
     fact concepts
   ∪ relationship endpoints
   ∪ all issuer-extension declarations
-    (taxonomy_family(namespace) == "issuer")
-    # other_standard is not issuer; unused other_standard is dropped
+    (origin(namespace) == "issuer")
+    # standard-but-other (CYD, country, …) is not issuer
 
 persisted labels/references =
     resources whose subject ∈ base_concepts
@@ -249,8 +260,8 @@ Label/reference counts follow `base_concepts`, not the full taxonomy.
 - Unit: a small in-memory or rich-xbrl fixture where a standard concept is
   declared but unused is omitted; a used standard concept is kept; an unused
   extension is kept; a 2009 `xbrl.us` unused standard concept is **not**
-  kept as an issuer extension; an unused `other_standard` (e.g. country)
-  concept is dropped, not kept as issuer.
+  kept as an issuer extension; an unused `xbrl.sec.gov/cyd` concept is
+  dropped, not kept as issuer.
 - Contract / corpus: review changed declaration counts. **Do not** silently
   refresh goldens. The PR description lists old vs new counts per accession.
 

@@ -8,6 +8,10 @@ The input argued: the architecture is sound; fix three substantive
 contract holes plus a few cheap ambiguities; then stop iterating and
 implement P0/P1/P2.
 
+Implementation-contract pins after this file are in
+[F](F-feedback-response.md) (taxonomy origin, slot eligibility,
+`period_role`, gold cohorts, Q4 dates).
+
 ## Verdict
 
 I agree. Nothing here is a missing component. After this pass I would

@@ -215,9 +215,10 @@ scope for this policy (P5). If invoked on a 10-Q it returns `status=unsupported`
 2. **Slot identity** is `(cik, metric, period_start|instant, period_end, unit, scope)`. Derived
    labels: an own-filing required context plus that filing's DEI FY/focus
    creates an issuer-period **anchor** (`fiscal_year`, `report_focus`).
-   `period_kind` is operational (`annual | YTD | quarter | quarter_ytd |
-   instant`); see P5. Q1 required duration is `quarter_ytd` because quarter
-   and YTD share one interval.
+   Observation `period_role` is operational (`annual | YTD | quarter |
+   quarter_ytd | instant`); see P5. Context `period_kind` stays
+   `duration | instant | forever`. Q1 required duration is `quarter_ytd`
+   because quarter and YTD share one interval.
    A comparative fills year/focus only on a unique anchor match, otherwise
    those labels stay unknown. A FY2022 comparative inside a FY2023 10-K
    belongs to the 2022 slot.
@@ -320,9 +321,11 @@ evidence + reviewed decisions + independently labeled gold.
 
 - Every decision or selector change runs `edgar build` on the fixture corpus and the gold set in CI.
 - CI emits a quality-report diff.
-- A drop in **regression_precision** (frozen prior gold cohort) fails the
-  build. A drop in **current_precision** after adding harder labels does
-  not, unless it breaches the absolute publication floor.
+- A drop in **regression_precision** (the prior
+  `registry/gold/cohorts/*.yml` file) fails the build. A drop in
+  **current_precision** after adding a new cohort file does not. No
+  numeric publication floor is hardcoded; a later ADR sets one from
+  P2/P6 evidence.
 - The M0 counterexamples become unit tests of the selector: bank, segment, YTD, amendment, broader,
   related, narrower extension, NCI.
 
@@ -330,10 +333,12 @@ evidence + reviewed decisions + independently labeled gold.
 coverage, oracle agreement and identity pass rates per metric, **and** a
 bounded independent semantic audit (30–50 issuer-years on high-risk
 metrics) plus a metadata-drift census across taxonomy releases. Coverage
-denominators are split: **contract_coverage** over issuer-years where the
-metric applies (a missing era decision stays in the denominator);
-**selector_yield** only where the current exact decision's concept exists
-and is relevant. FSDS (historical quarters, or the extracted sample) can
+denominators are mechanical: **publication_rate** is values over
+`slot_eligible` (requested metric, supported form, not excluded by
+explicit decision scope — no economic applicability guess);
+**selector_yield** is values only where the current exact decision's
+concept exists in that taxonomy release. FSDS (historical quarters, or
+the extracted sample) can
 estimate concept usage per era. The Stage 2 investment should be sized by
 the measured residual, not by assumption.
 
@@ -342,7 +347,7 @@ Working hypotheses for P2 to confirm or refute:
 - Total assets and operating cash flow: ≥95% **selector_yield** for non-financial issuers, with ≥99.5%
   precision.
 - Revenue: 75–90% **selector_yield** where RFCWCEAT (or the era's exact
-  revenue concept) exists and is relevant. 2010–2017 **contract_coverage**
+  revenue concept) exists and is relevant. 2010–2017 **publication_rate**
   will be lower until an era-appropriate decision exists.
 - R&D: coverage limited by applicability, where `missing` is often correct.
 
@@ -350,7 +355,7 @@ Working hypotheses for P2 to confirm or refute:
 
 | Failure mode | Where it bites | Mitigation |
 |---|---|---|
-| Filer mis-tags a standard concept (e.g., consolidated NI as `NetIncomeLoss`) | Tier 1 | Identities; oracle; issuer-level override decision |
+| Filer mis-tags a standard concept (e.g., consolidated NI as `NetIncomeLoss`) | Tier 1 | Identities; oracle; issuer exclusion/exception on the decision |
 | Standard concept broader than the contract in some industries (bank revenue) | Tier 1 | SIC conditions; `unsupported` status; separate contract |
 | Extension semantics change under the same local name | Tier 2 | Overlap-period continuity (as-filed t-1 vs comparative in t); label/documentation diff triggers review |
 | Calculation linkbase errors | Tier 3 | Verify arithmetic on facts, not only arcs |

@@ -68,7 +68,7 @@ Suggested modules (do not add more without need):
 
 | Module | Responsibility |
 |---|---|
-| `financials/decisions.py` | Load `registry/decisions/**/*.yml`; expand via `taxonomy_family` |
+| `financials/decisions.py` | Load `registry/decisions/**/*.yml`; expand via `semantic_family` |
 | `financials/metalinks.py` | Parse `MetaLinks.json` / `FilingSummary.xml` from a bundle |
 | `financials/period.py` | Required-context + fiscal focus from `source.*` |
 | `financials/decimals.py` | XBRL duplicate-fact consistency |
@@ -144,7 +144,7 @@ Do **not** treat the family string as a QName. Source facts keep
 `{http://fasb.org/us-gaap/2023}Assets` (or a 2009
 `{http://xbrl.us/us-gaap/2009-01-31}Assets`). The decision names the
 family and local name; `expand_decision` uses
-`taxonomy_family(namespace)` from P0.3, not a `fasb.org` prefix check.
+`semantic_family(namespace)` from P0.3, not a `fasb.org` prefix check.
 
 One exact **accepted** decision per P1 metric:
 
@@ -198,6 +198,9 @@ contract_hash: str                  # definition_hash of that metric *now*
 
 Scope is an attribute of that file, not part of the key. A second file
 for the same key fails the check. There is no scope-overlap algebra.
+Bank revenue is `exact` plus `exclude_ciks` / SIC exclusion, not a
+second `narrower` file. A positive issuer override is not in this
+schema; exclusion is the exception mechanism.
 
 Evidence rules:
 
@@ -215,7 +218,7 @@ Evidence rules:
 **Expansion (P1 algorithm, tested, not identity):**
 
 - `family=us-gaap` + `local_name=Assets` covers any fact whose
-  `taxonomy_family(namespace_uri) == "us-gaap"` and whose `local_name`
+  `semantic_family(namespace_uri) == "us-gaap"` and whose `local_name`
   is `Assets`, except Clark QNames listed in `exclude_qnames`.
   That includes `{http://xbrl.us/us-gaap/2009-01-31}Assets`.
 - Record the expanded Clark QName on each support (`source_qname`).
@@ -346,7 +349,7 @@ uv run pytest -q tests/unit/test_gold_schema.py
 From `source.*` for one accession:
 
 1. Find the undimensioned fact whose concept is `dei:DocumentPeriodEndDate`
-   (`taxonomy_family(namespace_uri) == "dei"`, not only
+   (`semantic_family(namespace_uri) == "dei"`, not only
    `http://xbrl.sec.gov/dei/%`).
 2. That fact's context is the required context. Read
    `entity_identifier`, `start_lexical`, `end_lexical` / `instant_lexical`.
@@ -357,8 +360,9 @@ From `source.*` for one accession:
 A gold slot may name an explicit comparative period. Selection uses the slot
 period when provided, else the required-context period.
 
-Duration metrics match `period_kind='duration'` and start/end.
-Instant metrics match `period_kind='instant'` and `instant_lexical == end`.
+Duration metrics match context `period_kind='duration'` and start/end.
+Instant metrics match context `period_kind='instant'` and
+`instant_lexical == end`. Do not put `annual` / `YTD` in this field.
 
 Entity match uses the **SEC CIK scheme plus a 10-digit identifier**, not
 “strip zeros on any string”:
@@ -499,7 +503,7 @@ Then:
 Observation fields (P1 minimum):
 
 ```text
-cik, accession, metric, fy, report_focus, period_kind
+cik, accession, metric, fy, report_focus, period_role
 period_start, period_end
 status, reason, numeric, decimals, unit
 decision_ids, fact_ids, relation, tier

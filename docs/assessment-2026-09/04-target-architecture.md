@@ -185,7 +185,12 @@ resolve/build. Stale **rejected** records load as inactive history;
 
 Scope (`exclude_ciks`, `exclude_sic_divisions`) is an attribute of that
 one file, not part of the key. A second file for the same key fails
-`edgar rules check`. There is no scope-overlap algebra.
+`edgar rules check`. There is no scope-overlap algebra. A concept that
+is exact outside banks and narrower for banks is recorded as
+`relation: exact` plus a bank exclusion, not as a second narrower file.
+That is enough for publication. If P2/P6 needs the bank relation itself,
+add a scoped exception on this same file. Do not restore overlapping
+assertions.
 `relation: broader` + `status: accepted` already means “reviewed, not
 exact.” Do not also keep `exact`/`rejected` for the same key. `rejected`
 is only for a proposed relation with no affirmative alternative.
@@ -252,28 +257,27 @@ CLI name            = edgar rules check may stay (it validates decisions)
 **Taxonomy family** is a shared prefix table, not “starts with fasb.org”:
 
 ```text
-us-gaap:         http://xbrl.us/us-gaap/     http://fasb.org/us-gaap/
-dei:             http://xbrl.us/dei/         http://xbrl.sec.gov/dei/
-srt:             http://fasb.org/srt/
-other_standard:  country, currency, exch, naics, sic, stpr
-                 (xbrl.sec.gov and historical xbrl.us)
-issuer:          everything else (filer-owned)
+semantic_family:  us-gaap | dei | srt | other
+origin:           standard | issuer
+
+us-gaap / dei / srt are the three semantic families (prefixes in P0).
+origin=standard also for any other http(s) host in
+  xbrl.sec.gov | fasb.org | xbrl.us
+  (CYD, ECD, FFD, country, … — not an enumerated list)
+origin=issuer for filer-owned hosts.
 ```
 
-Return type is `us-gaap | dei | srt | other_standard | issuer`.
-`other_standard` is the SEC reference families (country, currency, exch,
-naics, sic, stpr) and their `xbrl.us` historical prefixes — not issuer
-extensions. Unknown custom namespaces are `issuer`. The same classifier is
-used for P0.3 grain, QName expansion, required-context lookup,
-MetaLinks/taxonomy joins, and P2 reporting. 2009 `xbrl.us` and 2011
-`xbrl.sec.gov` DEI must classify correctly.
+P3 packages replace the host rule with package provenance. The same
+classifier is used for P0.3 grain, QName expansion, required-context
+lookup, MetaLinks joins, and P2 reporting. 2009 `xbrl.us` and 2011
+`xbrl.sec.gov` DEI must classify as `dei` + `standard`.
 
 **QName expansion** (runtime, not identity):
 
 ```text
 decision (family + local_name − exclude_qnames)
     → exact QNames of facts this decision covers
-P1 algorithm: taxonomy_family(namespace) == decision.family
+P1 algorithm: semantic_family(namespace) == decision.family
               and local_name equals
               and Clark QName ∉ exclude_qnames
 Later: same, plus taxonomy-table drift checks (type / period / balance /
@@ -328,10 +332,11 @@ through them:
 - issuer, metric, period (start/end or instant), unit, scope, and view;
 - derived `fiscal_year` and `report_focus` (`Q1 | Q2 | Q3 | FY`) when a
   unique issuer-period **anchor** matches (own filing required context +
-  that filing's DEI FY/focus). `period_kind` is operational (see P5):
-  10-K required duration → `annual`; Q2/Q3 required → `YTD`; explicit
-  three-month duration → `quarter`; Q1 required duration → `quarter_ytd`
-  (quarter and YTD are the same dates). Instant facts are `instant`.
+  that filing's DEI FY/focus). Observation `period_role` (not context
+  `period_kind`) is operational (see P5): 10-K required duration →
+  `annual`; Q2/Q3 required → `YTD`; explicit three-month duration →
+  `quarter`; Q1 required duration → `quarter_ytd`. Instant facts are
+  `instant`. Context `period_kind` stays `duration | instant | forever`.
   Identity remains the dates. No unique match → year/focus unknown;
 - value, unit and decimals;
 - status (`value | missing | conflict | unmapped_candidate | unsupported`);

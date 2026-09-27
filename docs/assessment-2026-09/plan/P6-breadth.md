@@ -136,8 +136,8 @@ Label from SEC-rendered statements (R files in the bundle), not from
 
 ```bash
 uv run edgar build --check-gold --require-precision-floor
-# frozen prior cohort: no regression_precision drop
-# current_precision reported; new labels may lower it
+# prior cohort file: no regression_precision drop
+# new cohort file; current_precision reported, not gated by a numeric floor
 # gold/README.md states n, double-label rate, last sample date
 ```
 

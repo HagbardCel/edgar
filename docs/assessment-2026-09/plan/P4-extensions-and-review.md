@@ -256,21 +256,24 @@ tier3_candidate_precision =
 Precision CI is **two numbers**, not one:
 
 ```text
+registry/gold/cohorts/<id>.yml     # slot ids; append-only new files
 regression_precision
-  = precision on the frozen prior gold cohort
-    (the slots that existed before this PR)
+  = precision on the newest cohort file already on the base branch
   must not drop → fails --check-gold --require-precision-floor
 
 current_precision
-  = precision on the full current gold set
-  reported; compared to an absolute publication floor
-  may fall when harder labels are added
+  = precision on all cohort files
+  reported only
 ```
 
-Adding independently labeled harder cases is allowed to lower
-`current_precision`. That is the point of growing gold. It must **not**
-fail CI and must **not** force an unrelated selector fix in the same PR.
-A drop on the **frozen prior cohort** is a real regression.
+`--require-precision-floor` compares the prior cohort. It does **not**
+apply a numeric publication floor. That threshold, if any, is set by an
+ADR from P2/P6 measurements, not hardcoded here.
+
+New labels go in a **new** cohort file. Do not rewrite the prior file to
+make the regression disappear. Adding harder cases may lower
+`current_precision`. That must **not** fail CI. A drop on the prior
+cohort is a real regression.
 
 Do not treat `tier3_candidate_precision` as observation precision.
 
@@ -278,8 +281,8 @@ Do not treat `tier3_candidate_precision` as observation precision.
 
 ```bash
 uv run edgar build --check-gold --require-precision-floor
-# frozen prior cohort: no precision drop
-# current set: n grew; current_precision reported
+# prior cohort file: no regression_precision drop
+# new cohort file may exist; current_precision reported, not gated
 # each new slot cites accession + R-file locator or statement line
 ```
 

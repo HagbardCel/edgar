@@ -141,10 +141,14 @@ period dates; P3 dimensional parity; overlap-period Tier 2; tier on the
 application; `report_focus` vs `period_kind`.
 
 Fourth pass ([E](E-feedback-response.md)): Tier-2 mismatch never overridden
-by identities; contract_coverage vs selector_yield; frozen-cohort gold CI;
-`other_standard` vs issuer; Tier-4 keyed by accession+QName; operational
-`period_kind` / `quarter_ytd`; derived Q4 duration-only with a derived
-error bound; oracle is taxonomy+tag. **Architecture review is closed.**
+by identities; coverage split; frozen-cohort gold CI; taxonomy origin vs
+issuer; Tier-4 keyed by accession+QName; `quarter_ytd`; derived Q4
+uncertainty; oracle is taxonomy+tag.
+
+Contract pins ([F](F-feedback-response.md)): generic standard origin
+(host, then packages); mechanical `slot_eligible` / `publication_rate`;
+observation `period_role`; gold cohort files and no hardcoded floor;
+derived Q4 dates and scope. **Architecture review stays closed.**
 
 ## What to keep from already-merged M1A work
 

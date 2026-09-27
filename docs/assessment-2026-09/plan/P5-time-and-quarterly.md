@@ -51,8 +51,10 @@ Primary identity (what two facts must share to be the same observation):
 `report_focus` is the DEI cover classification of **that report**
 (`Q1 | Q2 | Q3 | FY`). It is **not** the duration kind of a fact.
 
-`period_kind` is **operational**, not inferred from duration length
-alone (Q1 quarter and Q1 YTD are the same dates):
+Observation `period_role` is **operational**, not inferred from duration
+length alone (Q1 quarter and Q1 YTD are the same dates). Context
+`period_kind` stays `duration | instant | forever`. Do not reuse that
+name for the observation label:
 
 ```text
 10-K required duration              → annual
@@ -67,7 +69,7 @@ A Q2 10-Q typically has:
 
 ```text
 DocumentFiscalPeriodFocus = Q2      → report_focus = Q2
-required duration = FY start→Q2 end → period_kind = YTD
+required duration = FY start→Q2 end → period_role = YTD
 ```
 
 DEI does **not** say YTD. Do not store `fiscal_period = YTD` from focus.
@@ -92,7 +94,7 @@ match against known anchors
         ↓
 unique match → derived year + report_focus
 no unique match → those labels stay unknown
-period_kind from the operational rules above (not length alone)
+period_role from the operational rules above (not length alone)
 ```
 
 A FY2022 comparative inside a FY2023 10-K has period dates in 2022; its
@@ -110,7 +112,7 @@ uv run pytest -q tests/unit/test_slot_identity.py
 # same 10-K comparative 2022-01-01/2022-12-31 → slot FY 2022, not 2023
 # Walmart 10-K own instant → FY ending 2024-01-31 (not calendar 2023)
 # KO 10-Q: DEI focus is Q2; required-context dates are YTD
-#   → report_focus=Q2, period_kind=YTD (not "DEI says YTD")
+#   → report_focus=Q2, period_role=YTD (not "DEI says YTD")
 ```
 
 ---
@@ -160,10 +162,10 @@ Selector policy `quarterly-v1`:
 
 1. Read DEI `DocumentFiscalPeriodFocus` as `report_focus` (`Q1`/`Q2`/`Q3`).
    That is the **report**, not the duration kind.
-2. YTD metric slot: Q2/Q3 required-context duration (`period_kind=YTD`).
+2. YTD metric slot: Q2/Q3 required-context duration (`period_role=YTD`).
    Q1 required duration is `quarter_ytd` (same dates as the quarter).
 3. Three-month slot: only an undimensioned exact fact whose start/end match
-   an explicit quarterly period present in the filing (`period_kind=quarter`).
+   an explicit quarterly period present in the filing (`period_role=quarter`).
    On Q1 that interval *is* the required context — do not emit a second
    slot. If absent on Q2/Q3 → `missing`, do not subtract yet (P5.4, Q4 only).
 
@@ -194,8 +196,27 @@ Q4_derived = FY_annual − Q3_YTD
 ```
 
 **Duration contracts only.** Never run for instant metrics (assets, cash,
-…). Same metric, same unit. Kind = `derived`. Findings name both input
-accessions.
+…). Kind = `derived`. Findings name both input accessions.
+
+Require all of:
+
+```text
+same cik, metric, unit, scope
+both inputs status=value
+FY.period_start == Q3_YTD.period_start
+Q3_YTD.period_end < FY.period_end
+```
+
+Derived slot dates (identity is the dates):
+
+```text
+period_start = day after Q3_YTD.period_end
+period_end   = FY.period_end
+period_role  = quarter
+```
+
+Put “day after” in one tested helper. Do not leave the derived row
+without period dates.
 
 Do **not** copy the coarsest input `decimals` onto the output. Two
 rounded inputs each have an interval; subtraction **adds** half-widths.
@@ -217,6 +238,8 @@ ends do not align, or the contract is instant.
 ```bash
 uv run pytest -q tests/unit/test_derived_q4.py
 # constructed annual 100, YTD9 70 → Q4 30 kind=derived
+# Q4 period_start = day after YTD end; period_end = FY end
+# different scope → no derived row
 # missing YTD → no derived row
 # total_assets (instant) → no derived row
 # both inputs decimals=-6 → output does not claim decimals=-6
@@ -249,7 +272,7 @@ uv run pytest -q tests/unit/test_stability.py
 | KO/JPM counterexamples still cannot publish as annual consolidated RFCWCEAT revenue | yes |
 | Derived Q4 never `kind=reported` | yes |
 | Comparative in a later 10-K uses period dates, not that 10-K's DEI FY | yes |
-| Q2 10-Q: `report_focus=Q2` and required-context `period_kind=YTD` | yes |
+| Q2 10-Q: `report_focus=Q2` and required-context `period_role=YTD` | yes |
 | Q1 10-Q required duration is `quarter_ytd`, not two slots | yes |
 | Derived Q4 is duration-only and does not claim input `decimals` | yes |
 | Null `accepted_at` cannot win a time view | yes |
