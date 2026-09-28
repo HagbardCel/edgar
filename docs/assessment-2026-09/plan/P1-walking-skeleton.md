@@ -611,7 +611,10 @@ the dimensions anti-join, entity-scheme match, and `value_status` filter.
 **Validation gate P1.5**
 
 ```bash
-uv run pytest -q tests/unit/test_financials_resolve.py tests/unit/test_financials_select.py
+uv run pytest -q \
+  tests/unit/test_financials_resolve.py \
+  tests/unit/test_financials_select.py \
+  tests/unit/test_financials_select_matrix.py
 ```
 
 ---
@@ -756,8 +759,14 @@ unrelated PRs may still load it). You may stop adding to it. Deletion is P3.
 **Validation gate P1.9**
 
 ```bash
-uv run pytest -q tests/unit/test_financials_select.py tests/unit/test_gold_schema.py
-# 13/13 (and the two resolved extras) proven on fake or real rows
+uv run pytest -q \
+  tests/unit/test_financials_select.py \
+  tests/unit/test_financials_select_matrix.py \
+  tests/unit/test_financials_m0_gold_fabricated.py \
+  tests/unit/test_financials_build.py \
+  tests/unit/test_gold_schema.py
+# 15/15 value slots on fabricated rows; integration proof when EDGAR_DATA_ROOT is set:
+# uv run pytest -q tests/integration/test_p1_gold_build.py
 ```
 
 ## Phase exit gate
@@ -765,6 +774,8 @@ uv run pytest -q tests/unit/test_financials_select.py tests/unit/test_gold_schem
 ```bash
 make check
 uv run edgar rules check
+# Requires source.* rows for all six corpus accessions (extract bundles first):
+EDGAR_DATA_ROOT=var uv run pytest -q tests/integration/test_p1_gold_build.py
 uv run edgar build --check-gold --output-dir /tmp/edgar-p1-build
 ```
 

@@ -50,12 +50,20 @@ class DecisionSource(BaseModel):
     issuer_cik: str | None = None
     exclude_qnames: tuple[str, ...] = ()
 
+    @field_validator("issuer_cik")
+    @classmethod
+    def _normalize_issuer_cik(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_cik(value)
+
     @model_validator(mode="after")
-    def _issuer_cik_required(self) -> DecisionSource:
-        if self.family == "issuer" and not self.issuer_cik:
-            raise ValueError("issuer family decisions require source.issuer_cik")
-        if self.issuer_cik is not None:
-            validate_cik(self.issuer_cik)
+    def _issuer_cik_family_rules(self) -> DecisionSource:
+        if self.family == "issuer":
+            if not self.issuer_cik:
+                raise ValueError("issuer family decisions require source.issuer_cik")
+        elif self.issuer_cik is not None:
+            raise ValueError("issuer_cik is only allowed when source.family is issuer")
         return self
 
 
@@ -135,12 +143,6 @@ def _decision_key(record: DecisionRecord) -> tuple[str, str, str, str]:
     return (record.metric, record.source.family, issuer, record.source.local_name)
 
 
-def _issuer_namespace_matches_cik(namespace_uri: str, issuer_cik: str) -> bool:
-    cik = validate_cik(issuer_cik)
-    dashless = cik.lstrip("0") or "0"
-    return cik in namespace_uri or dashless in namespace_uri
-
-
 def concept_matches_decision(
     record: DecisionRecord,
     filing_cik: str,
@@ -159,10 +161,8 @@ def concept_matches_decision(
     if family == "issuer":
         if record.source.issuer_cik is None:
             return False
-        if validate_cik(record.source.issuer_cik) != validate_cik(filing_cik):
-            return False
-        return clf.origin == "issuer" and _issuer_namespace_matches_cik(
-            namespace_uri, record.source.issuer_cik
+        return clf.origin == "issuer" and validate_cik(record.source.issuer_cik) == validate_cik(
+            filing_cik
         )
     return False
 

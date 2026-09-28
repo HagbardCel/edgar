@@ -47,6 +47,65 @@ def test_m0_metrics_have_exact_decisions() -> None:
     assert not errors
 
 
+def test_non_issuer_family_forbids_issuer_cik() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="issuer_cik is only allowed"):
+        DecisionRecord.model_validate(
+            {
+                "id": "total_assets.us-gaap.Assets.scoped",
+                "metric": "total_assets",
+                "source": {
+                    "family": "us-gaap",
+                    "local_name": "Assets",
+                    "issuer_cik": "0001065088",
+                },
+                "relation": "exact",
+                "status": "accepted",
+                "method": "curated",
+                "rationale": "test",
+                "evidence": [
+                    {
+                        "kind": "filing_fact",
+                        "accession": "0001065088-24-000036",
+                        "locator": "x",
+                    }
+                ],
+                "reviewed": {"by": "t", "on": "2026-09-28"},
+                "contract_hash": "0" * 64,
+            }
+        )
+
+
+def test_issuer_cik_normalized_to_ten_digits() -> None:
+    record = DecisionRecord.model_validate(
+        {
+            "id": "revenue.issuer.CustomRevenue",
+            "metric": "revenue",
+            "source": {
+                "family": "issuer",
+                "local_name": "CustomRevenue",
+                "issuer_cik": "1065088",
+            },
+            "relation": "exact",
+            "status": "accepted",
+            "method": "curated",
+            "rationale": "issuer extension test",
+            "evidence": [
+                {
+                    "kind": "filing_fact",
+                    "accession": "0001065088-24-000036",
+                    "locator": "xbrl:undimensioned-fact",
+                }
+            ],
+            "reviewed": {"by": "t", "on": "2026-09-28"},
+            "contract_hash": "0" * 64,
+        }
+    )
+    assert record.source.issuer_cik == "0001065088"
+
+
 def test_issuer_family_requires_issuer_cik() -> None:
     import pytest
     from pydantic import ValidationError
@@ -75,8 +134,8 @@ def test_issuer_family_requires_issuer_cik() -> None:
 
 
 def test_issuer_decision_expansion_scoped_to_filing_cik() -> None:
-    issuer_ns = "http://ebay.example/0001065088/2024"
-    other_ns = "http://other.example/0000019617/2024"
+    ns_2023 = "https://example-company.com/xbrl/2023"
+    ns_2024 = "https://example-company.com/xbrl/2024"
     record = DecisionRecord.model_validate(
         {
             "id": "revenue.issuer.CustomRevenue",
@@ -101,9 +160,11 @@ def test_issuer_decision_expansion_scoped_to_filing_cik() -> None:
             "contract_hash": "0" * 64,
         }
     )
-    on_issuer = expand_clark_qnames_for_decision(record, "0001065088", (issuer_ns, other_ns))
-    assert f"{{{issuer_ns}}}CustomRevenue" in on_issuer
-    assert f"{{{other_ns}}}CustomRevenue" not in on_issuer
+    on_issuer = expand_clark_qnames_for_decision(record, "0001065088", (ns_2023, ns_2024))
+    assert f"{{{ns_2023}}}CustomRevenue" in on_issuer
+    assert f"{{{ns_2024}}}CustomRevenue" in on_issuer
+    on_other = expand_clark_qnames_for_decision(record, "0000019617", (ns_2023, ns_2024))
+    assert not on_other
 
 
 def test_stale_rejected_rules_check_warning() -> None:
