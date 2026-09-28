@@ -54,7 +54,7 @@ def test_build_uses_accessions_file(monkeypatch, tmp_path: Path) -> None:  # noq
     monkeypatch.setattr("edgar.financials.build.run_build", fake_run_build)
     monkeypatch.setattr("edgar.financials.build.write_build_output", fake_write_build_output)
     monkeypatch.setattr(
-        "edgar.db.check.require_database_at_head",
+        "edgar.cli.require_database_at_head",
         lambda _url: None,
     )
     monkeypatch.setattr("edgar.cli.create_db_engine", lambda _url: MagicMock())

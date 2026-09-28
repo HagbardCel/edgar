@@ -18,13 +18,14 @@ Whether filings have been retrieved is runtime state under `EDGAR_DATA_ROOT`. Re
 Requires `SEC_USER_AGENT` (see `docs/development.md`).
 
 ```bash
+uv run python scripts/p2_validate_spike_seeds.py
 uv run python scripts/p2_build_spike_accession_list.py \
   --seeds fixtures/spike/p2-stratification-seeds.toml \
   --target-min 500 --target-max 1000
-wc -l fixtures/spike/p2-accessions.txt
+# Gate on primary_10k in var/reports/p2-strata.txt (500–1000), not total wc -l
 ```
 
-Seeds live in `p2-stratification-seeds.toml` (CIK + industry + size). The builder walks SEC submissions per issuer and stratifies across fiscal-year and industry buckets.
+Seeds live in `p2-stratification-seeds.toml` (CIK + expected SEC entity name + size). Industry buckets are derived from SEC SIC at build time. The builder walks SEC submissions per issuer and stratifies primary `10-K` filings (2010–2025), then appends bounded `10-K/A` rows.
 
 ## Measurement workflow (P2.3–P2.5)
 

@@ -10,6 +10,15 @@ Execute after P2 software is on `main` (parallel extract, companyfacts cache, qu
 
 ## P2.2 — Accession list
 
+Preflight every CIK/name pair (fail closed before historical submissions walks):
+
+```bash
+uv run python scripts/p2_validate_spike_seeds.py \
+  --seeds fixtures/spike/p2-stratification-seeds.toml
+```
+
+Build the list:
+
 ```bash
 uv run python scripts/p2_build_spike_accession_list.py \
   --seeds fixtures/spike/p2-stratification-seeds.toml \
@@ -17,7 +26,7 @@ uv run python scripts/p2_build_spike_accession_list.py \
 git add fixtures/spike/p2-accessions.txt fixtures/spike/p2-sample.csv
 ```
 
-Confirm `500 <= wc -l fixtures/spike/p2-accessions.txt <= 1000` (lines include supplemental 10-K/A rows beyond the primary count). Inspect `var/reports/p2-strata.txt` for realized fiscal-year × industry counts. Do not commit `var/` objects.
+**Validation gate:** read `var/reports/p2-strata.txt` — `primary_10k` must be between 500 and 1000. Total lines in `p2-accessions.txt` may exceed that count because supplemental `10-K/A` rows are appended. Do not use `wc -l` as the primary gate. Inspect realized fiscal-year × industry counts in the strata report. Do not commit `var/` objects.
 
 ## P2.3 — Retrieve and extract
 
@@ -28,22 +37,24 @@ uv run python scripts/p2_spike_storage_snapshot.py --label pre-retrieval \
   --output var/reports/p2-storage-pre.json
 ```
 
-Retrieve in bounded batches (SEC fair access):
+Retrieve in bounded batches (`--limit` is **new acquisition attempts**, not successes):
 
 ```bash
 uv run python scripts/p2_spike_retrieve.py --limit 50
-# repeat until skipped_existing covers the list; failures are recorded in var/reports/p2-retrieve.json
+# repeat until not_attempted=0; failures are recorded in var/reports/p2-retrieve.json
 uv run edgar filings extract \
   --accessions-file fixtures/spike/p2-accessions.txt \
   --jobs 4
 uv run python scripts/p2_spike_storage_snapshot.py --label post-extract \
   --output var/reports/p2-storage-post.json
 uv run python scripts/p2_spike_summarize_extract.py \
+  --sample-csv fixtures/spike/p2-sample.csv \
   --storage-before var/reports/p2-storage-pre.json \
-  --storage-after var/reports/p2-storage-post.json
+  --storage-after var/reports/p2-storage-post.json \
+  --retrieve-report var/reports/p2-retrieve.json
 ```
 
-Commit a redacted summary markdown under `docs/assessment-2026-09/plan/notes/` or `docs/reviews/`. Gate: ≥90% extract success on **primary** 10-K rows.
+The summarizer exits non-zero if primary `10-K` success rate is below 90%. Commit a redacted summary markdown under `docs/assessment-2026-09/plan/notes/` or `docs/reviews/`.
 
 ## P2.4 — Companyfacts cache
 
@@ -63,9 +74,13 @@ uv run edgar build \
   --quality-report var/reports/p2-quality.json \
   --sample-csv fixtures/spike/p2-sample.csv \
   --output-dir var/builds/p2
+uv run python scripts/p2_spike_taxonomy_coverage.py \
+  --quality-report var/reports/p2-quality.json
 ```
 
 `--accessions-file` selects which filings `run_build` processes. Without it, `edgar build` still defaults to `fixtures/corpus.toml` (six filings).
+
+Post-extraction taxonomy stratification: the coverage script checks that distinct `filing_taxonomy_release` values in the quality report span legacy `xbrl.us`/2009-era, 2011-transition, and modern FASB/SEC namespace families.
 
 ## CI baseline
 

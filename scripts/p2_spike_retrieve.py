@@ -50,7 +50,7 @@ def main() -> None:
         "--limit",
         type=int,
         default=0,
-        help="Max new retrievals this run (0 = all missing)",
+        help="Max new acquisition attempts this run (0 = all missing)",
     )
     parser.add_argument(
         "--report",
@@ -61,9 +61,11 @@ def main() -> None:
     accessions = parse_accession_file(args.accessions_file)
     settings = Settings()
     repo = BundleRepository(settings.edgar_data_root, ObjectStore(settings.edgar_data_root))
+    attempted_new = 0
     retrieved = 0
     skipped = 0
     failed = 0
+    not_attempted = 0
     rows: list[RetrieveRow] = []
     had_failure = False
     with AcquisitionService(settings) as service:
@@ -73,9 +75,11 @@ def main() -> None:
                 skipped += 1
                 rows.append(RetrieveRow(accession, "skipped_existing"))
                 continue
-            if args.limit and retrieved >= args.limit:
+            if args.limit and attempted_new >= args.limit:
+                not_attempted += 1
                 rows.append(RetrieveRow(accession, "not_attempted_limit"))
                 continue
+            attempted_new += 1
             try:
                 service.acquire(accession)
             except Exception as exc:  # noqa: BLE001 — record and continue per P2 batch policy
@@ -96,15 +100,18 @@ def main() -> None:
             print(f"retrieved {accession}", flush=True)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     payload = {
+        "attempted_new": attempted_new,
         "retrieved": retrieved,
         "skipped_existing": skipped,
         "failed": failed,
+        "not_attempted": not_attempted,
         "total_listed": len(accessions),
         "accessions": [row.to_dict() for row in rows],
     }
     write_json_atomic(args.report, payload)
     print(
-        f"retrieved={retrieved} skipped_existing={skipped} failed={failed} "
+        f"attempted_new={attempted_new} retrieved={retrieved} failed={failed} "
+        f"skipped_existing={skipped} not_attempted={not_attempted} "
         f"total_listed={len(accessions)} report={args.report}",
     )
     if had_failure:

@@ -1,5 +1,6 @@
 # Curated issuer frame for P2.2 (CIK + expected SEC entity name + size).
 # Industry buckets are derived from filed SIC at list-build time.
+# Run scripts/p2_validate_spike_seeds.py before building the accession list.
 
 [[issuer]]
 cik = "0000320193"
@@ -27,8 +28,13 @@ expected_name = "Oracle"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000051143"
+cik = "0000050863"
 expected_name = "Intel"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000051143"
+expected_name = "IBM"
 size = "mega-cap"
 
 [[issuer]]
@@ -72,8 +78,13 @@ expected_name = "UnitedHealth"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000829224"
+cik = "0000027419"
 expected_name = "Target"
+size = "large-cap"
+
+[[issuer]]
+cik = "0000829224"
+expected_name = "Starbucks"
 size = "large-cap"
 
 [[issuer]]
@@ -102,7 +113,7 @@ expected_name = "Goldman Sachs"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000813672"
+cik = "0000831001"
 expected_name = "Citigroup"
 size = "mega-cap"
 
@@ -187,7 +198,7 @@ expected_name = "Berkshire"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000073124"
+cik = "0001133421"
 expected_name = "Northrop"
 size = "mega-cap"
 
@@ -207,12 +218,12 @@ expected_name = "Ford"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000050863"
+cik = "0001467858"
 expected_name = "General Motors"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000313616"
+cik = "0001048911"
 expected_name = "FedEx"
 size = "large-cap"
 
@@ -237,16 +248,16 @@ expected_name = "General Electric"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000033213"
+cik = "0001156039"
 expected_name = "Elevance"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000004447"
+cik = "0000066740"
 expected_name = "3M"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000004904"
+cik = "0000006201"
 expected_name = "American Airlines"
 size = "large-cap"
