@@ -31,14 +31,53 @@ test helper `reset_test_database`) then `alembic upgrade head`.
 edgar filings retrieve --accession …
 edgar filings catalog --bundle-dir …
 edgar filings extract --bundle-dir …
+edgar filings extract --accessions-file fixtures/spike/p2-accessions.txt --jobs 1
+edgar filings companyfacts --accessions-file fixtures/spike/p2-accessions.txt
 edgar documents sections --document-id …
 edgar registry validate
 edgar registry sync
 edgar metrics list|show
 edgar rules check
 edgar build --check-gold --output-dir var/builds/p1
+edgar build --check-gold --quality-report var/reports/p2-quality.json --output-dir var/builds/p1
 edgar mappings list|show|propose|accept|reject|export
 ```
+
+`filings extract --accessions-file` reads one dashed accession per line. It does
+not download. Each worker process extracts one accession. The parent writes
+`${EDGAR_DATA_ROOT}/reports/p2-extract.json` sorted by accession and exits
+non-zero if any accession fails. Successful filings stay committed. Sample
+metadata for the quality report lives in `fixtures/spike/p2-sample.csv`, separate
+from the accession list. The committed list is the six-filing baseline, not the
+500–1,000 census.
+
+`edgar filings companyfacts --accessions-file` deduplicates CIKs and downloads
+companyfacts JSON with one `ControlledFetcher`. It writes the object store and
+`${EDGAR_DATA_ROOT}/companyfacts/CIK##########.sha256`. `edgar build` does not
+call it and does not open the network.
+
+`edgar build --quality-report` groups slots by metric, fiscal year, filing
+US-GAAP release, and industry bucket. Release and decision applicability come
+from captured DTS closure XSD documents (`uri_bindings`), including
+closure-fetched `external` schemas (`unknown` or `mixed` when US-GAAP release
+tokens are not unique). Unreadable taxonomy evidence fails the report for annual
+filings instead of silently counting as absent.
+Eligible statuses `n_value`, `n_missing`, `n_conflict`, and `n_unsupported`
+partition `n_slot_eligible`. `n_ineligible_wrong_form` counts wrong-form slots
+and is outside that partition. Scope exclusions stay in `n_unsupported`.
+`n_decision_applicable` uses the same QName match as selection, including
+`exclude_qnames`. Identity columns `identity_pass`, `identity_fail`, and
+`identity_na` copy the build's existing findings once per accession in the
+cell (`not_applicable` maps to `identity_na`). The report does not rerun
+identity checks. Oracle columns are `oracle_agree`, `oracle_differ`,
+`oracle_absent`, `oracle_ambiguous`, and `oracle_na`. `oracle_findings` lists
+each `differ` and `ambiguous` slot with the observation and oracle decimals.
+A companyfacts differ does not change the observation. The quality JSON pins
+`oracle_sources` (CIK → Companyfacts CAS SHA-256) for reproducibility. The
+QName census counts only non-dimensional facts. `filing_taxonomy_sources` pins
+schema CAS SHA-256 values per accession. `n_filings` and `gold_precision` are not
+emitted yet (deferred with independent P2 audit labels). `registry.canonical_metric`
+is not a P1/P2 runtime authority; do not sync it to make `edgar build` work.
 
 ## Tests
 

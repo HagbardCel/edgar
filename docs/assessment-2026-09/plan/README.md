@@ -1,8 +1,13 @@
 # Implementation sequence
 
 **Status:** adopted forward implementation sequence under [ADR
-0014](../../adr/0014-adopt-lean-mapping-sequence.md). **P0 complete; P1 is the next
-implementation phase.** This directory is the authoritative plan referenced by ADR 0014.
+0014](../../adr/0014-adopt-lean-mapping-sequence.md). **P0 and P1 are complete.
+P2 software is implemented; the P2 measurement exit gate is not met.** This
+directory is the authoritative plan referenced by ADR 0014. For P1/P2,
+`registry/metrics.yml`, `registry/decisions/`, and `registry/gold/` are the
+durable governed inputs. `var/builds/` is regenerable output.
+`registry.canonical_metric` is not a runtime authority. Do not start P3 until
+the P2 exit gate in [P2-scale-spike.md](P2-scale-spike.md) is actually met.
 
 These files are written for a developer who knows Python and SQL, but not this
 repository's history. Follow them in order. Do not skip a phase exit gate.

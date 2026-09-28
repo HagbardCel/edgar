@@ -10,13 +10,16 @@ governed by [ADR 0014](adr/0014-adopt-lean-mapping-sequence.md) and
 status and authority.
 
 **Status:** Phase 2C registry facilities on the Phase 2B `source.*` baseline.
-**P1 walking skeleton is implemented** (`edgar build`, Git decisions, m0 gold);
-**P2 is next** ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md)).
+**P1 walking skeleton is implemented** (`edgar build`, Git decisions, m0 gold).
+**P2 software is implemented** (batch extract, companyfacts cache and oracle,
+quality report) on the frozen six-filing sample. The P2 measurement exit gate is not
+met ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md)).
 
-P1 is not an incomplete implementation of the older SQLMesh /
+P1/P2 are not an incomplete implementation of the older SQLMesh /
 `registry.mapping_assertion` write path. ADR 0014 sets the current authority:
 Git decision records, Python selection over `source.*`, rebuildable artifacts
-under `var/builds/`, and no durable observation tables in P1.
+under `var/builds/`, and no durable observation tables. `registry.canonical_metric`
+is a YAML mirror and is not read by `edgar build`.
 
 ## Mission
 

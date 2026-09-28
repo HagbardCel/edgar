@@ -89,6 +89,11 @@ def submissions_url(cik: str) -> str:
     return f"https://data.sec.gov/submissions/CIK{validate_cik(cik)}.json"
 
 
+def companyfacts_url(cik: str) -> str:
+    """SEC companyfacts JSON for one CIK. Family and tag are inside the payload."""
+    return f"https://data.sec.gov/api/xbrl/companyfacts/CIK{validate_cik(cik)}.json"
+
+
 def sanitize_basename(name: str) -> str:
     cleaned = name.replace("\\", "/").split("/")[-1].strip()
     if not cleaned or cleaned in {".", ".."}:

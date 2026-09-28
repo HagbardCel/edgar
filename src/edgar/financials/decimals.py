@@ -25,6 +25,7 @@ class ClosedInterval:
 class OimResolution:
     survivor_value: Decimal
     survivor_decimals: str | None
+    survivor_fact_id: FactId
     fact_ids: tuple[FactId, ...]
     consistent_interval: ClosedInterval
 
@@ -35,6 +36,21 @@ def _parse_decimals(decimals: str | None) -> int | Literal["INF"] | None:
     if decimals.upper() == "INF":
         return "INF"
     return int(decimals)
+
+
+def survivor_rank(decimals: str | None, fact_id: FactId) -> tuple[int, int, int]:
+    """Order key for the published fact. Smaller is better.
+
+    ``INF`` outranks every finite ``decimals``. A larger finite integer is more
+    precise. Equal precision keeps the minimum ``fact_id``, so row order cannot
+    choose the representative.
+    """
+    parsed = _parse_decimals(decimals)
+    if parsed == "INF":
+        return (0, 0, fact_id)
+    if parsed is None:
+        return (2, 0, fact_id)
+    return (1, -parsed, fact_id)
 
 
 def fact_interval(value: Decimal, decimals: str | None) -> ClosedInterval:
@@ -74,18 +90,11 @@ def oim_reduce_group(facts: tuple[NumericFactOccurrence, ...]) -> OimResolution 
             if same_dec and f.value != other.value:
                 return None
 
-    def _prec_key(d: str | None) -> tuple[int, int]:
-        parsed = _parse_decimals(d)
-        if parsed == "INF":
-            return (2, 0)
-        if parsed is None:
-            return (0, 0)
-        return (1, parsed)
-
-    survivor = max(facts, key=lambda f: _prec_key(f.decimals))
+    survivor = min(facts, key=lambda f: survivor_rank(f.decimals, f.fact_id))
     return OimResolution(
         survivor_value=survivor.value,
         survivor_decimals=survivor.decimals,
+        survivor_fact_id=survivor.fact_id,
         fact_ids=tuple(sorted(f.fact_id for f in facts)),
         consistent_interval=intersection,
     )
