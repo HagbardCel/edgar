@@ -7,16 +7,17 @@ Build a reproducible, point-in-time-aware platform for SEC company filings.
 The system preserves immutable filing evidence; parses deterministic document structure and XBRL semantics; creates versioned canonical metrics; joins filings to historical securities and market outcomes; and supports reproducible quantitative and textual research.
 
 **Phase 2A is complete.** **Phase 2B source cutover is complete.** **Phase 2C
-canonical registry and mapping ledger is complete.** The lean implementation
-sequence is **adopted** ([ADR 0014](docs/adr/0014-adopt-lean-mapping-sequence.md);
-see [docs/assessment-2026-09/plan/](docs/assessment-2026-09/plan/)). [ADR
-0012](docs/adr/0012-adopt-bounded-financial-architecture.md) remains historical
-context; ADR 0014 supersedes its forward implementation order.
+canonical registry and mapping ledger is complete.** The M0–M4 migration is
+**adopted** ([ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md)).
+[ADR 0013](docs/adr/0013-publication-critical-taxonomy-evidence.md) clarifies
+that bounded official-taxonomy evidence required by named M0 benchmark cases is
+M1A scope; generalized taxonomy continuity remains M5.
 
 Current implementation remains the Phase 2B source layer plus Phase 2C registry
-until P3 consolidation changes it. **Current phase: P0 complete; next: P1 (ADR
-0014).** Follow the P0–P6 plan gates; do not implement P2+ ahead of its exit
-criteria. Phase 2A/2B/2C source invariants remain in force.
+until the corresponding migration phase changes it. **Current phase: M0 —
+complete; next: M1A.** Do not implement M2/M3/M4 work ahead of its phase gate.
+M1B/M5 require their documented evidence triggers. Phase 2A/2B/2C invariants
+remain in force until M1A/M2 modify them.
 
 See `docs/README.md` for completed milestones and documentation authority,
 `docs/architecture/README.md` for the adopted target,
@@ -24,8 +25,7 @@ See `docs/README.md` for completed milestones and documentation authority,
 [ADR 0010](docs/adr/0010-curated-semantic-registry.md),
 [ADR 0011](docs/adr/0011-source-extraction.md),
 [ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md),
-[ADR 0013](docs/adr/0013-publication-critical-taxonomy-evidence.md), and
-[ADR 0014](docs/adr/0014-adopt-lean-mapping-sequence.md).
+and [ADR 0013](docs/adr/0013-publication-critical-taxonomy-evidence.md).
 
 Optimize for:
 
@@ -49,7 +49,7 @@ Before changing code:
 2. Read `docs/README.md` for implemented status and scope.
 3. Read `docs/architecture/README.md` and the relevant target/migration decisions.
    The package is the adopted target ([ADR 0012](docs/adr/0012-adopt-bounded-financial-architecture.md));
-   current implementation remains Phase 2B/2C until P3 consolidation changes it.
+   current implementation remains Phase 2B/2C until M1A/M2 change it.
 4. Read `docs/architecture.md`, `docs/development.md`, `docs/normalization.md`, and `docs/fixture-policy.md`.
 5. Read `docs/data-model.md` and `docs/data-quality.md`.
 6. Read `docs/metric-semantics.md` for any XBRL or financial-metric work.
@@ -57,8 +57,8 @@ Before changing code:
 8. Inspect nearest tests and interfaces.
 9. Check the git diff before editing.
 10. Keep the change within completed Phase 2A/2B/2C invariants unless the task
-    is gated P-phase work authorized by [ADR 0014](docs/adr/0014-adopt-lean-mapping-sequence.md).
-    Do not implement a later P phase ahead of its exit gate.
+    is the gated M-phase work that changes them. Do not implement M1A/M2/M3/M4
+    ahead of its phase gate; M1B/M5 require documented evidence triggers.
 
 Priority when requirements conflict:
 
@@ -398,9 +398,8 @@ selection. Later phases may add:
 - separate direct, derived, and proxy observations
 - dataset exposure of mapping uncertainty
 
-No LLM may auto-approve an ambiguous mapping. Canonical observation publication
-follows the P1–P6 plan ([ADR 0014](docs/adr/0014-adopt-lean-mapping-sequence.md));
-do not implement `semantic.*` / `metric_observation` ahead of the owning P phase.
+No LLM may auto-approve an ambiguous mapping. Do not implement `semantic.*` or
+`metric_observation` until M3 under the adopted migration (ADR 0012).
 
 ---
 

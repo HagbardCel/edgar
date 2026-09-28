@@ -13,9 +13,12 @@ from sqlalchemy import Engine
 
 from edgar.config import Settings
 from edgar.db.engine import create_db_engine
-from edgar.db.source import catalog_source_filing
+from edgar.db.source import SourceCatalogConflict, catalog_source_filing
 from edgar.storage.bundles import BundleRepository, validate_published_bundle_path
 from edgar.storage.objects import ObjectStore
+
+# Preserve the historical CatalogConflict name for callers/tests.
+CatalogConflict = SourceCatalogConflict
 
 
 @dataclass(frozen=True)
@@ -72,4 +75,4 @@ class CatalogService:
         )
 
 
-__all__ = ["CatalogResult", "CatalogService"]
+__all__ = ["CatalogConflict", "CatalogResult", "CatalogService"]

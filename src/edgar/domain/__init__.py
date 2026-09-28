@@ -3,6 +3,7 @@
 from edgar.domain.bundle import (
     ACQUISITION_POLICY_VERSION,
     BUNDLE_SCHEMA_VERSION,
+    AcquisitionObservation,
     BundleArtifact,
     ContentObject,
     FilingBundle,
@@ -29,6 +30,7 @@ from edgar.domain.issues import QualityIssue, Severity
 __all__ = [
     "ACQUISITION_POLICY_VERSION",
     "BUNDLE_SCHEMA_VERSION",
+    "AcquisitionObservation",
     "BundleArtifact",
     "ContentObject",
     "FilingBundle",

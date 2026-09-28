@@ -55,6 +55,7 @@ __all__ = [
     "list_source_document_sections",
     "load_filing_documents",
     "persist_extraction",
+    "resolve_document_id",
 ]
 
 
@@ -307,6 +308,26 @@ def _assert_inventory_identical(
                 f"is_primary mismatch for {item.relative_path!r}: "
                 f"catalogued={row['is_primary']!r} incoming={item.is_primary!r}"
             )
+
+
+def resolve_document_id(
+    conn: Connection,
+    *,
+    filing_id: int,
+    relative_path: str,
+) -> int:
+    """Map ``(filing_id, relative_path)`` → ``source.document.id``."""
+    value = conn.execute(
+        select(src.source_document.c.id).where(
+            src.source_document.c.filing_id == filing_id,
+            src.source_document.c.relative_path == relative_path,
+        )
+    ).scalar_one_or_none()
+    if value is None:
+        raise LookupError(
+            f"source.document not found for filing_id={filing_id} path={relative_path!r}"
+        )
+    return int(value)
 
 
 def load_filing_documents(

@@ -6,8 +6,7 @@ Documentation scope: this file describes the **implemented baseline** (Phase 2B
 See the [documentation index](README.md) for status and authority.
 
 **Status:** Phase 2C canonical registry and mapping ledger (on the Phase 2B
-`source.*` baseline). **P0 is complete; P1 will add resolve/select on
-`source.*` for the walking skeleton** ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md)).
+`source.*` baseline). **Current migration phase: M0 — complete; next: M1A.**
 
 ## Mission
 
