@@ -570,10 +570,6 @@ def rules_check(
 
 @build_app.callback(invoke_without_command=True)
 def build_cmd(
-    data_root: Annotated[
-        Path | None,
-        typer.Option("--data-root", help="Override EDGAR_DATA_ROOT"),
-    ] = None,
     output_dir: Annotated[
         Path,
         typer.Option("--output-dir", help="Build output directory (must not exist)"),
@@ -593,8 +589,6 @@ def build_cmd(
     from edgar.financials.cohort import load_m0_cohort
 
     settings = Settings()
-    if data_root is not None:
-        settings = settings.model_copy(update={"edgar_data_root": data_root})
     try:
         require_database_at_head(settings.require_database_url())
     except DatabaseRevisionMismatch as exc:

@@ -234,6 +234,50 @@ def test_decision_scope_when_all_exact_exclude_issuer() -> None:
     assert obs.reason == "decision_scope"
 
 
+def test_one_applicable_exact_missing_not_decision_scope() -> None:
+    """One exact applies; another exact excludes this issuer → missing, not unsupported."""
+    from edgar.financials.decisions import (
+        DecisionRegistry,
+        DecisionScope,
+        LoadedDecision,
+        load_decisions,
+    )
+    from edgar.registry.loader import load_canonical_registry
+
+    base = load_decisions(_REGISTRY)
+    metrics = {m.key: m for m in load_canonical_registry(_REGISTRY).metrics}
+    applies = base.by_id()[
+        "revenue.us-gaap.RevenueFromContractWithCustomerExcludingAssessedTax"
+    ].record
+    excluded_parallel = applies.model_copy(
+        update={
+            "id": "revenue.us-gaap.SalesRevenueNet.fixture",
+            "source": applies.source.model_copy(update={"local_name": "SalesRevenueNet"}),
+            "scope": DecisionScope(exclude_ciks=("0001065088",)),
+        }
+    )
+    registry = DecisionRegistry(
+        decisions=base.decisions
+        + (LoadedDecision(excluded_parallel, _REGISTRY / "decisions" / "fixture.yml"),),
+        metrics_by_key=metrics,
+    )
+    period = ReportingPeriod(start="2023-01-01", end="2023-12-31")
+    obs = select_metric(
+        "revenue",
+        "10-K",
+        "0001065088",
+        "acc",
+        period,
+        (),
+        (),
+        registry,
+        None,
+        metric_period_type="duration",
+    )
+    assert obs.status == "missing"
+    assert obs.reason != "decision_scope"
+
+
 def test_amendment_missing_without_facts() -> None:
     registry = load_decisions(_REGISTRY)
     period = ReportingPeriod(start="2023-01-01", end="2023-12-31")

@@ -696,7 +696,7 @@ uv run pytest -q tests/unit/test_financials_validate.py
 Wire a command:
 
 ```text
-edgar build --data-root var --check-gold --output-dir var/builds/p1
+edgar build --check-gold --output-dir var/builds/p1
 ```
 
 Behavior:
