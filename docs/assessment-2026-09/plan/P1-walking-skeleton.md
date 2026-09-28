@@ -771,19 +771,35 @@ uv run pytest -q \
 
 ## Phase exit gate
 
+Prerequisites: Docker Postgres up (`make db-up`), migrations applied (`make
+migrate`), six published bundles under `$EDGAR_DATA_ROOT/bundles/…` (local
+corpus under `var/`), and both database URLs in the environment (see
+`docs/development.md`).
+
 ```bash
 make check
 uv run edgar rules check
-# Requires source.* rows for all six corpus accessions (extract bundles first):
-EDGAR_DATA_ROOT=var uv run pytest -q tests/integration/test_p1_gold_build.py
-uv run edgar build --check-gold --output-dir /tmp/edgar-p1-build
+
+export EDGAR_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar
+export EDGAR_TEST_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar_test
+make migrate
+
+EDGAR_DATA_ROOT=var EDGAR_TEST_DATABASE_URL="$EDGAR_TEST_DATABASE_URL" \
+  uv run pytest -q tests/integration/test_p1_gold_build.py
+
+EDGAR_DATA_ROOT=var EDGAR_DATABASE_URL="$EDGAR_DATABASE_URL" \
+  uv run edgar build --check-gold --output-dir /tmp/edgar-p1-build
 ```
 
-Expected:
+Expected integration test: **48** observations, **19** gold assertions checked,
+**15** value assertions, zero mismatches.
+
+Expected `edgar build` summary: `observations=48`, `gold_assertions_checked=19`
+(and identity findings recorded in `findings.json`).
 
 | Check | Result |
 |---|---|
-| 13 original gold values | exact `Decimal` match |
+| 15 m0 gold value slots | exact `Decimal` match |
 | eBay FY2023 parent NI | `2767000000` |
 | Walmart cash | `9867000000`, not `conflict` |
 | Walmart R&D | `missing` |

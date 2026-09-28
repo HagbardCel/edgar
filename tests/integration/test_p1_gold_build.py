@@ -1,4 +1,12 @@
-"""P1 gold build against corpus (opt-in via EDGAR_DATA_ROOT + bundles)."""
+"""P1 gold build against corpus (opt-in).
+
+Requires:
+- EDGAR_TEST_DATABASE_URL targeting database ``edgar_test`` (see tests/helpers/database.py)
+- EDGAR_DATA_ROOT with all six corpus bundles under ``bundles/{cik}/{accession}/…``
+
+Skips when either prerequisite is missing. Does not use EDGAR_DATABASE_URL; use
+``edgar build --check-gold`` against ``edgar`` for the CLI phase-exit gate.
+"""
 
 from __future__ import annotations
 

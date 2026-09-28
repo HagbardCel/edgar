@@ -50,6 +50,27 @@ uv run ruff check .
 make corpus-acceptance   # six-accession local corpus; alias: phase1-corpus-acceptance
 ```
 
+### P1 walking-skeleton acceptance (six-filing corpus)
+
+Requires `var/bundles/{cik}/{accession}/…` (or another `EDGAR_DATA_ROOT` with all
+six accessions from `fixtures/corpus.toml`), Postgres, and migrated schemas.
+
+```bash
+export EDGAR_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar
+export EDGAR_TEST_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar_test
+make db-up migrate
+
+EDGAR_DATA_ROOT=var EDGAR_TEST_DATABASE_URL="$EDGAR_TEST_DATABASE_URL" \
+  uv run pytest -q tests/integration/test_p1_gold_build.py
+
+EDGAR_DATA_ROOT=var EDGAR_DATABASE_URL="$EDGAR_DATABASE_URL" \
+  uv run edgar build --check-gold --output-dir /tmp/edgar-p1-build
+```
+
+The integration test resets `edgar_test`, extracts all six bundles, and runs
+`run_build(check_gold=True)`. `edgar build` uses the `edgar` database (populate
+via the same extracts or your normal ingest workflow).
+
 Integration fixtures call `reset_test_database` so a stale Phase-1 stamp cannot
 poison `upgrade head`.
 
