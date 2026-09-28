@@ -28,6 +28,10 @@ _NS_2024 = "http://fasb.org/us-gaap/2024"
 _REVENUE = "RevenueFromContractWithCustomerExcludingAssessedTax"
 
 
+def _revenue_taxonomy(release_ns: str = _NS_2023) -> frozenset[tuple[str, str]]:
+    return frozenset({(release_ns, _REVENUE)})
+
+
 def _obs(
     accession: str,
     metric: str,
@@ -78,6 +82,7 @@ def test_missing_slot_keeps_the_filing_release() -> None:
         industry_bucket="technology",
         filing_taxonomy_release="2023",
         declared_concepts=frozenset({(_NS_2023, _REVENUE)}),
+        taxonomy_concepts=_revenue_taxonomy(),
     )
     document = build_quality_document(
         (_obs("0001065088-24-000036", "revenue", "missing"),),
@@ -106,6 +111,7 @@ def test_wrong_form_is_outside_the_eligible_denominator() -> None:
         report_period_year="2024",
         industry_bucket="banking",
         declared_concepts=((_NS_2024, _REVENUE),),
+        taxonomy_concepts=_revenue_taxonomy(_NS_2024),
     )
     document = build_quality_document(
         (
@@ -144,6 +150,7 @@ def test_scope_exclusion_stays_eligible_and_inapplicable() -> None:
         industry_bucket="banking",
         filing_taxonomy_release="2024",
         declared_concepts=frozenset({(_NS_2024, _REVENUE)}),
+        taxonomy_concepts=_revenue_taxonomy(_NS_2024),
     )
     document = build_quality_document(
         (
@@ -179,6 +186,7 @@ def test_value_without_a_declared_concept_fails() -> None:
         industry_bucket="technology",
         filing_taxonomy_release="unknown",
         declared_concepts=frozenset(),
+        taxonomy_concepts=frozenset(),
     )
     with pytest.raises(QualityReportError):
         build_quality_document(
@@ -218,6 +226,7 @@ def test_identity_findings_are_counted_once_per_accession_in_the_cell() -> None:
         industry_bucket="technology",
         filing_taxonomy_release="2023",
         declared_concepts=frozenset({(_NS_2023, _REVENUE)}),
+        taxonomy_concepts=_revenue_taxonomy(),
     )
     frame_b = FilingFrame(
         accession=second,
@@ -227,6 +236,7 @@ def test_identity_findings_are_counted_once_per_accession_in_the_cell() -> None:
         industry_bucket="technology",
         filing_taxonomy_release="2023",
         declared_concepts=frozenset({(_NS_2023, _REVENUE)}),
+        taxonomy_concepts=_revenue_taxonomy(),
     )
     document = build_quality_document(
         (
@@ -298,6 +308,7 @@ def test_excluded_qname_is_not_decision_applicable() -> None:
         industry_bucket="technology",
         filing_taxonomy_release="2024",
         declared_concepts=frozenset({(_NS_2024, _REVENUE)}),
+        taxonomy_concepts=_revenue_taxonomy(_NS_2024),
     )
     document = build_quality_document(
         (_obs("0001065088-24-000036", "revenue", "missing", fy="2023"),),
@@ -307,6 +318,51 @@ def test_excluded_qname_is_not_decision_applicable() -> None:
     )
     assert document["cells"][0]["n_decision_applicable"] == 0
     assert document["cells"][0]["n_slot_eligible"] == 1
+
+
+def test_decision_applicable_uses_taxonomy_not_bounded_declarations() -> None:
+    registry = load_decisions(_REGISTRY)
+    frame = FilingFrame(
+        accession="0001065088-24-000036",
+        cik="0001065088",
+        form="10-K",
+        fiscal_year="2023",
+        industry_bucket="technology",
+        filing_taxonomy_release="2023",
+        declared_concepts=frozenset(),
+        taxonomy_concepts=_revenue_taxonomy(),
+    )
+    document = build_quality_document(
+        (_obs("0001065088-24-000036", "revenue", "missing"),),
+        {frame.accession: frame},
+        registry,
+        {},
+    )
+    cell = document["cells"][0]
+    assert cell["n_decision_applicable"] == 1
+    assert cell["n_missing"] == 1
+
+
+def test_oracle_sources_are_pinned_in_the_quality_document() -> None:
+    registry = load_decisions(_REGISTRY)
+    frame = FilingFrame(
+        accession="0001065088-24-000036",
+        cik="0001065088",
+        form="10-K",
+        fiscal_year="2023",
+        industry_bucket="technology",
+        filing_taxonomy_release="2023",
+        declared_concepts=frozenset(),
+        taxonomy_concepts=_revenue_taxonomy(),
+    )
+    document = build_quality_document(
+        (_obs("0001065088-24-000036", "revenue", "missing"),),
+        {frame.accession: frame},
+        registry,
+        {},
+        oracle_sources={"0001065088": "a" * 64},
+    )
+    assert document["oracle_sources"] == {"0001065088": "a" * 64}
 
 
 def test_oracle_findings_keep_differ_and_ambiguous_values() -> None:

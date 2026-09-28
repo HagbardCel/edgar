@@ -12,7 +12,7 @@ This module does not rerun identity checks.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -31,6 +31,7 @@ from edgar.financials.oracle import OracleComparison, oracle_comparison_for_obse
 from edgar.financials.sample_index import SampleRow, load_sample_csv
 from edgar.financials.select import ANNUAL_FORMS
 from edgar.financials.source_load import LoadedFiling, load_filing, load_quality_filing_source
+from edgar.financials.taxonomy_availability import load_taxonomy_concepts_for_filing
 from edgar.financials.taxonomy_release import filing_taxonomy_release, us_gaap_release_token
 from edgar.storage.objects import write_bytes_atomic, write_json_atomic
 
@@ -109,6 +110,7 @@ class FilingFrame:
     industry_bucket: str
     filing_taxonomy_release: str
     declared_concepts: frozenset[tuple[str, str]]
+    taxonomy_concepts: frozenset[tuple[str, str]]
 
 
 def _rate(numerator: int, denominator: int) -> str | None:
@@ -124,7 +126,9 @@ def slot_decision_applicable(
 ) -> bool:
     """Eligible slot whose exact US-GAAP decision matches a declared concept.
 
-    Matching uses ``concept_matches_decision``, including ``exclude_qnames``.
+    Matching uses captured taxonomy schema concepts (not bounded
+    ``source.concept_declaration`` rows) and ``concept_matches_decision``,
+    including ``exclude_qnames``.
     """
     if frame.form not in ANNUAL_FORMS:
         return False
@@ -143,7 +147,7 @@ def slot_decision_applicable(
     if not exact:
         return False
     for record in exact:
-        for namespace, local_name in frame.declared_concepts:
+        for namespace, local_name in frame.taxonomy_concepts:
             token = us_gaap_release_token(namespace)
             if token is None:
                 continue
@@ -163,6 +167,7 @@ def filing_frame_for_source(
     report_period_year: str | None,
     industry_bucket: str,
     declared_concepts: Sequence[tuple[str, str]],
+    taxonomy_concepts: Iterable[tuple[str, str]] | None = None,
 ) -> FilingFrame:
     years = {year for year in observation_years if year}
     if len(years) == 1:
@@ -182,6 +187,7 @@ def filing_frame_for_source(
         industry_bucket=industry_bucket or "unknown",
         filing_taxonomy_release=filing_taxonomy_release(namespaces),
         declared_concepts=frozenset(declared_concepts),
+        taxonomy_concepts=frozenset(taxonomy_concepts or ()),
     )
 
 
@@ -235,7 +241,9 @@ def build_quality_document(
     census_facts: Sequence[tuple[str, str, str]] = (),
     identity_findings: Sequence[Mapping[str, str]] = (),
     oracle_findings: Sequence[Mapping[str, object]] = (),
+    oracle_sources: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
+    pinned_oracle = dict(oracle_sources or {})
     cells: dict[tuple[str, str, str, str], QualityCell] = {}
     members: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
 
@@ -264,6 +272,7 @@ def build_quality_document(
                 industry_bucket="unknown",
                 filing_taxonomy_release="unknown",
                 declared_concepts=frozenset(),
+                taxonomy_concepts=frozenset(),
             )
         key, cell = _cell(frame, observation.metric)
         members[key].add(observation.accession)
@@ -347,8 +356,10 @@ def build_quality_document(
         "grain": "metric × fiscal_year × filing_taxonomy_release × industry_bucket",
         "filing_taxonomy_release_source": "us-gaap concept declarations",
         "identity_source": "build findings, once per accession in the cell",
+        "decision_applicability_source": "captured filing taxonomy_schema artifacts",
         "cells": rows,
         "oracle_findings": _normalize_oracle_findings(oracle_findings),
+        "oracle_sources": dict(sorted(pinned_oracle.items())),
         "name_census": {
             "fact_scope": "non_dimensional",
             "by_qname": list(qname_census(census_facts)),
@@ -466,6 +477,11 @@ def write_quality_report(
             sample_row = sample.get(accession)
             if sample_row is not None and sample_row.industry_bucket:
                 industry = sample_row.industry_bucket
+            taxonomy = load_taxonomy_concepts_for_filing(
+                data_root,
+                source.cik,
+                source.accession,
+            )
             frames[accession] = filing_frame_for_source(
                 source.accession,
                 source.cik,
@@ -474,13 +490,19 @@ def write_quality_report(
                 report_period_year=source.report_period_year,
                 industry_bucket=industry,
                 declared_concepts=source.declared_concepts,
+                taxonomy_concepts=taxonomy,
             )
             for namespace, local_name in source.fact_concepts:
                 census.append((accession, namespace, local_name))
     payloads: dict[str, bytes | None] = {}
+    oracle_sources: dict[str, str] = {}
     for observation in observations:
-        if observation.cik not in payloads:
-            payloads[observation.cik] = load_cached_companyfacts(data_root, observation.cik)
+        if observation.cik in payloads:
+            continue
+        cached = load_cached_companyfacts(data_root, observation.cik)
+        payloads[observation.cik] = cached.payload if cached is not None else None
+        if cached is not None:
+            oracle_sources[observation.cik] = cached.sha256
     oracle_by_slot, oracle_findings = oracle_slot_reports(
         observations,
         facts_by_accession,
@@ -494,6 +516,7 @@ def write_quality_report(
         census,
         identity_findings,
         oracle_findings,
+        oracle_sources,
     )
     write_json_atomic(output_json, document)
     markdown_path = output_json.with_suffix(".md")

@@ -153,8 +153,10 @@ the **same identity as the observation**: CIK, exact standard concept
 `report_focus`) are descriptive corroboration only — do not key the
 oracle on them. Do not use “latest.”
 
-If several API points match, return `ambiguous` — **never** silently pick
-one `Decimal`. Record a finding.
+If several API points match the identity (CIK, family, local name, accession,
+period, unit), collapse identical `Decimal` values to one hit. Return
+`ambiguous` only when **more than one distinct** `Decimal` remains — never
+silently pick one value. Record a finding.
 
 For each P1 observation with `status=value` and a standard exact decision:
 
@@ -192,13 +194,18 @@ division or the bucket from P2.2). Columns:
 | `n_filings` | issuer-years in the cell |
 | `n_slot_eligible` | requested metric **and** form allowed by the selector policy. **Not** decision `exclude_ciks` / `exclude_sic_divisions`. No economic “does this issuer have R&D?” predicate. JPM revenue stays eligible |
 | `n_value` / `n_missing` / `n_conflict` / `n_unsupported` | from observations on eligible slots (a scope exclusion is `unsupported` and stays in this denominator) |
-| `n_decision_applicable` | eligible slots with **≥1** exact decision whose concept exists in that release **and** whose scope does not exclude this issuer |
+| `n_decision_applicable` | eligible slots with **≥1** exact decision whose concept exists in the filing's **captured taxonomy schema** for that release (not the bounded `source.concept_declaration` keep set) **and** whose scope does not exclude this issuer |
 | `n_no_applicable_decision` | eligible slots with no such decision (taxonomy-era gap **or** scope exclusion with no alternative) |
 | `publication_rate` | `n_value / n_slot_eligible` |
 | `selector_yield` | `n_value / n_decision_applicable` |
 | `oracle_agree` / `oracle_differ` / `oracle_absent` | P2.4 |
 | `identity_pass` / `identity_fail` / `identity_na` | P1.7 |
 | `gold_precision` | only where gold labels exist (still mostly M0) |
+
+**Six-filing software note:** the bounded spike implementation emits the
+status, oracle, and identity columns above plus `oracle_findings` and pinned
+`oracle_sources` (Companyfacts CAS SHA-256 per CIK). `n_filings` and
+`gold_precision` remain deferred until independent P2 audit labels exist.
 
 Working hypotheses to confirm or refute (from [05](../05-mapping-strategy.md)
 §8) — write the measured number next to each:

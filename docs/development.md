@@ -69,9 +69,13 @@ cell (`not_applicable` maps to `identity_na`). The report does not rerun
 identity checks. Oracle columns are `oracle_agree`, `oracle_differ`,
 `oracle_absent`, `oracle_ambiguous`, and `oracle_na`. `oracle_findings` lists
 each `differ` and `ambiguous` slot with the observation and oracle decimals.
-A companyfacts differ does not change the observation. The QName census counts
-only non-dimensional facts. `registry.canonical_metric` is not a P1/P2 runtime
-authority; do not sync it to make `edgar build` work.
+A companyfacts differ does not change the observation. The quality JSON pins
+`oracle_sources` (CIK → Companyfacts CAS SHA-256) for reproducibility. The
+QName census counts only non-dimensional facts. `n_decision_applicable` uses
+concepts from captured `taxonomy_schema` bundle artifacts, not bounded
+`source.concept_declaration` rows. `n_filings` and `gold_precision` are not
+emitted yet (deferred with independent P2 audit labels). `registry.canonical_metric`
+is not a P1/P2 runtime authority; do not sync it to make `edgar build` work.
 
 ## Tests
 

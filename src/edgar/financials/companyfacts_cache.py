@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from edgar.config import Settings
 from edgar.domain.identifiers import accession_to_cik, companyfacts_url, validate_cik
 from edgar.sec.client import ControlledFetcher
 from edgar.storage.objects import ObjectStore, StoredObject, write_bytes_atomic
+
+
+@dataclass(frozen=True)
+class CachedCompanyfacts:
+    sha256: str
+    payload: bytes
 
 
 def companyfacts_pointer_path(data_root: Path, cik: str) -> Path:
@@ -58,7 +65,7 @@ def cache_companyfacts_for_accessions(
     return tuple(stored)
 
 
-def load_cached_companyfacts(data_root: Path, cik: str) -> bytes | None:
+def load_cached_companyfacts(data_root: Path, cik: str) -> CachedCompanyfacts | None:
     pointer = companyfacts_pointer_path(data_root, cik)
     if not pointer.is_file():
         return None
@@ -68,4 +75,4 @@ def load_cached_companyfacts(data_root: Path, cik: str) -> bytes | None:
     path = ObjectStore(data_root).path_for(digest)
     if not path.is_file():
         return None
-    return path.read_bytes()
+    return CachedCompanyfacts(sha256=digest, payload=path.read_bytes())
