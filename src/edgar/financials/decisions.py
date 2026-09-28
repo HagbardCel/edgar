@@ -11,6 +11,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from edgar.domain.concept_id import clark_qname
+from edgar.domain.identifiers import validate_cik
 from edgar.registry.hashing import definition_hash
 from edgar.registry.loader import load_canonical_registry
 from edgar.registry.models import CanonicalMetric
@@ -48,6 +49,14 @@ class DecisionSource(BaseModel):
     local_name: str
     issuer_cik: str | None = None
     exclude_qnames: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _issuer_cik_required(self) -> DecisionSource:
+        if self.family == "issuer" and not self.issuer_cik:
+            raise ValueError("issuer family decisions require source.issuer_cik")
+        if self.issuer_cik is not None:
+            validate_cik(self.issuer_cik)
+        return self
 
 
 class DecisionScope(BaseModel):
@@ -126,6 +135,12 @@ def _decision_key(record: DecisionRecord) -> tuple[str, str, str, str]:
     return (record.metric, record.source.family, issuer, record.source.local_name)
 
 
+def _issuer_namespace_matches_cik(namespace_uri: str, issuer_cik: str) -> bool:
+    cik = validate_cik(issuer_cik)
+    dashless = cik.lstrip("0") or "0"
+    return cik in namespace_uri or dashless in namespace_uri
+
+
 def concept_matches_decision(
     record: DecisionRecord,
     filing_cik: str,
@@ -142,12 +157,28 @@ def concept_matches_decision(
     if family in ("us-gaap", "dei", "srt"):
         return clf.semantic_family == family
     if family == "issuer":
-        return clf.origin == "issuer" and record.source.issuer_cik == filing_cik
+        if record.source.issuer_cik is None:
+            return False
+        if validate_cik(record.source.issuer_cik) != validate_cik(filing_cik):
+            return False
+        return clf.origin == "issuer" and _issuer_namespace_matches_cik(
+            namespace_uri, record.source.issuer_cik
+        )
     return False
 
 
 def issuer_excluded(record: DecisionRecord, filing_cik: str) -> bool:
-    return filing_cik in record.scope.exclude_ciks
+    normalized = validate_cik(filing_cik)
+    return any(validate_cik(c) == normalized for c in record.scope.exclude_ciks)
+
+
+def decision_applies_to_filing(record: DecisionRecord, filing_cik: str) -> bool:
+    if issuer_excluded(record, filing_cik):
+        return False
+    if record.source.family == "issuer":
+        assert record.source.issuer_cik is not None
+        return validate_cik(record.source.issuer_cik) == validate_cik(filing_cik)
+    return True
 
 
 def load_decisions(
@@ -185,11 +216,12 @@ def load_decisions(
 
 def expand_clark_qnames_for_decision(
     record: DecisionRecord,
+    filing_cik: str,
     namespace_uris: tuple[str, ...],
 ) -> frozenset[str]:
     result: set[str] = set()
     for ns in namespace_uris:
-        if concept_matches_decision(record, "", ns, record.source.local_name):
+        if concept_matches_decision(record, filing_cik, ns, record.source.local_name):
             q = clark_qname(ns, record.source.local_name)
             if q not in record.source.exclude_qnames:
                 result.add(q)

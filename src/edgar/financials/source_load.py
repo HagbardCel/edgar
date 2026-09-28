@@ -67,13 +67,20 @@ def load_filing(conn: Connection, accession: str) -> LoadedFiling | None:
 
 
 def _load_filing_body(conn: Connection, meta: FilingMetadata) -> LoadedFiling:
-    report_row = conn.execute(
-        select(src.source_xbrl_report.c.id)
-        .where(src.source_xbrl_report.c.filing_id == meta.filing_id)
-        .order_by(src.source_xbrl_report.c.id.desc())
-        .limit(1)
-    ).first()
-    if report_row is None:
+    report_ids = [
+        row[0]
+        for row in conn.execute(
+            select(src.source_xbrl_report.c.id)
+            .where(src.source_xbrl_report.c.filing_id == meta.filing_id)
+            .order_by(src.source_xbrl_report.c.id.asc())
+        )
+    ]
+    if len(report_ids) > 1:
+        raise ValueError(
+            f"accession {meta.accession} has {len(report_ids)} xbrl_report rows; "
+            "P1 requires exactly one report per filing"
+        )
+    if not report_ids:
         return LoadedFiling(
             accession=meta.accession,
             cik=meta.cik,
@@ -82,7 +89,7 @@ def _load_filing_body(conn: Connection, meta: FilingMetadata) -> LoadedFiling:
             facts=(),
             dei_candidates=(),
         )
-    report_id = report_row[0]
+    report_id = report_ids[0]
     dim_contexts = {
         row[0] for row in conn.execute(select(src.source_context_dimension.c.context_id).distinct())
     }

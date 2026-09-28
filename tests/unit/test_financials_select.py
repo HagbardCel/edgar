@@ -96,8 +96,12 @@ def test_one_reporting_period_duration_and_instant() -> None:
     )
     assert rev.status == "value"
     assert rev.numeric == Decimal("100")
+    assert rev.period_start == "2023-01-01"
+    assert rev.period_end == "2023-12-31"
     assert assets.status == "value"
     assert assets.numeric == Decimal("500")
+    assert assets.period_start is None
+    assert assets.period_end == "2023-12-31"
 
 
 def test_walmart_cash_oim_survivor() -> None:

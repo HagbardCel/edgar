@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from edgar.domain.identifiers import validate_cik
 from edgar.financials.decimals import NumericFactOccurrence, oim_reduce_group
-from edgar.financials.decisions import DecisionRegistry, issuer_excluded
+from edgar.financials.decisions import DecisionRegistry, decision_applies_to_filing
 from edgar.financials.models import FactRow, Observation, Support, SupportRef
 from edgar.financials.period import (
     SEC_CIK_SCHEME,
@@ -81,7 +81,9 @@ def select_metric(
         fy=period.fiscal_year_focus if period else None,
         report_focus=period.fiscal_period_focus if period else None,
         period_role=None,
-        period_start=period.start if period else None,
+        period_start=(
+            period.start if period is not None and metric_period_type == "duration" else None
+        ),
         period_end=period.end if period else None,
         status="missing",
         reason=None,
@@ -109,7 +111,7 @@ def select_metric(
         and ld.record.relation == "exact"
         and ld.record.metric == metric
     ]
-    applicable = [r for r in exact_all if not issuer_excluded(r, filing_cik)]
+    applicable = [r for r in exact_all if decision_applies_to_filing(r, filing_cik)]
     if exact_all and not applicable:
         base.status = "unsupported"
         base.reason = "decision_scope"

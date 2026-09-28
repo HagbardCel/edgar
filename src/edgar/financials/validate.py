@@ -12,6 +12,7 @@ from edgar.financials.gold import GoldAssertion, compare_gold
 from edgar.financials.models import FactRow, Observation
 from edgar.financials.period import ReportingPeriod, period_matches_metric
 from edgar.financials.select import _entity_matches, _is_pure_usd
+from edgar.xbrl.taxonomy_family import classify
 
 FindingStatus = Literal["pass", "fail", "not_applicable"]
 
@@ -35,7 +36,7 @@ def _qualifying_facts(
     for f in facts:
         if f.concept_local_name != local_name:
             continue
-        if "us-gaap" not in f.concept_namespace and "xbrl.us/us-gaap" not in f.concept_namespace:
+        if classify(f.concept_namespace).semantic_family != "us-gaap":
             continue
         if f.has_dimensions or f.value_status != "valid" or f.is_nil or f.resolved_numeric is None:
             continue

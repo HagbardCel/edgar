@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from edgar.financials.decisions import concept_matches_decision, load_decisions
+from edgar.financials.decisions import (
+    DecisionRecord,
+    concept_matches_decision,
+    expand_clark_qnames_for_decision,
+    load_decisions,
+)
 from edgar.registry.loader import load_canonical_registry
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -40,6 +45,65 @@ def test_m0_metrics_have_exact_decisions() -> None:
 
     errors = [f for f in run_rules_check(_REGISTRY) if f.level == "error"]
     assert not errors
+
+
+def test_issuer_family_requires_issuer_cik() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="issuer_cik"):
+        DecisionRecord.model_validate(
+            {
+                "id": "x.issuer.Foo",
+                "metric": "revenue",
+                "source": {"family": "issuer", "local_name": "Foo"},
+                "relation": "exact",
+                "status": "accepted",
+                "method": "curated",
+                "rationale": "test",
+                "evidence": [
+                    {
+                        "kind": "filing_fact",
+                        "accession": "0001065088-24-000036",
+                        "locator": "x",
+                    }
+                ],
+                "reviewed": {"by": "t", "on": "2026-09-28"},
+                "contract_hash": "0" * 64,
+            }
+        )
+
+
+def test_issuer_decision_expansion_scoped_to_filing_cik() -> None:
+    issuer_ns = "http://ebay.example/0001065088/2024"
+    other_ns = "http://other.example/0000019617/2024"
+    record = DecisionRecord.model_validate(
+        {
+            "id": "revenue.issuer.CustomRevenue",
+            "metric": "revenue",
+            "source": {
+                "family": "issuer",
+                "local_name": "CustomRevenue",
+                "issuer_cik": "0001065088",
+            },
+            "relation": "exact",
+            "status": "accepted",
+            "method": "curated",
+            "rationale": "issuer extension test",
+            "evidence": [
+                {
+                    "kind": "filing_fact",
+                    "accession": "0001065088-24-000036",
+                    "locator": "xbrl:undimensioned-fact",
+                }
+            ],
+            "reviewed": {"by": "t", "on": "2026-09-28"},
+            "contract_hash": "0" * 64,
+        }
+    )
+    on_issuer = expand_clark_qnames_for_decision(record, "0001065088", (issuer_ns, other_ns))
+    assert f"{{{issuer_ns}}}CustomRevenue" in on_issuer
+    assert f"{{{other_ns}}}CustomRevenue" not in on_issuer
 
 
 def test_stale_rejected_rules_check_warning() -> None:

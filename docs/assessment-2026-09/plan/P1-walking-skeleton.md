@@ -406,12 +406,18 @@ From `source.*` for one accession:
    context) read `DocumentFiscalYearFocus` and `DocumentFiscalPeriodFocus`
    when present.
 
-A gold slot may name an explicit comparative period. Selection uses the slot
-period when provided, else the required-context period.
+**Gold never selects the reporting period.** For each 10-K / 10-K/A filing,
+resolve one annual `ReportingPeriod` from undimensioned DEI
+`DocumentPeriodEndDate` (duration context: `start` / `end`). Each metric's
+registry `period_type` determines matching:
 
-Duration metrics match context `period_kind='duration'` and start/end.
-Instant metrics match context `period_kind='instant'` and
-`instant_lexical == end`. Do not put `annual` / `YTD` in this field.
+- `duration` → fact `period_kind='duration'` with `start`/`end` equal to the
+  reporting window; observation `period_start` / `period_end` echo that window.
+- `instant` → fact `period_kind='instant'` with `instant_lexical == period.end`;
+  observation `period_start` is **null** and `period_end` is the reporting end.
+
+Gold assertions compare observation periods afterward; they do not influence
+selection. Do not put `annual` / `YTD` in `report_focus`.
 
 Entity match uses the **SEC CIK scheme plus a 10-digit identifier**, not
 “strip zeros on any string”:
@@ -520,7 +526,7 @@ Candidates are facts that have an **exact** support and all of:
   (`http://www.xbrl.org/2003/iso4217`, `USD`); no denominator.
   `USD/shares` must not match. Use `source.unit_measure.side`,
   `ordinal`, `measure_namespace_uri`, `measure_local_name`;
-- period matches the slot / required context as in P1.4.
+- period matches the required reporting window per metric `period_type` (P1.4).
 
 Then:
 
@@ -656,13 +662,16 @@ statement) under `tests/fixtures/`, not a 5 MB copy.
 `source.*` facts in the **same undimensioned required-context period**, not
 from published observations only.
 
-1. **NCI split** (when all three exist):
-   `ProfitLoss = NetIncomeLoss + NetIncomeLossAttributableToNoncontrollingInterest`
-   within the coarser decimals of the three.
-2. **Balance sheet** (when all three exist):
-   `Assets = Liabilities + StockholdersEquity`
-   (local names `Assets`, `Liabilities`, `StockholdersEquity`). If the
-   equity concept is missing, finding is `not_applicable`.
+1. **NCI split** (when all three exist): OIM-reduce each of `ProfitLoss`,
+   `NetIncomeLoss`, and `NetIncomeLossAttributableToNoncontrollingInterest`
+   (undimensioned, USD, required period). Pass when the `ProfitLoss` interval
+   intersects the sum of the other two intervals; fail on inconsistent
+   duplicates or disjoint intervals.
+2. **Balance sheet** (when assets and liabilities exist): OIM-reduce `Assets`
+   and `Liabilities`; choose equity as total equity including NCI when filed,
+   else parent `StockholdersEquity` only when no NCI balance or activity facts
+   exist. Pass when assets interval intersects liabilities + equity; otherwise
+   `fail` or `not_applicable` when equity cannot be chosen safely.
 
 Finding statuses: `pass` | `fail` | `not_applicable`. A `fail` does **not**
 block export in P1; it is recorded on the observation / in `findings.json`.

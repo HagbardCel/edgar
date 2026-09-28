@@ -11,12 +11,7 @@ def test_stale_rejected_emits_warning(tmp_path: Path) -> None:
 
     registry_dir = tmp_path / "registry"
     shutil.copytree(_REGISTRY, registry_dir)
-    rejected = (
-        registry_dir
-        / "decisions"
-        / "revenue"
-        / "revenue.us-gaap.GrossProfit.rejected.yml"
-    )
+    rejected = registry_dir / "decisions" / "revenue" / "revenue.us-gaap.GrossProfit.rejected.yml"
     text = rejected.read_text(encoding="utf-8")
     rejected.write_text(
         text.replace(

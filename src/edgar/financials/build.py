@@ -52,8 +52,9 @@ def run_build(
     gold_file: GoldFile | None = None
     if check_gold:
         gold_path = registry_dir / "gold" / "m0-annual.yml"
-        if gold_path.is_file():
-            gold_file = load_gold(gold_path)
+        if not gold_path.is_file():
+            raise ValueError(f"gold file missing for --check-gold: {gold_path}")
+        gold_file = load_gold(gold_path)
 
     observations: list[Observation] = []
     findings: list[dict[str, str]] = []
@@ -115,7 +116,8 @@ def run_build(
     obs_tuple = tuple(observations)
     gold_checked = 0
     gold_errors: list[str] = []
-    if check_gold and gold_file is not None:
+    if check_gold:
+        assert gold_file is not None
         gold_checked, gold_errors = check_gold_assertions(
             gold_file.assertions,
             obs_tuple,
