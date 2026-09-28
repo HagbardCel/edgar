@@ -1,7 +1,14 @@
 # Independent architecture and implementation assessment — September 2026
 
-**Status:** independent assessment and recommendation. **Not adopted.** Nothing here changes live
-contracts, `AGENTS.md` phase gates or ADR 0010–0013. Adopting any recommendation requires a new ADR.
+**Original status (2026-09-27):** independent assessment and recommendation; not adopted at that
+time. Nothing in this document changed live contracts, `AGENTS.md` phase gates, or ADR 0010–0013
+until a separate adoption decision.
+
+**Subsequent status (2026-09-28):** [ADR 0014](../adr/0014-adopt-lean-mapping-sequence.md) adopted
+the P0–P6 implementation sequence and mapping-authority changes in
+[plan/](plan/). Measurements and current-state findings in this assessment remain historical
+baseline evidence unless explicitly updated.
+
 **Baseline:** `main` at `799540d` (clean tree), inspected and measured on 2026-09-27.
 
 ## Bottom line

@@ -39,10 +39,6 @@ class SourceExtractWorkerError(RuntimeError):
         self.arelle_version = arelle_version
 
 
-# Historical alias used by a few tests during remount.
-SemanticWorkerError = SourceExtractWorkerError
-
-
 @dataclass(frozen=True)
 class OfflineExtractResult:
     report: ReportExtraction

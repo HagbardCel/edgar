@@ -21,6 +21,7 @@ locator identity because they are neither unique nor stable across serializers.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -58,6 +59,39 @@ def _is_element(node: XmlElement) -> bool:
 def _attribute_is_unique(root: XmlElement, xpath: str, value: str, namespaces: Any) -> bool:
     found = root.xpath(xpath, namespaces=namespaces or {}, value=value)
     return isinstance(found, list) and len(found) == 1
+
+
+@dataclass(frozen=True)
+class IdIndex:
+    """Per-document counts of ``xml:id`` and unqualified ``id`` attribute values."""
+
+    root: XmlElement
+    xml_id_counts: Counter[str]
+    id_counts: Counter[str]
+
+
+def id_index(root: XmlElement) -> IdIndex:
+    """Build attribute-value counts with one ``root.iter()`` pass over element nodes."""
+    xml_id_counts: Counter[str] = Counter()
+    id_counts: Counter[str] = Counter()
+    for node in root.iter():
+        if not isinstance(getattr(node, "tag", None), str):
+            continue
+        xml_id = node.get(XML_ID_ATTRIBUTE)
+        if xml_id:
+            xml_id_counts[xml_id] += 1
+        plain_id = node.get("id")
+        if plain_id:
+            id_counts[plain_id] += 1
+    return IdIndex(root=root, xml_id_counts=xml_id_counts, id_counts=id_counts)
+
+
+def _xml_id_unique(index: IdIndex, value: str) -> bool:
+    return index.xml_id_counts.get(value, 0) == 1
+
+
+def _plain_id_unique(index: IdIndex, value: str) -> bool:
+    return index.id_counts.get(value, 0) == 1
 
 
 def expanded_element_path(element: XmlElement) -> tuple[tuple[str, int], ...]:
@@ -154,7 +188,12 @@ def parse_expanded_path(value: str) -> tuple[tuple[str, int], ...]:
     return tuple(segments)
 
 
-def element_locator(element: XmlElement, *, document_uri: str) -> SourceLocator:
+def element_locator(
+    element: XmlElement,
+    *,
+    document_uri: str,
+    index: IdIndex | None = None,
+) -> SourceLocator:
     """Build the stable locator for ``element`` within its own document.
 
     ``document_uri`` must be the canonical replay URI of the bundle URI binding
@@ -166,12 +205,16 @@ def element_locator(element: XmlElement, *, document_uri: str) -> SourceLocator:
     if root is None:
         raise LocatorError("element is not attached to a document tree")
 
+    active_index = index if index is not None else id_index(root)
+    if active_index.root is not root:
+        raise LocatorError("IdIndex was built for a different document root")
+
     xml_id = element.get(XML_ID_ATTRIBUTE)
-    if xml_id and _attribute_is_unique(root, "//*[@xml:id=$value]", xml_id, {"xml": XML_NS}):
+    if xml_id and _xml_id_unique(active_index, xml_id):
         return SourceLocator(document_uri=document_uri, scheme="xml_id", value=xml_id)
 
     plain_id = element.get("id")
-    if plain_id and _attribute_is_unique(root, "//*[@id=$value]", plain_id, None):
+    if plain_id and _plain_id_unique(active_index, plain_id):
         return SourceLocator(document_uri=document_uri, scheme="unqualified_id", value=plain_id)
 
     path = format_expanded_path(expanded_element_path(element))
