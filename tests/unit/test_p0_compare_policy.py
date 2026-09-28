@@ -19,6 +19,19 @@ def _declaration(ns: str, local: str) -> dict:
     return {"concept": _qname(ns, local), "period_type": "instant"}
 
 
+def _reference(ns: str, local: str, order: int) -> dict:
+    return {
+        "concept": _qname(ns, local),
+        "source_order": order,
+        "link_role_uri": "http://example.com/role",
+        "arcrole_uri": "http://www.xbrl.org/2003/arcrole/concept-reference",
+        "link_qname": _qname("http://www.xbrl.org/2003/linkbase", "referenceLink"),
+        "arc_qname": _qname("http://www.xbrl.org/2003/linkbase", "referenceArc"),
+        "resource_role_uri": "http://www.xbrl.org/2003/role/reference",
+        "reference_parts": [],
+    }
+
+
 def _label(ns: str, local: str, text: str, order: int) -> dict:
     return {
         "concept": _qname(ns, local),
@@ -132,3 +145,115 @@ def test_normalized_resource_sequence_preserves_duplicates() -> None:
     normed = normalized_resource_sequence(records)
     assert len(normed) == 2
     assert normed[0] == normed[1]
+
+
+def _minimal_baseline(us: str) -> dict:
+    return {
+        "facts": [{"concept": _qname(us, "A")}],
+        "relationships": [],
+        "dimensions": [],
+        "declarations": [_declaration(us, "A")],
+        "concepts": [_qname(us, "A")],
+        "labels": [_label(us, "A", "a", 0)],
+        "references": [],
+    }
+
+
+def test_compare_v6_filter_extra_unused_standard_declaration_fails() -> None:
+    us = "http://fasb.org/us-gaap/2023"
+    baseline = _minimal_baseline(us)
+    baseline["declarations"] = [_declaration(us, "A"), _declaration(us, "Unused")]
+    baseline["concepts"] = [_qname(us, "A"), _qname(us, "Unused")]
+    current = {
+        "declarations": [_declaration(us, "A"), _declaration(us, "Unused")],
+        "concepts": [_qname(us, "A"), _qname(us, "Unused")],
+        "labels": [_label(us, "A", "a", 0)],
+        "references": [],
+    }
+    result = compare_v6_filter(baseline, current)
+    assert any("declarations" in err for err in result.errors)
+
+
+def test_compare_v6_filter_mutated_declaration_fails() -> None:
+    us = "http://fasb.org/us-gaap/2023"
+    baseline = _minimal_baseline(us)
+    current = {
+        "declarations": [{"concept": _qname(us, "A"), "period_type": "duration"}],
+        "concepts": [_qname(us, "A")],
+        "labels": [_label(us, "A", "a", 0)],
+        "references": [],
+    }
+    result = compare_v6_filter(baseline, current)
+    assert any("declarations" in err for err in result.errors)
+
+
+def test_compare_v6_filter_non_contiguous_source_order_fails() -> None:
+    us = "http://fasb.org/us-gaap/2023"
+    baseline = {
+        "facts": [{"concept": _qname(us, "A")}, {"concept": _qname(us, "B")}],
+        "relationships": [],
+        "dimensions": [],
+        "declarations": [_declaration(us, "A"), _declaration(us, "B")],
+        "concepts": [_qname(us, "A"), _qname(us, "B")],
+        "labels": [_label(us, "A", "a", 0), _label(us, "B", "b", 1)],
+        "references": [],
+    }
+    current = {
+        "declarations": [_declaration(us, "A"), _declaration(us, "B")],
+        "concepts": [_qname(us, "A"), _qname(us, "B")],
+        "labels": [_label(us, "A", "a", 0), _label(us, "B", "b", 2)],
+        "references": [],
+    }
+    result = compare_v6_filter(baseline, current)
+    assert any("source_order" in err for err in result.errors)
+
+
+def test_compare_v6_filter_reordered_labels_fails() -> None:
+    us = "http://fasb.org/us-gaap/2023"
+    baseline = {
+        "facts": [{"concept": _qname(us, "A")}, {"concept": _qname(us, "B")}],
+        "relationships": [],
+        "dimensions": [],
+        "declarations": [_declaration(us, "A"), _declaration(us, "B")],
+        "concepts": [_qname(us, "A"), _qname(us, "B")],
+        "labels": [_label(us, "A", "first", 0), _label(us, "B", "second", 1)],
+        "references": [],
+    }
+    current = {
+        "declarations": [_declaration(us, "A"), _declaration(us, "B")],
+        "concepts": [_qname(us, "A"), _qname(us, "B")],
+        "labels": [_label(us, "B", "second", 0), _label(us, "A", "first", 1)],
+        "references": [],
+    }
+    result = compare_v6_filter(baseline, current)
+    assert any("labels" in err for err in result.errors)
+
+
+def test_compare_v6_filter_reference_filtering() -> None:
+    us = "http://fasb.org/us-gaap/2023"
+    issuer = "http://issuer.example.com/2024"
+    baseline = {
+        "facts": [{"concept": _qname(us, "A")}],
+        "relationships": [],
+        "dimensions": [],
+        "declarations": [
+            _declaration(us, "A"),
+            _declaration(us, "Unused"),
+            _declaration(issuer, "Ext"),
+        ],
+        "concepts": [_qname(us, "A"), _qname(us, "Unused"), _qname(issuer, "Ext")],
+        "labels": [],
+        "references": [
+            _reference(us, "A", 0),
+            _reference(issuer, "Ext", 1),
+            _reference(us, "Unused", 2),
+        ],
+    }
+    current = {
+        "declarations": [_declaration(us, "A"), _declaration(issuer, "Ext")],
+        "concepts": [_qname(us, "A"), _qname(issuer, "Ext")],
+        "labels": [],
+        "references": [_reference(us, "A", 0), _reference(issuer, "Ext", 1)],
+    }
+    result = compare_v6_filter(baseline, current)
+    assert result.errors == ()

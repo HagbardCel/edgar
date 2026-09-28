@@ -270,35 +270,51 @@ Label/reference counts follow `base_concepts`, not the full taxonomy.
 
 - Unit: `taxonomy_family` on the 2009 / modern URIs listed above (including
   `fasb.org/srt/` HTTP and HTTPS).
-- Unit: extraction-level keep-set fixture (`tests/unit/test_extract_v6_declaration_grain.py`):
+- Unit: helper-level keep-set fixture (`tests/unit/test_extract_v6_declaration_grain.py`):
   used standard retained; unused standard dropped; unused issuer retained;
   dimension axis and explicit member retained when only filed on a context;
   unused `http://xbrl.us/us-gaap/2009-01-31` and unused `xbrl.sec.gov/cyd`
-  dropped (not treated as issuer extensions).
+  dropped (not treated as issuer extensions). The six-filing corpus comparator
+  (`scripts/p0_compare_baseline.py` via `edgar.p0_compare_policy`) provides
+  real-extraction orchestration coverage.
+- Unit: policy oracle tests (`tests/unit/test_p0_compare_policy.py`) for
+  `expected_keep` reconstruction and comparator failure modes.
 - Contract / corpus: structural baseline (below). **Do not** silently refresh
   goldens. The PR description lists old vs new counts per accession and
-  issue-code deltas per accession.
+  added/removed **issue-code occurrence** deltas per accession.
 
 **Pinned six-filing baseline (structural acceptance).**
 
 1. On pre-v6 code, capture `source-extract-v5` wire JSON for all six corpus
    accessions under `var/p0-baseline/<git-sha>/` (`scripts/p0_corpus_baseline.py`).
+   Bundle selection uses `resolve_published_bundle()` (exactly one published
+   bundle per accession).
 2. After v6, `scripts/p0_compare_baseline.py` must assert:
    - baseline `extractor_version == source-extract-v5`
    - current `extractor_version == source-extract-v6`
    - invariants unchanged: `contexts`, `dimensions`, `units`, `measures`,
      `facts`, `relationships`
-   - no **new** issue codes vs baseline (removed codes listed for review)
-   - declaration / label / reference count deltas listed per accession
+   - no **added issue-code occurrences** vs baseline (`Counter` on issue
+     `code`; removed occurrences listed for review)
+   - from each v5 snapshot, independently derive `expected_keep` =
+     `filed_keep ∪ issuer-origin declarations` and require v6 equals the
+     stable v5 filter:
+     - `declarations ==` expected declarations (full wire dicts, order preserved)
+     - `concepts ==` expected concepts
+     - `labels` / `references`: normalized sequences equal expected (remove
+       only `source_order`); current `source_order` is contiguous `0..n-1`
+   - corpus-wide: at least one **issuer-only** declaration
+     (`issuer declaration − filed_keep`) so the issuer leg is non-vacuous
+   - print declaration/label/reference count deltas per accession for review
 
 If any fact, context, unit, or relationship locator or value changed,
-revert and fix. The allowed extract delta is **declaration cardinality
-and filtered label/reference counts**, not facts/contexts/units/relationships.
+revert and fix. Allowed v6 delta is **filtering** per `expected_keep` (not
+arbitrary mutation), not changes to facts/contexts/units/relationships.
 
 **Validation gate P0.3**
 
 ```bash
-uv run pytest -q tests/unit/test_extract_v6_declaration_grain.py tests/unit/test_taxonomy_family.py
+uv run pytest -q tests/unit/test_extract_v6_declaration_grain.py tests/unit/test_taxonomy_family.py tests/unit/test_p0_compare_policy.py
 uv run pytest -q -m "not network" tests/contract/test_arelle_report_extraction.py
 uv run pytest -q -m "not network" tests/unit/test_source_extract_adapt.py
 # scripts/p0_compare_baseline.py var/p0-baseline/<v5-sha>/
