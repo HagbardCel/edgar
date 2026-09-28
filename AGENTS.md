@@ -303,6 +303,13 @@ Run targeted checks first, then the appropriate broader check.
 
 Never claim a command passed unless it was executed.
 
+## Cursor Cloud specific instructions
+
+- `uv` is on `PATH`. Bootstrap with `make bootstrap` (`uv sync --extra dev --locked`).
+- PostgreSQL 16 comes from `compose.yaml` (`make db-up`). This VM has no systemd. The environment start command launches `dockerd` (fuse-overlayfs, iptables-legacy), waits until the `postgres` service is healthy, then runs `uv run --env-file .env alembic upgrade head`.
+- Install copies `.env.example` to `.env` when `.env` is missing and appends local `EDGAR_DATABASE_URL` and `EDGAR_TEST_DATABASE_URL` values when those keys are unset. Leave `SEC_USER_AGENT` empty except for live SEC calls (`pytest -m network`).
+- `make migrate` invokes Alembic, which reads `EDGAR_DATABASE_URL` from the process environment. `uv run edgar db upgrade` reads `.env` through application settings. `make check` exports `EDGAR_TEST_DATABASE_URL` for the `edgar_test` database.
+
 ---
 
 ## Python standards
