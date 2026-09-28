@@ -1,0 +1,19 @@
+id: total_assets.us-gaap.Assets
+metric: total_assets
+source:
+  family: us-gaap
+  local_name: Assets
+relation: exact
+scope: {}
+status: accepted
+method: curated
+rationale: P1 walking skeleton exact mapping for Assets.
+evidence:
+- kind: filing_fact
+  accession: "0001065088-24-000036"
+  concept: us-gaap:Assets
+  locator: xbrl:undimensioned-fact
+reviewed:
+  by: p1-bootstrap
+  'on': '2026-09-28'
+contract_hash: 8ceb1b9c164c027afcba137e9cb5a01ea89f2dd66959258e48c2b52e6b0c44a9

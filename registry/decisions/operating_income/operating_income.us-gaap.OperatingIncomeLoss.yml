@@ -1,0 +1,19 @@
+id: operating_income.us-gaap.OperatingIncomeLoss
+metric: operating_income
+source:
+  family: us-gaap
+  local_name: OperatingIncomeLoss
+relation: exact
+scope: {}
+status: accepted
+method: curated
+rationale: P1 walking skeleton exact mapping for OperatingIncomeLoss.
+evidence:
+- kind: filing_fact
+  accession: "0001065088-24-000036"
+  concept: us-gaap:OperatingIncomeLoss
+  locator: xbrl:undimensioned-fact
+reviewed:
+  by: p1-bootstrap
+  'on': '2026-09-28'
+contract_hash: c9aec0af752767aa5fd08abbbe51f420e0d7568d98f99d87db7f43e1a7ece390

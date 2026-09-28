@@ -14,7 +14,7 @@ see [docs/assessment-2026-09/plan/](docs/assessment-2026-09/plan/)). [ADR
 context; ADR 0014 supersedes its forward implementation order.
 
 Current implementation remains the Phase 2B source layer plus Phase 2C registry
-until P3 consolidation changes it. **Current phase: P0 complete; next: P1 (ADR
+until P3 consolidation changes it. **Current phase: P1 complete; next: P2 (ADR
 0014).** Follow the P0–P6 plan gates; do not implement P2+ ahead of its exit
 criteria. Phase 2A/2B/2C source invariants remain in force.
 

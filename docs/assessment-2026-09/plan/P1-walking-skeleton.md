@@ -40,6 +40,28 @@ Exit numbers (from [08](../08-migration-plan-assessment.md) and
 - Knowledge clocks, publication notices, review-profile machinery.
 - Running `annual-v1` on 10-Qs as if they were annual slots (P5).
 
+## Implementation contract (frozen at P1.0)
+
+The following rules govern the P1 implementation; they supersede ambiguous wording
+in older sections of this file where they differ.
+
+- **Build metric universe:** only the eight keys in `registry/gold/cohorts/m0.yml`
+  `metrics` list produce observation rows; the full `metrics.yml` registry remains
+  authoritative for contracts.
+- **Default accessions:** the six accessions in `fixtures/corpus.toml` in file
+  order; `--accession` overrides. Gold `--check-gold` evaluates only assertions
+  whose accession is in the build request.
+- **Form guard first:** if `form` is not `10-K` or `10-K/A`, emit
+  `unsupported` / `wrong_form` for every m0 metric without required-period lookup,
+  fact load, resolve, or identities.
+- **Gold never selects:** reporting period comes from DEI required context on
+  10-K filings only; gold compares outputs afterward (matrix covers `value`,
+  `missing` with explicit `reason`, `decision_scope`, and `wrong_form`).
+- **OIM:** group duplicates by `source_qname` after slot gates; `OimResolution`
+  exposes `survivor_value` for publication and `consistent_interval` for identities.
+- **Atomic export:** write to a sibling temp directory, then rename to `--output-dir`
+  (destination must not exist).
+
 ## Architecture of this phase (only)
 
 ```text
@@ -52,8 +74,9 @@ registry/gold/*.yml           ─┘
         │
   edgar build            reads source.* (existing PostgreSQL)
         │
-        ├─ metalinks.parse(bundle)     # definitions + statement roles
         ├─ resolve(facts, decisions)   # supports
+        # MetaLinks.parse(bundle) is implemented for P1.6 tests; build does not
+        # require bundle access (PostgreSQL source.* is sufficient for selection).
         ├─ select(supports, contexts)  # 10-K / 10-K/A only
         └─ validate(observations)      # findings
         │
@@ -384,12 +407,18 @@ From `source.*` for one accession:
    context) read `DocumentFiscalYearFocus` and `DocumentFiscalPeriodFocus`
    when present.
 
-A gold slot may name an explicit comparative period. Selection uses the slot
-period when provided, else the required-context period.
+**Gold never selects the reporting period.** For each 10-K / 10-K/A filing,
+resolve one annual `ReportingPeriod` from undimensioned DEI
+`DocumentPeriodEndDate` (duration context: `start` / `end`). Each metric's
+registry `period_type` determines matching:
 
-Duration metrics match context `period_kind='duration'` and start/end.
-Instant metrics match context `period_kind='instant'` and
-`instant_lexical == end`. Do not put `annual` / `YTD` in this field.
+- `duration` → fact `period_kind='duration'` with `start`/`end` equal to the
+  reporting window; observation `period_start` / `period_end` echo that window.
+- `instant` → fact `period_kind='instant'` with `instant_lexical == period.end`;
+  observation `period_start` is **null** and `period_end` is the reporting end.
+
+Gold assertions compare observation periods afterward; they do not influence
+selection. Do not put `annual` / `YTD` in `report_focus`.
 
 Entity match uses the **SEC CIK scheme plus a 10-digit identifier**, not
 “strip zeros on any string”:
@@ -498,7 +527,7 @@ Candidates are facts that have an **exact** support and all of:
   (`http://www.xbrl.org/2003/iso4217`, `USD`); no denominator.
   `USD/shares` must not match. Use `source.unit_measure.side`,
   `ordinal`, `measure_namespace_uri`, `measure_local_name`;
-- period matches the slot / required context as in P1.4.
+- period matches the required reporting window per metric `period_type` (P1.4).
 
 Then:
 
@@ -582,7 +611,10 @@ the dimensions anti-join, entity-scheme match, and `value_status` filter.
 **Validation gate P1.5**
 
 ```bash
-uv run pytest -q tests/unit/test_financials_resolve.py tests/unit/test_financials_select.py
+uv run pytest -q \
+  tests/unit/test_financials_resolve.py \
+  tests/unit/test_financials_select.py \
+  tests/unit/test_financials_select_matrix.py
 ```
 
 ---
@@ -634,13 +666,16 @@ statement) under `tests/fixtures/`, not a 5 MB copy.
 `source.*` facts in the **same undimensioned required-context period**, not
 from published observations only.
 
-1. **NCI split** (when all three exist):
-   `ProfitLoss = NetIncomeLoss + NetIncomeLossAttributableToNoncontrollingInterest`
-   within the coarser decimals of the three.
-2. **Balance sheet** (when all three exist):
-   `Assets = Liabilities + StockholdersEquity`
-   (local names `Assets`, `Liabilities`, `StockholdersEquity`). If the
-   equity concept is missing, finding is `not_applicable`.
+1. **NCI split** (when all three exist): OIM-reduce each of `ProfitLoss`,
+   `NetIncomeLoss`, and `NetIncomeLossAttributableToNoncontrollingInterest`
+   (undimensioned, USD, required period). Pass when the `ProfitLoss` interval
+   intersects the sum of the other two intervals; fail on inconsistent
+   duplicates or disjoint intervals.
+2. **Balance sheet** (when assets and liabilities exist): OIM-reduce `Assets`
+   and `Liabilities`; choose equity as total equity including NCI when filed,
+   else parent `StockholdersEquity` only when no NCI balance or activity facts
+   exist. Pass when assets interval intersects liabilities + equity; otherwise
+   `fail` or `not_applicable` when equity cannot be chosen safely.
 
 Finding statuses: `pass` | `fail` | `not_applicable`. A `fail` does **not**
 block export in P1; it is recorded on the observation / in `findings.json`.
@@ -661,7 +696,7 @@ uv run pytest -q tests/unit/test_financials_validate.py
 Wire a command:
 
 ```text
-edgar build --data-root var --check-gold --output-dir var/builds/p1
+edgar build --check-gold --output-dir var/builds/p1
 ```
 
 Behavior:
@@ -724,23 +759,47 @@ unrelated PRs may still load it). You may stop adding to it. Deletion is P3.
 **Validation gate P1.9**
 
 ```bash
-uv run pytest -q tests/unit/test_financials_select.py tests/unit/test_gold_schema.py
-# 13/13 (and the two resolved extras) proven on fake or real rows
+uv run pytest -q \
+  tests/unit/test_financials_select.py \
+  tests/unit/test_financials_select_matrix.py \
+  tests/unit/test_financials_m0_gold_fabricated.py \
+  tests/unit/test_financials_build.py \
+  tests/unit/test_gold_schema.py
+# 15/15 value slots on fabricated rows; integration proof when EDGAR_DATA_ROOT is set:
+# uv run pytest -q tests/integration/test_p1_gold_build.py
 ```
 
 ## Phase exit gate
 
+Prerequisites: Docker Postgres up (`make db-up`), migrations applied (`make
+migrate`), six published bundles under `$EDGAR_DATA_ROOT/bundles/…` (local
+corpus under `var/`), and both database URLs in the environment (see
+`docs/development.md`).
+
 ```bash
 make check
 uv run edgar rules check
-uv run edgar build --check-gold --output-dir /tmp/edgar-p1-build
+
+export EDGAR_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar
+export EDGAR_TEST_DATABASE_URL=postgresql+psycopg://edgar:edgar@localhost:5432/edgar_test
+make migrate
+
+EDGAR_DATA_ROOT=var EDGAR_TEST_DATABASE_URL="$EDGAR_TEST_DATABASE_URL" \
+  uv run pytest -q tests/integration/test_p1_gold_build.py
+
+EDGAR_DATA_ROOT=var EDGAR_DATABASE_URL="$EDGAR_DATABASE_URL" \
+  uv run edgar build --check-gold --output-dir /tmp/edgar-p1-build
 ```
 
-Expected:
+Expected integration test: **48** observations, **19** gold assertions checked,
+**15** value assertions, zero mismatches.
+
+Expected `edgar build` summary: `observations=48`, `gold_assertions_checked=19`
+(and identity findings recorded in `findings.json`).
 
 | Check | Result |
 |---|---|
-| 13 original gold values | exact `Decimal` match |
+| 15 m0 gold value slots | exact `Decimal` match |
 | eBay FY2023 parent NI | `2767000000` |
 | Walmart cash | `9867000000`, not `conflict` |
 | Walmart R&D | `missing` |

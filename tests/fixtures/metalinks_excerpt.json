@@ -1,0 +1,27 @@
+{
+  "report": [
+    {
+      "groupType": "statement",
+      "role": "http://www.xbrl.org/2003/role/statement",
+      "longName": "Consolidated Income Statement",
+      "shortName": "Income Statement"
+    },
+    {
+      "groupType": "disclosure",
+      "role": "http://example.com/note",
+      "longName": "Note",
+      "shortName": "Note"
+    }
+  ],
+  "instance": {
+    "dts": {
+      "inline": {
+        "tag": {
+          "us-gaap_NetIncomeLoss": {
+            "documentation": "Net income attributable to the parent for the period."
+          }
+        }
+      }
+    }
+  }
+}

@@ -33,6 +33,7 @@ EXPECTED_CANONICAL_METRIC_KEYS = frozenset(
         "income_tax_expense",
         "net_income",
         "net_income_attributable_to_parent",
+        "cash_excluding_restricted_cash",
         "cash_and_cash_equivalents",
         "short_term_investments",
         "accounts_receivable",
@@ -50,6 +51,7 @@ EXPECTED_CANONICAL_METRIC_KEYS = frozenset(
         "shareholders_equity",
         "operating_cash_flow",
         "capital_expenditure",
+        "cash_purchases_of_ppe",
         "depreciation_and_amortization",
         "investing_cash_flow",
         "financing_cash_flow",
@@ -94,7 +96,7 @@ def test_production_registry_loads_all_expected_keys() -> None:
     loaded = load_metrics_yml(_PRODUCTION_YML)
     keys = {metric.key for metric in loaded.metrics}
     assert keys == EXPECTED_CANONICAL_METRIC_KEYS
-    assert len(loaded.metrics) == 39
+    assert len(loaded.metrics) == 41
     assert len(loaded.semantic_registry_hash) == 64
     for metric in loaded.metrics:
         assert metric.kind == "reported"

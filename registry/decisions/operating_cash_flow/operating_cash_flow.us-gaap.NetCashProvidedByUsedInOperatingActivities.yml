@@ -1,0 +1,19 @@
+id: operating_cash_flow.us-gaap.NetCashProvidedByUsedInOperatingActivities
+metric: operating_cash_flow
+source:
+  family: us-gaap
+  local_name: NetCashProvidedByUsedInOperatingActivities
+relation: exact
+scope: {}
+status: accepted
+method: curated
+rationale: P1 walking skeleton exact mapping for NetCashProvidedByUsedInOperatingActivities.
+evidence:
+- kind: filing_fact
+  accession: "0001065088-24-000036"
+  concept: us-gaap:NetCashProvidedByUsedInOperatingActivities
+  locator: xbrl:undimensioned-fact
+reviewed:
+  by: p1-bootstrap
+  'on': '2026-09-28'
+contract_hash: 62b62a25d43723feab2c4c8c602f8ee9656834c008a4217acb70cd3bedaa1507

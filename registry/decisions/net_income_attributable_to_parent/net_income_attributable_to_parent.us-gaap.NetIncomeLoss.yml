@@ -1,0 +1,19 @@
+id: net_income_attributable_to_parent.us-gaap.NetIncomeLoss
+metric: net_income_attributable_to_parent
+source:
+  family: us-gaap
+  local_name: NetIncomeLoss
+relation: exact
+scope: {}
+status: accepted
+method: curated
+rationale: P1 walking skeleton exact mapping for NetIncomeLoss.
+evidence:
+- kind: filing_fact
+  accession: "0001065088-24-000036"
+  concept: us-gaap:NetIncomeLoss
+  locator: xbrl:undimensioned-fact
+reviewed:
+  by: p1-bootstrap
+  'on': '2026-09-28'
+contract_hash: eaa4e484a0937df27896be141ae76df74cfd466bf96873cab7b8532e09034f38
