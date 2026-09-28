@@ -15,8 +15,9 @@ context; ADR 0014 supersedes its forward implementation order.
 
 Current implementation remains the Phase 2B source layer plus Phase 2C registry
 until P3 consolidation changes it. **Current phase: P1 complete. P2 software
-(batch extract, companyfacts oracle, quality report) is implemented. The P2
-measurement exit gate is not met (ADR 0014).** Do not treat that software as
+(batch extract, `edgar filings companyfacts`, companyfacts oracle, quality
+report) is implemented. The P2 measurement exit gate is not met (ADR 0014).**
+Do not treat that software as
 the scale-spike exit, and do not start P3. Phase 2A/2B/2C source invariants
 remain in force. For P1/P2, `registry/metrics.yml`, `registry/decisions/`, and
 `registry/gold/` are the durable governed inputs. `var/builds/` is regenerable.

@@ -32,6 +32,7 @@ edgar filings retrieve --accession …
 edgar filings catalog --bundle-dir …
 edgar filings extract --bundle-dir …
 edgar filings extract --accessions-file fixtures/spike/p2-accessions.txt --jobs 1
+edgar filings companyfacts --accessions-file fixtures/spike/p2-accessions.txt
 edgar documents sections --document-id …
 edgar registry validate
 edgar registry sync
@@ -50,15 +51,27 @@ metadata for the quality report lives in `fixtures/spike/p2-sample.csv`, separat
 from the accession list. The committed list is the six-filing baseline, not the
 500–1,000 census.
 
+`edgar filings companyfacts --accessions-file` deduplicates CIKs and downloads
+companyfacts JSON with one `ControlledFetcher`. It writes the object store and
+`${EDGAR_DATA_ROOT}/companyfacts/CIK##########.sha256`. `edgar build` does not
+call it and does not open the network.
+
 `edgar build --quality-report` groups slots by metric, fiscal year, filing
 US-GAAP release, and industry bucket. The release comes from concept
 declarations before selection (`unknown` or `mixed` when it is not unique).
-Oracle columns are `oracle_agree`, `oracle_differ`, `oracle_absent`,
-`oracle_ambiguous`, and `oracle_na`. A companyfacts differ does not change the
-observation. Cached companyfacts bytes, when present, are loaded from the object
-store via `${EDGAR_DATA_ROOT}/companyfacts/CIK##########.sha256`. Build does not
-fetch them. `registry.canonical_metric` is not a P1/P2 runtime authority; do not
-sync it to make `edgar build` work.
+Eligible statuses `n_value`, `n_missing`, `n_conflict`, and `n_unsupported`
+partition `n_slot_eligible`. `n_ineligible_wrong_form` counts wrong-form slots
+and is outside that partition. Scope exclusions stay in `n_unsupported`.
+`n_decision_applicable` uses the same QName match as selection, including
+`exclude_qnames`. Identity columns `identity_pass`, `identity_fail`, and
+`identity_na` copy the build's existing findings once per accession in the
+cell (`not_applicable` maps to `identity_na`). The report does not rerun
+identity checks. Oracle columns are `oracle_agree`, `oracle_differ`,
+`oracle_absent`, `oracle_ambiguous`, and `oracle_na`. `oracle_findings` lists
+each `differ` and `ambiguous` slot with the observation and oracle decimals.
+A companyfacts differ does not change the observation. The QName census counts
+only non-dimensional facts. `registry.canonical_metric` is not a P1/P2 runtime
+authority; do not sync it to make `edgar build` work.
 
 ## Tests
 

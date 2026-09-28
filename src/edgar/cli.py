@@ -311,6 +311,63 @@ def filings_extract(
         )
 
 
+@filings_app.command("companyfacts")
+def filings_companyfacts(
+    accessions_file: Annotated[
+        Path,
+        typer.Option(
+            "--accessions-file",
+            help="One canonical dashed accession per line. CIKs are deduplicated.",
+        ),
+    ],
+    data_root: Annotated[
+        Path | None,
+        typer.Option("--data-root", help="Override EDGAR_DATA_ROOT"),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit machine-readable JSON")] = False,
+) -> None:
+    """Fetch companyfacts JSON for the distinct CIKs in an accession file.
+
+    Uses one ``ControlledFetcher`` and writes the object store plus
+    ``${EDGAR_DATA_ROOT}/companyfacts/CIK##########.sha256``. ``edgar build``
+    does not call this command and does not open the network.
+    """
+    import httpx
+
+    from edgar.financials.companyfacts_cache import (
+        cache_companyfacts_for_accessions,
+        distinct_ciks,
+    )
+    from edgar.ingestion.accession_file import AccessionFileError, parse_accession_file
+    from edgar.sec.client import ControlledFetcher
+
+    settings = Settings()
+    if data_root is not None:
+        settings = settings.model_copy(update={"edgar_data_root": data_root})
+    try:
+        accessions = parse_accession_file(accessions_file)
+        ciks = distinct_ciks(accessions)
+        with ControlledFetcher(
+            settings.require_user_agent(),
+            min_interval_seconds=settings.sec_min_interval_seconds,
+            max_redirects=settings.max_redirects,
+            timeout_seconds=settings.sec_timeout_seconds,
+            max_retries=settings.sec_max_retries,
+        ) as fetcher:
+            stored = cache_companyfacts_for_accessions(settings, accessions, fetcher)
+    except (AccessionFileError, ValueError, OSError, RuntimeError, httpx.HTTPError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    payload = {
+        "ciks": list(ciks),
+        "objects": [item.sha256 for item in stored],
+    }
+    if as_json:
+        typer.echo(json.dumps(payload))
+    else:
+        typer.echo(f"cached companyfacts ciks={len(ciks)}")
+
+
 def _filings_extract_batch(
     settings: Settings,
     accessions_file: Path,
@@ -695,6 +752,7 @@ def build_cmd(
                 sample_csv=sample_csv or (_REPO_ROOT / "fixtures" / "spike" / "p2-sample.csv"),
                 data_root=settings.edgar_data_root,
                 output_json=quality_report,
+                identity_findings=result.findings,
             )
     except (ValueError, FileExistsError, OSError, QualityReportError) as exc:
         typer.echo(str(exc), err=True)

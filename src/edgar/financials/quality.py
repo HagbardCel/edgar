@@ -1,8 +1,12 @@
 """Quality report over filing × metric slots.
 
 Taxonomy release is a property of the filing, taken from US-GAAP declarations
-before selection. Observation statuses partition ``n_slots``. Oracle labels
-partition ``n_slots`` separately and never change the observation.
+before selection. Eligible observation statuses partition ``n_slot_eligible``.
+``wrong_form`` is ``n_ineligible_wrong_form`` and sits outside that partition.
+Oracle labels partition ``n_slots`` separately and never change the observation.
+
+Identity columns copy ``BuildResult.findings`` once per accession in the cell.
+This module does not rerun identity checks.
 """
 
 from __future__ import annotations
@@ -17,14 +21,21 @@ from sqlalchemy.engine import Engine
 
 from edgar.financials.census import name_reuse_aggregate, qname_census
 from edgar.financials.companyfacts_cache import load_cached_companyfacts
-from edgar.financials.decisions import DecisionRegistry, decision_applies_to_filing
+from edgar.financials.decisions import (
+    DecisionRegistry,
+    concept_matches_decision,
+    decision_applies_to_filing,
+)
 from edgar.financials.models import FactRow, Observation
-from edgar.financials.oracle import oracle_label_for_observation
+from edgar.financials.oracle import OracleComparison, oracle_comparison_for_observation
 from edgar.financials.sample_index import SampleRow, load_sample_csv
 from edgar.financials.select import ANNUAL_FORMS
 from edgar.financials.source_load import LoadedFiling, load_filing, load_quality_filing_source
 from edgar.financials.taxonomy_release import filing_taxonomy_release, us_gaap_release_token
 from edgar.storage.objects import write_bytes_atomic, write_json_atomic
+
+_ORACLE_FINDING_STATUSES = frozenset({"differ", "ambiguous"})
+_IDENTITY_INDEX = {"pass": 0, "fail": 1, "not_applicable": 2}
 
 
 class QualityReportError(ValueError):
@@ -39,15 +50,18 @@ class QualityCell:
     industry_bucket: str
     n_slots: int = 0
     n_slot_eligible: int = 0
+    n_ineligible_wrong_form: int = 0
     n_value: int = 0
     n_missing: int = 0
     n_conflict: int = 0
     n_unsupported: int = 0
-    n_reason_wrong_form: int = 0
     n_reason_decision_scope: int = 0
     n_reason_other_unsupported: int = 0
     n_decision_applicable: int = 0
     n_no_applicable_decision: int = 0
+    identity_pass: int = 0
+    identity_fail: int = 0
+    identity_na: int = 0
     oracle_agree: int = 0
     oracle_differ: int = 0
     oracle_absent: int = 0
@@ -64,15 +78,18 @@ class QualityCell:
             "industry_bucket": self.industry_bucket,
             "n_slots": self.n_slots,
             "n_slot_eligible": self.n_slot_eligible,
+            "n_ineligible_wrong_form": self.n_ineligible_wrong_form,
             "n_value": self.n_value,
             "n_missing": self.n_missing,
             "n_conflict": self.n_conflict,
             "n_unsupported": self.n_unsupported,
-            "n_reason_wrong_form": self.n_reason_wrong_form,
             "n_reason_decision_scope": self.n_reason_decision_scope,
             "n_reason_other_unsupported": self.n_reason_other_unsupported,
             "n_decision_applicable": self.n_decision_applicable,
             "n_no_applicable_decision": self.n_no_applicable_decision,
+            "identity_pass": self.identity_pass,
+            "identity_fail": self.identity_fail,
+            "identity_na": self.identity_na,
             "oracle_agree": self.oracle_agree,
             "oracle_differ": self.oracle_differ,
             "oracle_absent": self.oracle_absent,
@@ -91,7 +108,7 @@ class FilingFrame:
     fiscal_year: str
     industry_bucket: str
     filing_taxonomy_release: str
-    us_gaap_concepts: frozenset[tuple[str, str]]
+    declared_concepts: frozenset[tuple[str, str]]
 
 
 def _rate(numerator: int, denominator: int) -> str | None:
@@ -105,7 +122,10 @@ def slot_decision_applicable(
     metric: str,
     registry: DecisionRegistry,
 ) -> bool:
-    """Eligible slot with an exact decision that applies and is declared in the release."""
+    """Eligible slot whose exact US-GAAP decision matches a declared concept.
+
+    Matching uses ``concept_matches_decision``, including ``exclude_qnames``.
+    """
     if frame.form not in ANNUAL_FORMS:
         return False
     if frame.filing_taxonomy_release == "unknown":
@@ -123,25 +143,15 @@ def slot_decision_applicable(
     if not exact:
         return False
     for record in exact:
-        local_name = record.source.local_name
-        if frame.filing_taxonomy_release == "mixed":
-            if any(name == local_name for name, _token in frame.us_gaap_concepts):
+        for namespace, local_name in frame.declared_concepts:
+            token = us_gaap_release_token(namespace)
+            if token is None:
+                continue
+            if frame.filing_taxonomy_release != "mixed" and token != frame.filing_taxonomy_release:
+                continue
+            if concept_matches_decision(record, frame.cik, namespace, local_name):
                 return True
-        elif any(
-            name == local_name and token == frame.filing_taxonomy_release
-            for name, token in frame.us_gaap_concepts
-        ):
-            return True
     return False
-
-
-def _us_gaap_concepts(declared: Sequence[tuple[str, str]]) -> frozenset[tuple[str, str]]:
-    concepts: set[tuple[str, str]] = set()
-    for namespace, local_name in declared:
-        token = us_gaap_release_token(namespace)
-        if token is not None:
-            concepts.add((local_name, token))
-    return frozenset(concepts)
 
 
 def filing_frame_for_source(
@@ -171,8 +181,50 @@ def filing_frame_for_source(
         fiscal_year=fiscal_year,
         industry_bucket=industry_bucket or "unknown",
         filing_taxonomy_release=filing_taxonomy_release(namespaces),
-        us_gaap_concepts=_us_gaap_concepts(declared_concepts),
+        declared_concepts=frozenset(declared_concepts),
     )
+
+
+def _identity_counts(
+    findings: Sequence[Mapping[str, str]],
+) -> dict[str, tuple[int, int, int]]:
+    counts: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
+    for finding in findings:
+        accession = finding.get("accession")
+        status = finding.get("status")
+        if not isinstance(accession, str) or not accession:
+            raise QualityReportError("identity finding is missing accession")
+        index = _IDENTITY_INDEX.get(status or "")
+        if index is None:
+            raise QualityReportError(f"unknown identity status {status!r}")
+        counts[accession][index] += 1
+    return {accession: (values[0], values[1], values[2]) for accession, values in counts.items()}
+
+
+def _normalize_oracle_findings(
+    findings: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for item in findings:
+        status = item.get("status")
+        if status not in _ORACLE_FINDING_STATUSES:
+            raise QualityReportError(f"oracle finding status must be differ or ambiguous: {status}")
+        values = item.get("oracle_values")
+        if not isinstance(values, list | tuple):
+            raise QualityReportError("oracle finding is missing oracle_values")
+        rows.append(
+            {
+                "accession": str(item.get("accession") or ""),
+                "metric": str(item.get("metric") or ""),
+                "status": status,
+                "family": str(item.get("family") or ""),
+                "local_name": str(item.get("local_name") or ""),
+                "observation": str(item.get("observation") or ""),
+                "oracle_values": [str(value) for value in values],
+            }
+        )
+    rows.sort(key=lambda row: (str(row["accession"]), str(row["metric"]), str(row["status"])))
+    return rows
 
 
 def build_quality_document(
@@ -181,14 +233,17 @@ def build_quality_document(
     registry: DecisionRegistry,
     oracle_by_slot: Mapping[tuple[str, str], str],
     census_facts: Sequence[tuple[str, str, str]] = (),
+    identity_findings: Sequence[Mapping[str, str]] = (),
+    oracle_findings: Sequence[Mapping[str, object]] = (),
 ) -> dict[str, object]:
     cells: dict[tuple[str, str, str, str], QualityCell] = {}
+    members: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
 
-    def _cell(frame: FilingFrame, metric: str) -> QualityCell:
+    def _cell(frame: FilingFrame, metric: str) -> tuple[tuple[str, str, str, str], QualityCell]:
         key = (metric, frame.fiscal_year, frame.filing_taxonomy_release, frame.industry_bucket)
         existing = cells.get(key)
         if existing is not None:
-            return existing
+            return key, existing
         created = QualityCell(
             metric=metric,
             fiscal_year=frame.fiscal_year,
@@ -196,7 +251,7 @@ def build_quality_document(
             industry_bucket=frame.industry_bucket,
         )
         cells[key] = created
-        return created
+        return key, created
 
     for observation in observations:
         frame = filings.get(observation.accession)
@@ -208,26 +263,27 @@ def build_quality_document(
                 fiscal_year=observation.fy or "unknown",
                 industry_bucket="unknown",
                 filing_taxonomy_release="unknown",
-                us_gaap_concepts=frozenset(),
+                declared_concepts=frozenset(),
             )
-        cell = _cell(frame, observation.metric)
+        key, cell = _cell(frame, observation.metric)
+        members[key].add(observation.accession)
         cell.n_slots += 1
         if frame.form in ANNUAL_FORMS:
             cell.n_slot_eligible += 1
-        if observation.status == "value":
-            cell.n_value += 1
-        elif observation.status == "missing":
-            cell.n_missing += 1
-        elif observation.status == "unsupported":
-            cell.n_unsupported += 1
-            if observation.reason == "wrong_form":
-                cell.n_reason_wrong_form += 1
-            elif observation.reason == "decision_scope":
-                cell.n_reason_decision_scope += 1
+            if observation.status == "value":
+                cell.n_value += 1
+            elif observation.status == "missing":
+                cell.n_missing += 1
+            elif observation.status == "unsupported":
+                cell.n_unsupported += 1
+                if observation.reason == "decision_scope":
+                    cell.n_reason_decision_scope += 1
+                else:
+                    cell.n_reason_other_unsupported += 1
             else:
-                cell.n_reason_other_unsupported += 1
+                cell.n_conflict += 1
         else:
-            cell.n_conflict += 1
+            cell.n_ineligible_wrong_form += 1
         applicable = slot_decision_applicable(frame, observation.metric, registry)
         if applicable:
             cell.n_decision_applicable += 1
@@ -250,15 +306,19 @@ def build_quality_document(
         else:
             raise QualityReportError(f"unknown oracle label {label}")
 
+    identity = _identity_counts(identity_findings)
+    for key, cell in cells.items():
+        for accession in members[key]:
+            passed, failed, na = identity.get(accession, (0, 0, 0))
+            cell.identity_pass += passed
+            cell.identity_fail += failed
+            cell.identity_na += na
+
     rows: list[dict[str, object]] = []
     for key in sorted(cells):
         cell = cells[key]
         status_sum = cell.n_value + cell.n_missing + cell.n_unsupported + cell.n_conflict
-        reason_sum = (
-            cell.n_reason_wrong_form
-            + cell.n_reason_decision_scope
-            + cell.n_reason_other_unsupported
-        )
+        reason_sum = cell.n_reason_decision_scope + cell.n_reason_other_unsupported
         oracle_sum = (
             cell.oracle_agree
             + cell.oracle_differ
@@ -267,12 +327,13 @@ def build_quality_document(
             + cell.oracle_na
         )
         partitions = (
-            status_sum == cell.n_slots
+            status_sum == cell.n_slot_eligible
+            and cell.n_ineligible_wrong_form + cell.n_slot_eligible == cell.n_slots
             and oracle_sum == cell.n_slots
             and reason_sum == cell.n_unsupported
         )
         if not partitions:
-            raise QualityReportError(f"cell {key} does not partition n_slots")
+            raise QualityReportError(f"cell {key} does not partition its denominators")
         if not (cell.n_decision_applicable <= cell.n_slot_eligible <= cell.n_slots):
             raise QualityReportError(f"cell {key} breaks eligibility bounds")
         if cell.n_value > cell.n_decision_applicable:
@@ -285,8 +346,11 @@ def build_quality_document(
     return {
         "grain": "metric × fiscal_year × filing_taxonomy_release × industry_bucket",
         "filing_taxonomy_release_source": "us-gaap concept declarations",
+        "identity_source": "build findings, once per accession in the cell",
         "cells": rows,
+        "oracle_findings": _normalize_oracle_findings(oracle_findings),
         "name_census": {
+            "fact_scope": "non_dimensional",
             "by_qname": list(qname_census(census_facts)),
             "name_reuse_aggregate": list(name_reuse_aggregate(census_facts)),
         },
@@ -301,23 +365,43 @@ def render_quality_markdown(document: Mapping[str, object]) -> str:
         "# Quality report",
         "",
         "Taxonomy release is the filing's US-GAAP declaration release, not the selected concept.",
+        "Status counts partition eligible slots. Wrong-form slots are n_ineligible_wrong_form.",
+        "Identity columns copy build findings once per accession in the cell.",
         "",
         "| metric | fiscal_year | taxonomy_release | industry | n_slots | n_slot_eligible | "
-        "n_value | n_missing | n_unsupported | n_conflict | n_decision_applicable | "
-        "publication_rate | selector_yield | oracle_agree | oracle_differ | oracle_absent | "
+        "n_ineligible_wrong_form | n_value | n_missing | n_unsupported | n_conflict | "
+        "n_decision_applicable | publication_rate | selector_yield | identity_pass | "
+        "identity_fail | identity_na | oracle_agree | oracle_differ | oracle_absent | "
         "oracle_ambiguous | oracle_na |",
-        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+        "---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for cell in cells:
         if not isinstance(cell, dict):
             continue
         lines.append(
             "| {metric} | {fiscal_year} | {filing_taxonomy_release} | {industry_bucket} | "
-            "{n_slots} | {n_slot_eligible} | {n_value} | {n_missing} | {n_unsupported} | "
-            "{n_conflict} | {n_decision_applicable} | {publication_rate} | {selector_yield} | "
-            "{oracle_agree} | {oracle_differ} | {oracle_absent} | {oracle_ambiguous} | "
-            "{oracle_na} |".format(**cell)
+            "{n_slots} | {n_slot_eligible} | {n_ineligible_wrong_form} | {n_value} | "
+            "{n_missing} | {n_unsupported} | {n_conflict} | {n_decision_applicable} | "
+            "{publication_rate} | {selector_yield} | {identity_pass} | {identity_fail} | "
+            "{identity_na} | {oracle_agree} | {oracle_differ} | {oracle_absent} | "
+            "{oracle_ambiguous} | {oracle_na} |".format(**cell)
         )
+    lines.extend(["", "## Oracle findings", ""])
+    findings = document.get("oracle_findings")
+    if not isinstance(findings, list) or not findings:
+        lines.append("None.")
+    else:
+        for item in findings:
+            if not isinstance(item, dict):
+                continue
+            values = item.get("oracle_values")
+            rendered = ", ".join(str(value) for value in values) if isinstance(values, list) else ""
+            lines.append(
+                f"- {item.get('accession')} {item.get('metric')} {item.get('status')} "
+                f"{item.get('family')}:{item.get('local_name')} "
+                f"observation={item.get('observation')} oracle=[{rendered}]"
+            )
     lines.append("")
     return "\n".join(lines)
 
@@ -331,6 +415,27 @@ def _fiscal_years_by_accession(
     return grouped
 
 
+def oracle_slot_reports(
+    observations: Sequence[Observation],
+    facts_by_accession: Mapping[str, Mapping[int, FactRow]],
+    payloads_by_cik: Mapping[str, str | bytes | None],
+) -> tuple[dict[tuple[str, str], str], tuple[dict[str, object], ...]]:
+    """Labels for every slot, plus differ/ambiguous findings. Does not fetch."""
+    labels: dict[tuple[str, str], str] = {}
+    findings: list[dict[str, object]] = []
+    for observation in observations:
+        comparison: OracleComparison = oracle_comparison_for_observation(
+            observation,
+            facts_by_accession.get(observation.accession, {}),
+            payloads_by_cik.get(observation.cik),
+        )
+        labels[(observation.accession, observation.metric)] = comparison.status
+        if comparison.status in _ORACLE_FINDING_STATUSES:
+            findings.append(comparison.finding(observation))
+    findings.sort(key=lambda row: (str(row["accession"]), str(row["metric"]), str(row["status"])))
+    return labels, tuple(findings)
+
+
 def write_quality_report(
     engine: Engine,
     observations: Sequence[Observation],
@@ -339,6 +444,7 @@ def write_quality_report(
     sample_csv: Path,
     data_root: Path,
     output_json: Path,
+    identity_findings: Sequence[Mapping[str, str]] = (),
 ) -> dict[str, object]:
     sample: dict[str, SampleRow] = {}
     if sample_csv.is_file():
@@ -371,39 +477,28 @@ def write_quality_report(
             )
             for namespace, local_name in source.fact_concepts:
                 census.append((accession, namespace, local_name))
-        oracle_by_slot = _oracle_labels(observations, facts_by_accession, data_root)
+    payloads: dict[str, bytes | None] = {}
+    for observation in observations:
+        if observation.cik not in payloads:
+            payloads[observation.cik] = load_cached_companyfacts(data_root, observation.cik)
+    oracle_by_slot, oracle_findings = oracle_slot_reports(
+        observations,
+        facts_by_accession,
+        payloads,
+    )
     document = build_quality_document(
         observations,
         frames,
         registry,
         oracle_by_slot,
         census,
+        identity_findings,
+        oracle_findings,
     )
     write_json_atomic(output_json, document)
     markdown_path = output_json.with_suffix(".md")
     write_bytes_atomic(markdown_path, render_quality_markdown(document).encode("utf-8"))
     return document
-
-
-def _oracle_labels(
-    observations: Sequence[Observation],
-    facts_by_accession: Mapping[str, Mapping[int, FactRow]],
-    data_root: Path,
-) -> dict[tuple[str, str], str]:
-    cache: dict[str, bytes | None] = {}
-    labels: dict[tuple[str, str], str] = {}
-    for observation in observations:
-        payload = cache.get(observation.cik)
-        if observation.cik not in cache:
-            payload = load_cached_companyfacts(data_root, observation.cik)
-            cache[observation.cik] = payload
-        facts = facts_by_accession.get(observation.accession, {})
-        labels[(observation.accession, observation.metric)] = oracle_label_for_observation(
-            observation,
-            facts,
-            payload,
-        )
-    return labels
 
 
 def filing_facts_for_oracle(loaded: LoadedFiling | None) -> dict[int, FactRow]:

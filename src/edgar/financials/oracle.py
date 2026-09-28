@@ -42,6 +42,32 @@ class OracleAmbiguous:
     values: tuple[Decimal, ...]
 
 
+@dataclass(frozen=True)
+class OracleComparison:
+    """Slot comparison. ``differ`` and ``ambiguous`` carry inspectable values."""
+
+    status: str
+    family: str | None = None
+    local_name: str | None = None
+    observation: str | None = None
+    oracle_values: tuple[str, ...] = ()
+
+    def finding(self, observation: Observation) -> dict[str, object]:
+        return {
+            "accession": observation.accession,
+            "metric": observation.metric,
+            "status": self.status,
+            "family": self.family or "",
+            "local_name": self.local_name or "",
+            "observation": self.observation or "",
+            "oracle_values": list(self.oracle_values),
+        }
+
+
+def _decimal_text(value: Decimal) -> str:
+    return format(value, "f")
+
+
 def _json_decimal(value: object) -> Decimal:
     if isinstance(value, bool | float):
         raise OracleInputError("companyfacts numbers must not pass through a binary float")
@@ -177,14 +203,18 @@ def source_fact_oracle_eligible(fact: FactRow) -> bool:
     return _is_pure_usd(fact.unit_measures)
 
 
-def oracle_label_for_observation(
+def oracle_comparison_for_observation(
     observation: Observation,
     facts_by_id: Mapping[int, FactRow],
     companyfacts_payload: str | bytes | Mapping[str, Any] | None,
-) -> str:
-    """One of agree, differ, absent, ambiguous, na. Does not mutate the observation."""
+) -> OracleComparison:
+    """Compare one observation. Does not mutate it.
+
+    ``na`` covers a non-value observation, an ineligible source fact, or a
+    missing cache. ``differ`` and ``ambiguous`` keep the oracle decimals.
+    """
     if observation.status != "value" or observation.numeric is None or not observation.period_end:
-        return "na"
+        return OracleComparison(status="na")
     eligible = [
         fact
         for fid in observation.fact_ids
@@ -193,10 +223,11 @@ def oracle_label_for_observation(
         and fact.resolved_numeric == observation.numeric
     ]
     if not eligible or companyfacts_payload is None:
-        return "na"
+        return OracleComparison(status="na")
     fact = min(eligible, key=lambda item: item.fact_id)
     family = classify(fact.concept_namespace).semantic_family
     unit = observation.unit or "USD"
+    observed = _decimal_text(observation.numeric)
     try:
         result = oracle_value(
             companyfacts_payload,
@@ -209,11 +240,47 @@ def oracle_label_for_observation(
             unit=unit,
         )
     except (OracleInputError, ValueError):
-        return "na"
+        return OracleComparison(status="na")
     if isinstance(result, OracleAbsent):
-        return "absent"
+        return OracleComparison(
+            status="absent",
+            family=family,
+            local_name=fact.concept_local_name,
+            observation=observed,
+        )
     if isinstance(result, OracleAmbiguous):
-        return "ambiguous"
+        return OracleComparison(
+            status="ambiguous",
+            family=family,
+            local_name=fact.concept_local_name,
+            observation=observed,
+            oracle_values=tuple(_decimal_text(value) for value in result.values),
+        )
     if result.value == observation.numeric:
-        return "agree"
-    return "differ"
+        return OracleComparison(
+            status="agree",
+            family=family,
+            local_name=fact.concept_local_name,
+            observation=observed,
+            oracle_values=(_decimal_text(result.value),),
+        )
+    return OracleComparison(
+        status="differ",
+        family=family,
+        local_name=fact.concept_local_name,
+        observation=observed,
+        oracle_values=(_decimal_text(result.value),),
+    )
+
+
+def oracle_label_for_observation(
+    observation: Observation,
+    facts_by_id: Mapping[int, FactRow],
+    companyfacts_payload: str | bytes | Mapping[str, Any] | None,
+) -> str:
+    """One of agree, differ, absent, ambiguous, na. Does not mutate the observation."""
+    return oracle_comparison_for_observation(
+        observation,
+        facts_by_id,
+        companyfacts_payload,
+    ).status

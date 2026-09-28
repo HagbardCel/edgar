@@ -271,12 +271,19 @@ def load_quality_filing_source(conn: Connection, accession: str) -> QualityFilin
                 .distinct()
             )
         ]
+        dimensional = (
+            select(src.source_context_dimension.c.context_id)
+            .where(src.source_context_dimension.c.context_id == src.source_context.c.id)
+            .exists()
+        )
         fact_concepts = [
             (row.namespace_uri, row.local_name)
             for row in conn.execute(
                 select(src.source_concept.c.namespace_uri, src.source_concept.c.local_name)
                 .join(src.source_fact, src.source_fact.c.concept_id == src.source_concept.c.id)
+                .join(src.source_context, src.source_fact.c.context_id == src.source_context.c.id)
                 .where(src.source_fact.c.report_id == report_id)
+                .where(~dimensional)
                 .distinct()
             )
         ]

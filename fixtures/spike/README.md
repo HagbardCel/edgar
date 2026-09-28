@@ -22,5 +22,11 @@ semantic audit, and the storage and taxonomy ADRs are follow-up work after
 those measurements exist.
 
 The name census in a quality report counts distinct accessions per expanded
-Clark QName. A separate `name_reuse_aggregate` groups by semantic family,
-namespace release, and local name. That rollup is not source identity.
+Clark QName of facts whose context has no `source.context_dimension` row. A
+concept that appears only on a dimensional context is absent. A concept that
+appears both ways is counted once. A separate `name_reuse_aggregate` groups by
+semantic family, namespace release, and local name. That rollup is not source
+identity.
+
+`edgar filings companyfacts --accessions-file p2-accessions.txt` is the
+explicit cache population path. `edgar build` only reads that cache.

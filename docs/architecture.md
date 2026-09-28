@@ -11,8 +11,8 @@ status and authority.
 
 **Status:** Phase 2C registry facilities on the Phase 2B `source.*` baseline.
 **P1 walking skeleton is implemented** (`edgar build`, Git decisions, m0 gold).
-**P2 software is implemented** (batch extract, companyfacts oracle, quality
-report) on the frozen six-filing sample. The P2 measurement exit gate is not
+**P2 software is implemented** (batch extract, companyfacts cache and oracle,
+quality report) on the frozen six-filing sample. The P2 measurement exit gate is not
 met ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md)).
 
 P1/P2 are not an incomplete implementation of the older SQLMesh /

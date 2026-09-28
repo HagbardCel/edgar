@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from edgar.config import Settings
-from edgar.domain.identifiers import companyfacts_url, validate_cik
+from edgar.domain.identifiers import accession_to_cik, companyfacts_url, validate_cik
 from edgar.sec.client import ControlledFetcher
 from edgar.storage.objects import ObjectStore, StoredObject, write_bytes_atomic
 
@@ -30,6 +31,31 @@ def cache_companyfacts(
     pointer = companyfacts_pointer_path(settings.edgar_data_root, cik)
     write_bytes_atomic(pointer, (stored.sha256 + "\n").encode("utf-8"))
     return stored
+
+
+def distinct_ciks(accessions: Sequence[str]) -> tuple[str, ...]:
+    """Zero-padded CIKs from accessions, first-seen order, duplicates removed."""
+    seen: list[str] = []
+    for accession in accessions:
+        cik = accession_to_cik(accession)
+        if cik not in seen:
+            seen.append(cik)
+    return tuple(seen)
+
+
+def cache_companyfacts_for_accessions(
+    settings: Settings,
+    accessions: Sequence[str],
+    fetcher: ControlledFetcher,
+) -> tuple[StoredObject, ...]:
+    """Populate the CAS for each distinct CIK using the caller's fetcher.
+
+    ``edgar build`` does not call this. A quality report only reads the cache.
+    """
+    stored: list[StoredObject] = []
+    for cik in distinct_ciks(accessions):
+        stored.append(cache_companyfacts(settings, cik, fetcher))
+    return tuple(stored)
 
 
 def load_cached_companyfacts(data_root: Path, cik: str) -> bytes | None:
