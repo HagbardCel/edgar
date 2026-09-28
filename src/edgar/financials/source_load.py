@@ -12,6 +12,16 @@ from edgar.db import source_schema as src
 from edgar.domain.concept_id import clark_qname
 from edgar.financials.models import FactRow, UnitMeasureRow
 from edgar.financials.period import DEI_LOCAL_DOCUMENT_PERIOD_END, DeiPeriodCandidate
+from edgar.xbrl.taxonomy_family import classify
+
+
+@dataclass(frozen=True)
+class FilingMetadata:
+    accession: str
+    cik: str
+    form: str
+    accepted_at: str | None
+    filing_id: int
 
 
 @dataclass(frozen=True)
@@ -24,39 +34,57 @@ class LoadedFiling:
     dei_candidates: tuple[DeiPeriodCandidate, ...]
 
 
-def load_filing(conn: Connection, accession: str) -> LoadedFiling | None:
-    filing_row = conn.execute(
-        select(
-            src.source_filing.c.accession,
-            src.source_filing.c.issuer_cik,
-            src.source_filing.c.form,
-            src.source_filing.c.accepted_at,
-            src.source_filing.c.id,
-        ).where(src.source_filing.c.accession == accession)
-    ).mappings().first()
+def load_filing_metadata(conn: Connection, accession: str) -> FilingMetadata | None:
+    filing_row = (
+        conn.execute(
+            select(
+                src.source_filing.c.accession,
+                src.source_filing.c.issuer_cik,
+                src.source_filing.c.form,
+                src.source_filing.c.accepted_at,
+                src.source_filing.c.id,
+            ).where(src.source_filing.c.accession == accession)
+        )
+        .mappings()
+        .first()
+    )
     if filing_row is None:
         return None
+    return FilingMetadata(
+        accession=accession,
+        cik=filing_row["issuer_cik"],
+        form=filing_row["form"],
+        accepted_at=_iso(filing_row["accepted_at"]),
+        filing_id=filing_row["id"],
+    )
+
+
+def load_filing(conn: Connection, accession: str) -> LoadedFiling | None:
+    meta = load_filing_metadata(conn, accession)
+    if meta is None:
+        return None
+    return _load_filing_body(conn, meta)
+
+
+def _load_filing_body(conn: Connection, meta: FilingMetadata) -> LoadedFiling:
     report_row = conn.execute(
         select(src.source_xbrl_report.c.id)
-        .where(src.source_xbrl_report.c.filing_id == filing_row["id"])
+        .where(src.source_xbrl_report.c.filing_id == meta.filing_id)
         .order_by(src.source_xbrl_report.c.id.desc())
         .limit(1)
     ).first()
     if report_row is None:
         return LoadedFiling(
-            accession=accession,
-            cik=filing_row["issuer_cik"],
-            form=filing_row["form"],
-            accepted_at=_iso(filing_row["accepted_at"]),
+            accession=meta.accession,
+            cik=meta.cik,
+            form=meta.form,
+            accepted_at=meta.accepted_at,
             facts=(),
             dei_candidates=(),
         )
     report_id = report_row[0]
     dim_contexts = {
-        row[0]
-        for row in conn.execute(
-            select(src.source_context_dimension.c.context_id).distinct()
-        )
+        row[0] for row in conn.execute(select(src.source_context_dimension.c.context_id).distinct())
     }
     unit_measures: dict[int, list[UnitMeasureRow]] = {}
     for row in conn.execute(
@@ -112,6 +140,7 @@ def load_filing(conn: Connection, accession: str) -> LoadedFiling | None:
         numeric = row.resolved_numeric
         if numeric is not None and not isinstance(numeric, Decimal):
             numeric = Decimal(str(numeric))
+        lexical = row.raw_lexical_value
         fr = FactRow(
             fact_id=row.id,
             concept_namespace=row.namespace_uri,
@@ -122,6 +151,7 @@ def load_filing(conn: Connection, accession: str) -> LoadedFiling | None:
             resolved_numeric=numeric,
             is_nil=row.is_nil,
             decimals=row.decimals,
+            lexical_value=lexical,
             entity_scheme=row.entity_scheme,
             entity_identifier=row.entity_identifier,
             period_kind=row.period_kind,
@@ -134,25 +164,27 @@ def load_filing(conn: Connection, accession: str) -> LoadedFiling | None:
         facts.append(fr)
         if (
             row.local_name == DEI_LOCAL_DOCUMENT_PERIOD_END
+            and classify(row.namespace_uri).semantic_family == "dei"
             and row.context_id not in dim_contexts
-            and row.raw_lexical_value
+            and lexical
         ):
             dei.append(
                 DeiPeriodCandidate(
+                    context_id=row.context_id,
                     context_entity_scheme=row.entity_scheme,
                     context_entity_identifier=row.entity_identifier,
                     period_kind=row.period_kind,
                     instant_lexical=row.instant_lexical,
                     start_lexical=row.start_lexical,
                     end_lexical=row.end_lexical,
-                    document_period_end_value=row.raw_lexical_value,
+                    document_period_end_value=lexical,
                 )
             )
     return LoadedFiling(
-        accession=accession,
-        cik=filing_row["issuer_cik"],
-        form=filing_row["form"],
-        accepted_at=_iso(filing_row["accepted_at"]),
+        accession=meta.accession,
+        cik=meta.cik,
+        form=meta.form,
+        accepted_at=meta.accepted_at,
         facts=tuple(facts),
         dei_candidates=tuple(dei),
     )

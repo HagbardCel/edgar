@@ -34,6 +34,7 @@ class FactRow:
     resolved_numeric: Decimal | None
     is_nil: bool
     decimals: str | None
+    lexical_value: str | None
     entity_scheme: str
     entity_identifier: str
     period_kind: str

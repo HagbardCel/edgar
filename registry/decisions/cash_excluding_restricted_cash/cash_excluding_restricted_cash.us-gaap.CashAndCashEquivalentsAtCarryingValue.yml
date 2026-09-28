@@ -9,8 +9,10 @@ status: accepted
 method: curated
 rationale: P1 walking skeleton exact mapping for CashAndCashEquivalentsAtCarryingValue.
 evidence:
-- kind: curated
-  source: registry/metrics.yml
+- kind: filing_fact
+  accession: "0000104169-24-000056"
+  concept: us-gaap:CashAndCashEquivalentsAtCarryingValue
+  locator: xbrl:undimensioned-fact
 reviewed:
   by: p1-bootstrap
   'on': '2026-09-28'

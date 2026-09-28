@@ -68,8 +68,12 @@ def oim_reduce_group(facts: tuple[NumericFactOccurrence, ...]) -> OimResolution 
         )
     for f in facts:
         for other in facts:
-            if f.decimals == other.decimals and f.value != other.value:
+            if f is other:
+                continue
+            same_dec = _parse_decimals(f.decimals) == _parse_decimals(other.decimals)
+            if same_dec and f.value != other.value:
                 return None
+
     def _prec_key(d: str | None) -> tuple[int, int]:
         parsed = _parse_decimals(d)
         if parsed == "INF":

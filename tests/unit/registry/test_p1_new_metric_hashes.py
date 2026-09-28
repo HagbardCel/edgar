@@ -14,9 +14,7 @@ PINNED_HASHES: dict[str, str] = {
     "cash_excluding_restricted_cash": (
         "42e3ef09680a26ef55429b0399e28e69f1a13239cae0651b0186430a22a83313"
     ),
-    "cash_purchases_of_ppe": (
-        "e4bce1078d73e7132623984fd3bd2bccccfa4340ec7f21d0acf0d137216c8711"
-    ),
+    "cash_purchases_of_ppe": ("e4bce1078d73e7132623984fd3bd2bccccfa4340ec7f21d0acf0d137216c8711"),
 }
 
 

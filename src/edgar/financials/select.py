@@ -9,7 +9,12 @@ from edgar.domain.identifiers import validate_cik
 from edgar.financials.decimals import NumericFactOccurrence, oim_reduce_group
 from edgar.financials.decisions import DecisionRegistry, issuer_excluded
 from edgar.financials.models import FactRow, Observation, Support, SupportRef
-from edgar.financials.period import SEC_CIK_SCHEME, ReportingPeriod, period_matches
+from edgar.financials.period import (
+    SEC_CIK_SCHEME,
+    MetricPeriodType,
+    ReportingPeriod,
+    period_matches_metric,
+)
 
 ISO_USD_NS = "http://www.xbrl.org/2003/iso4217"
 ANNUAL_FORMS = frozenset({"10-K", "10-K/A"})
@@ -32,7 +37,12 @@ def _entity_matches(fact: FactRow, filing_cik: str) -> bool:
     return validate_cik(fact.entity_identifier) == validate_cik(filing_cik)
 
 
-def _fact_qualifies_slot(fact: FactRow, filing_cik: str, period: ReportingPeriod) -> bool:
+def _fact_qualifies_slot(
+    fact: FactRow,
+    filing_cik: str,
+    period: ReportingPeriod,
+    metric_period_type: MetricPeriodType,
+) -> bool:
     if fact.has_dimensions:
         return False
     if fact.value_status != "valid" or fact.is_nil or fact.resolved_numeric is None:
@@ -41,7 +51,8 @@ def _fact_qualifies_slot(fact: FactRow, filing_cik: str, period: ReportingPeriod
         return False
     if not _is_pure_usd(fact.unit_measures):
         return False
-    return period_matches(
+    return period_matches_metric(
+        metric_period_type,
         period,
         fact.period_kind,
         fact.instant_lexical,
@@ -60,13 +71,15 @@ def select_metric(
     supports: tuple[Support, ...],
     registry: DecisionRegistry,
     available_at: str | None,
+    *,
+    metric_period_type: MetricPeriodType,
 ) -> Observation:
     base = Observation(
         cik=filing_cik,
         accession=accession,
         metric=metric,
-        fy=None,
-        report_focus=None,
+        fy=period.fiscal_year_focus if period else None,
+        report_focus=period.fiscal_period_focus if period else None,
         period_role=None,
         period_start=period.start if period else None,
         period_end=period.end if period else None,
@@ -109,12 +122,12 @@ def select_metric(
         fact = fact_by_id.get(s.fact_id)
         if fact is None:
             continue
-        if _fact_qualifies_slot(fact, filing_cik, period):
+        if _fact_qualifies_slot(fact, filing_cik, period, metric_period_type):
             candidates.append((s, fact))
 
     broader_supports = [s for s in supports if s.metric == metric and s.relation == "broader"]
     broader_qualified = any(
-        _fact_qualifies_slot(fact_by_id[s.fact_id], filing_cik, period)
+        _fact_qualifies_slot(fact_by_id[s.fact_id], filing_cik, period, metric_period_type)
         for s in broader_supports
         if s.fact_id in fact_by_id
     )

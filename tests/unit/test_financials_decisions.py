@@ -9,7 +9,9 @@ _REGISTRY = _REPO / "registry"
 
 def test_us_gaap_expansion_year_agnostic() -> None:
     registry = load_decisions(_REGISTRY)
-    rev = registry.by_id()["revenue.us-gaap.RevenueFromContractWithCustomerExcludingAssessedTax"].record
+    rev = registry.by_id()[
+        "revenue.us-gaap.RevenueFromContractWithCustomerExcludingAssessedTax"
+    ].record
     assert concept_matches_decision(
         rev,
         "0001065088",
@@ -38,6 +40,14 @@ def test_m0_metrics_have_exact_decisions() -> None:
 
     errors = [f for f in run_rules_check(_REGISTRY) if f.level == "error"]
     assert not errors
+
+
+def test_stale_rejected_rules_check_warning() -> None:
+    from edgar.financials.rules_check import run_rules_check
+
+    findings = run_rules_check(_REGISTRY)
+    assert not any(f.level == "error" for f in findings)
+    # Live registry should not emit rules-check errors.
 
 
 def test_stale_accepted_raises() -> None:

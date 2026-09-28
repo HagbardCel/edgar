@@ -83,6 +83,21 @@ class DecisionRecord(BaseModel):
     def _evidence_when_operational(self) -> DecisionRecord:
         if self.status in ("accepted", "rejected") and not self.evidence:
             raise ValueError(f"{self.id}: operational decisions require evidence")
+        substantive = False
+        for ev in self.evidence:
+            if ev.accession and ev.locator:
+                substantive = True
+                break
+            if ev.concept and (ev.quote or ev.artifact_sha256):
+                substantive = True
+                break
+            if ev.kind in ("filing_fact", "taxonomy", "metalinks"):
+                substantive = True
+                break
+        if self.status in ("accepted", "rejected") and not substantive:
+            raise ValueError(
+                f"{self.id}: evidence must point at filing or taxonomy facts, not metric defs alone"
+            )
         return self
 
 
@@ -155,12 +170,8 @@ def load_decisions(
             current_hash = definition_hash(metrics[record.metric])
             stale = record.contract_hash != current_hash
             if stale and record.status == "accepted" and fatal_stale_accepted:
-                raise StaleAcceptedDecisionError(
-                    f"stale accepted decision {record.id} in {path}"
-                )
-            loaded_decisions.append(
-                LoadedDecision(record=record, path=path, stale_inactive=stale)
-            )
+                raise StaleAcceptedDecisionError(f"stale accepted decision {record.id} in {path}")
+            loaded_decisions.append(LoadedDecision(record=record, path=path, stale_inactive=stale))
     keys_seen: set[tuple[str, str, str, str]] = set()
     for ld in loaded_decisions:
         if ld.stale_inactive:

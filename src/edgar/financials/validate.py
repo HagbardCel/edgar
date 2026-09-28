@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Literal
 
 from edgar.financials.decimals import ClosedInterval, NumericFactOccurrence, oim_reduce_group
 from edgar.financials.gold import GoldAssertion, compare_gold
 from edgar.financials.models import FactRow, Observation
-from edgar.financials.period import ReportingPeriod, period_matches
+from edgar.financials.period import ReportingPeriod, period_matches_metric
 from edgar.financials.select import _entity_matches, _is_pure_usd
 
 FindingStatus = Literal["pass", "fail", "not_applicable"]
@@ -40,18 +41,16 @@ def _qualifying_facts(
             continue
         if not _entity_matches(f, filing_cik) or not _is_pure_usd(f.unit_measures):
             continue
-        if duration:
-            if f.period_kind != "duration":
-                continue
-            if not period_matches(
-                period, f.period_kind, f.instant_lexical, f.start_lexical, f.end_lexical
-            ):
-                continue
-        else:
-            if f.period_kind != "instant":
-                continue
-            if f.instant_lexical != period.end:
-                continue
+        metric_period_type = "duration" if duration else "instant"
+        if not period_matches_metric(
+            metric_period_type,
+            period,
+            f.period_kind,
+            f.instant_lexical,
+            f.start_lexical,
+            f.end_lexical,
+        ):
+            continue
         out.append(f)
     return tuple(out)
 
@@ -61,6 +60,7 @@ def _operand_interval(facts: tuple[FactRow, ...]) -> ClosedInterval | None:
     for f in facts:
         by_qname[f"{f.concept_namespace}|{f.concept_local_name}"].append(f)
     intervals: list[ClosedInterval] = []
+    survivor_values: list[Decimal] = []
     for group in by_qname.values():
         occs = tuple(
             NumericFactOccurrence(f.fact_id, f.resolved_numeric, f.decimals)
@@ -70,8 +70,11 @@ def _operand_interval(facts: tuple[FactRow, ...]) -> ClosedInterval | None:
         reduced = oim_reduce_group(occs)
         if reduced is None:
             return None
+        survivor_values.append(reduced.survivor_value)
         intervals.append(reduced.consistent_interval)
     if not intervals:
+        return None
+    if len(set(survivor_values)) > 1:
         return None
     if len(intervals) > 1:
         lo = max(i.lo for i in intervals)

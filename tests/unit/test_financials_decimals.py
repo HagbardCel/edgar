@@ -39,6 +39,32 @@ def test_same_decimals_unequal_conflict() -> None:
     assert oim_reduce_group(group) is None
 
 
+def test_inf_equal_values_reduce() -> None:
+    group = (
+        NumericFactOccurrence(1, Decimal("100"), "INF"),
+        NumericFactOccurrence(2, Decimal("100"), "INF"),
+    )
+    res = oim_reduce_group(group)
+    assert res is not None
+    assert res.survivor_value == Decimal("100")
+
+
+def test_inf_unequal_conflict() -> None:
+    group = (
+        NumericFactOccurrence(1, Decimal("100"), "INF"),
+        NumericFactOccurrence(2, Decimal("200"), "INF"),
+    )
+    assert oim_reduce_group(group) is None
+
+
+def test_same_decimals_lexical_zero_equivalent() -> None:
+    group = (
+        NumericFactOccurrence(1, Decimal("100"), "0"),
+        NumericFactOccurrence(2, Decimal("200"), "+0"),
+    )
+    assert oim_reduce_group(group) is None
+
+
 def test_interval_identity_counterexample() -> None:
     a = fact_interval(Decimal("2500"), "-2")
     b = fact_interval(Decimal("2000"), "-3")

@@ -21,6 +21,7 @@ def test_support_carries_clark_qname() -> None:
         resolved_numeric=Decimal("1"),
         is_nil=False,
         decimals="0",
+        lexical_value=None,
         entity_scheme="http://www.sec.gov/CIK",
         entity_identifier="0001065088",
         period_kind="instant",
@@ -28,9 +29,7 @@ def test_support_carries_clark_qname() -> None:
         start_lexical=None,
         end_lexical=None,
         has_dimensions=False,
-        unit_measures=(
-            UnitMeasureRow("numerator", 1, "http://www.xbrl.org/2003/iso4217", "USD"),
-        ),
+        unit_measures=(UnitMeasureRow("numerator", 1, "http://www.xbrl.org/2003/iso4217", "USD"),),
     )
     supports = resolve_supports((fact,), registry, "acc", "0001065088")
     assert supports

@@ -17,10 +17,10 @@ from edgar.financials.cohort import load_m0_cohort
 from edgar.financials.decisions import load_decisions
 from edgar.financials.gold import GoldFile, load_gold
 from edgar.financials.models import Observation
-from edgar.financials.period import resolve_required_reporting_period
+from edgar.financials.period import MetricPeriodType, resolve_required_reporting_period
 from edgar.financials.resolve import resolve_supports
 from edgar.financials.select import ANNUAL_FORMS, select_metric
-from edgar.financials.source_load import load_filing
+from edgar.financials.source_load import load_filing, load_filing_metadata
 from edgar.financials.validate import check_gold_assertions, run_identity_checks
 from edgar.xbrl.source_records import EXTRACTOR_VERSION
 
@@ -50,32 +50,54 @@ def run_build(
     cohort = load_m0_cohort(registry_dir)
     registry = load_decisions(registry_dir, fatal_stale_accepted=True)
     gold_file: GoldFile | None = None
-    gold_path = registry_dir / "gold" / "m0-annual.yml"
-    if gold_path.is_file():
-        gold_file = load_gold(gold_path)
+    if check_gold:
+        gold_path = registry_dir / "gold" / "m0-annual.yml"
+        if gold_path.is_file():
+            gold_file = load_gold(gold_path)
 
     observations: list[Observation] = []
     findings: list[dict[str, str]] = []
 
     with engine.connect() as conn:
         for accession in accessions:
-            loaded = load_filing(conn, accession)
-            if loaded is None:
+            meta = load_filing_metadata(conn, accession)
+            if meta is None:
                 raise ValueError(f"accession not in source.*: {accession}")
-            supports = resolve_supports(loaded.facts, registry, accession, loaded.cik)
-            period = None
-            if loaded.form in ANNUAL_FORMS:
-                period = resolve_required_reporting_period(loaded.dei_candidates, loaded.cik)
-                for finding in run_identity_checks(accession, loaded.cik, period, loaded.facts):
-                    findings.append(
-                        {
-                            "accession": finding.accession,
-                            "name": finding.name,
-                            "status": finding.status,
-                            "detail": finding.detail or "",
-                        }
+            if meta.form not in ANNUAL_FORMS:
+                for metric in cohort.metrics:
+                    period_type: MetricPeriodType = registry.metrics_by_key[metric].period_type
+                    observations.append(
+                        select_metric(
+                            metric,
+                            meta.form,
+                            meta.cik,
+                            accession,
+                            None,
+                            (),
+                            (),
+                            registry,
+                            meta.accepted_at,
+                            metric_period_type=period_type,
+                        )
                     )
+                continue
+            loaded = load_filing(conn, accession)
+            assert loaded is not None
+            supports = resolve_supports(loaded.facts, registry, accession, loaded.cik)
+            period = resolve_required_reporting_period(
+                loaded.dei_candidates, loaded.cik, loaded.facts
+            )
+            for finding in run_identity_checks(accession, loaded.cik, period, loaded.facts):
+                findings.append(
+                    {
+                        "accession": finding.accession,
+                        "name": finding.name,
+                        "status": finding.status,
+                        "detail": finding.detail or "",
+                    }
+                )
             for metric in cohort.metrics:
+                period_type = registry.metrics_by_key[metric].period_type
                 obs = select_metric(
                     metric,
                     loaded.form,
@@ -86,6 +108,7 @@ def run_build(
                     supports,
                     registry,
                     loaded.accepted_at,
+                    metric_period_type=period_type,
                 )
                 observations.append(obs)
 
@@ -120,6 +143,7 @@ def write_build_output(
     if output_dir.exists():
         raise FileExistsError(f"output directory already exists: {output_dir}")
     parent = output_dir.parent
+    parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".edgar-build-", dir=parent) as tmp:
         tmp_path = Path(tmp)
         _write_observations_csv(

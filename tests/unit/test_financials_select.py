@@ -23,6 +23,7 @@ def _fact(
     end: str = "2023-12-31",
     instant: str | None = None,
     duration: bool = True,
+    cik: str = "0001065088",
 ) -> FactRow:
     return FactRow(
         fact_id=fact_id,
@@ -34,8 +35,9 @@ def _fact(
         resolved_numeric=value,
         is_nil=False,
         decimals=decimals,
+        lexical_value=None,
         entity_scheme="http://www.sec.gov/CIK",
-        entity_identifier="0000104169",
+        entity_identifier=cik,
         period_kind="duration" if duration else "instant",
         instant_lexical=instant,
         start_lexical=start if duration else None,
@@ -45,12 +47,82 @@ def _fact(
     )
 
 
+def test_one_reporting_period_duration_and_instant() -> None:
+    registry = load_decisions(_REGISTRY)
+    period = ReportingPeriod(start="2023-01-01", end="2023-12-31")
+    facts = (
+        _fact(
+            1,
+            "RevenueFromContractWithCustomerExcludingAssessedTax",
+            Decimal("100"),
+            "-3",
+            start="2023-01-01",
+            end="2023-12-31",
+        ),
+        _fact(
+            2,
+            "Assets",
+            Decimal("500"),
+            "-3",
+            instant="2023-12-31",
+            duration=False,
+            context_id=2,
+        ),
+    )
+    supports = resolve_supports(facts, registry, "0001065088-24-000036", "0001065088")
+    rev = select_metric(
+        "revenue",
+        "10-K",
+        "0001065088",
+        "0001065088-24-000036",
+        period,
+        facts,
+        supports,
+        registry,
+        None,
+        metric_period_type="duration",
+    )
+    assets = select_metric(
+        "total_assets",
+        "10-K",
+        "0001065088",
+        "0001065088-24-000036",
+        period,
+        facts,
+        supports,
+        registry,
+        None,
+        metric_period_type="instant",
+    )
+    assert rev.status == "value"
+    assert rev.numeric == Decimal("100")
+    assert assets.status == "value"
+    assert assets.numeric == Decimal("500")
+
+
 def test_walmart_cash_oim_survivor() -> None:
     registry = load_decisions(_REGISTRY)
-    period = ReportingPeriod(kind="instant", start=None, end="2024-01-31")
+    period = ReportingPeriod(start="2023-02-01", end="2024-01-31")
     facts = (
-        _fact(1, "CashAndCashEquivalentsAtCarryingValue", Decimal("9867000000"), "-6", instant="2024-01-31", duration=False),
-        _fact(2, "CashAndCashEquivalentsAtCarryingValue", Decimal("9900000000"), "-8", instant="2024-01-31", duration=False, context_id=2),
+        _fact(
+            1,
+            "CashAndCashEquivalentsAtCarryingValue",
+            Decimal("9867000000"),
+            "-6",
+            instant="2024-01-31",
+            duration=False,
+            cik="0000104169",
+        ),
+        _fact(
+            2,
+            "CashAndCashEquivalentsAtCarryingValue",
+            Decimal("9900000000"),
+            "-8",
+            instant="2024-01-31",
+            duration=False,
+            context_id=2,
+            cik="0000104169",
+        ),
     )
     supports = resolve_supports(facts, registry, "0000104169-24-000056", "0000104169")
     obs = select_metric(
@@ -63,6 +135,7 @@ def test_walmart_cash_oim_survivor() -> None:
         supports,
         registry,
         None,
+        metric_period_type="instant",
     )
     assert obs.status == "value"
     assert obs.numeric == Decimal("9867000000")
@@ -80,6 +153,7 @@ def test_10q_wrong_form() -> None:
         (),
         registry,
         None,
+        metric_period_type="duration",
     )
     assert obs.status == "unsupported"
     assert obs.reason == "wrong_form"
@@ -87,7 +161,7 @@ def test_10q_wrong_form() -> None:
 
 def test_broader_only_missing() -> None:
     registry = load_decisions(_REGISTRY)
-    period = ReportingPeriod(kind="duration", start="2023-02-01", end="2024-01-31")
+    period = ReportingPeriod(start="2023-02-01", end="2024-01-31")
     facts = (
         _fact(
             1,
@@ -96,6 +170,7 @@ def test_broader_only_missing() -> None:
             "-3",
             start="2023-02-01",
             end="2024-01-31",
+            cik="0000104169",
         ),
     )
     supports = resolve_supports(facts, registry, "0000104169-24-000056", "0000104169")
@@ -109,6 +184,7 @@ def test_broader_only_missing() -> None:
         supports,
         registry,
         None,
+        metric_period_type="duration",
     )
     assert obs.status == "missing"
     assert obs.reason == "broader_only"

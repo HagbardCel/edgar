@@ -9,8 +9,10 @@ status: accepted
 method: curated
 rationale: P1 walking skeleton exact mapping for NetCashProvidedByUsedInOperatingActivities.
 evidence:
-- kind: curated
-  source: registry/metrics.yml
+- kind: filing_fact
+  accession: "0001065088-24-000036"
+  concept: us-gaap:NetCashProvidedByUsedInOperatingActivities
+  locator: xbrl:undimensioned-fact
 reviewed:
   by: p1-bootstrap
   'on': '2026-09-28'

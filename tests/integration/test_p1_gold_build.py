@@ -9,8 +9,13 @@ from pathlib import Path
 import pytest
 from sqlalchemy import Engine, create_engine
 
+from edgar.config import Settings
 from edgar.corpus_manifest import load_corpus_manifest
 from edgar.financials.build import default_accessions, run_build
+from edgar.financials.gold import load_gold
+from edgar.ingestion.source_extract import SourceExtractService
+from edgar.storage.bundles import BundleRepository
+from edgar.storage.objects import ObjectStore
 from tests.helpers.database import reset_test_database, test_database_url
 
 pytestmark = pytest.mark.database
@@ -24,6 +29,7 @@ def engine() -> Iterator[Engine]:
     yield eng
     eng.dispose()
 
+
 _REPO = Path(__file__).resolve().parents[2]
 
 
@@ -36,6 +42,28 @@ def _corpus_bundles_present(data_root: Path) -> bool:
     return True
 
 
+def _published_bundle_dir(data_root: Path, cik: str, accession: str) -> Path:
+    base = data_root / "bundles" / cik / accession
+    candidates = [p for p in base.iterdir() if p.is_dir() and (p / "bundle.json").is_file()]
+    if len(candidates) != 1:
+        raise AssertionError(f"expected one published bundle under {base}, got {candidates}")
+    return candidates[0]
+
+
+def _extract_corpus(engine: Engine, data_root: Path) -> int:
+    manifest = load_corpus_manifest(_REPO / "fixtures" / "corpus.toml")
+    store = ObjectStore(data_root)
+    repo = BundleRepository(data_root, store)
+    settings = Settings().model_copy(update={"edgar_data_root": data_root})
+    service = SourceExtractService(settings, engine=engine, bundles=repo)
+    extracted = 0
+    for filing in manifest.filings:
+        bundle_dir = _published_bundle_dir(data_root, filing.cik, filing.accession)
+        service.extract_published_bundle(bundle_dir)
+        extracted += 1
+    return extracted
+
+
 def test_p1_gold_build(engine) -> None:  # noqa: ANN001
     data_root = os.environ.get("EDGAR_DATA_ROOT", "").strip()
     if not data_root:
@@ -45,4 +73,13 @@ def test_p1_gold_build(engine) -> None:  # noqa: ANN001
         pytest.skip("corpus bundles not present under EDGAR_DATA_ROOT")
     registry_dir = _REPO / "registry"
     accessions = default_accessions(_REPO)
-    run_build(engine, registry_dir, _REPO, accessions, check_gold=True)
+    assert len(accessions) == 6
+    extracted = _extract_corpus(engine, root)
+    assert extracted == 6
+    result = run_build(engine, registry_dir, _REPO, accessions, check_gold=True)
+    assert len(result.observations) == 48
+    assert result.gold_assertions_checked == 19
+    assert not result.gold_errors
+    gold = load_gold(registry_dir / "gold" / "m0-annual.yml")
+    value_assertions = [a for a in gold.assertions if a.status == "value"]
+    assert len(value_assertions) == 15

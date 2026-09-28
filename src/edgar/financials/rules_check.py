@@ -15,7 +15,6 @@ class RulesCheckFinding:
     message: str
 
 
-
 def run_rules_check(registry_dir: Path) -> tuple[RulesCheckFinding, ...]:
     findings: list[RulesCheckFinding] = []
     registry = load_decisions(registry_dir, fatal_stale_accepted=False)
@@ -42,5 +41,10 @@ def run_rules_check(registry_dir: Path) -> tuple[RulesCheckFinding, ...]:
                 )
             )
         if ld.record.status == "rejected" and ld.stale_inactive:
-            pass
+            findings.append(
+                RulesCheckFinding(
+                    "warning",
+                    f"stale rejected decision inactive history: {ld.record.id}",
+                )
+            )
     return tuple(findings)

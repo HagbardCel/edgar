@@ -7,15 +7,22 @@ from typing import Literal
 
 from edgar.domain.identifiers import validate_cik
 from edgar.financials.exceptions import RequiredPeriodError
+from edgar.financials.models import FactRow
+from edgar.xbrl.taxonomy_family import classify
 
 SEC_CIK_SCHEME = "http://www.sec.gov/CIK"
 DEI_LOCAL_DOCUMENT_PERIOD_END = "DocumentPeriodEndDate"
+DEI_LOCAL_FISCAL_YEAR = "DocumentFiscalYearFocus"
+DEI_LOCAL_FISCAL_PERIOD = "DocumentFiscalPeriodFocus"
+
+MetricPeriodType = Literal["duration", "instant"]
 
 
 @dataclass(frozen=True)
 class ReportingPeriod:
-    kind: Literal["duration", "instant"]
-    start: str | None
+    """Annual reporting window (start/end), independent of target fact period_kind."""
+
+    start: str
     end: str
     fiscal_year_focus: str | None = None
     fiscal_period_focus: str | None = None
@@ -23,6 +30,7 @@ class ReportingPeriod:
 
 @dataclass(frozen=True)
 class DeiPeriodCandidate:
+    context_id: int
     context_entity_scheme: str
     context_entity_identifier: str
     period_kind: str
@@ -68,9 +76,39 @@ def _candidates_equivalent(a: DeiPeriodCandidate, b: DeiPeriodCandidate) -> bool
     return a.document_period_end_value.strip() == end_a
 
 
+def _dei_text_value(fact: FactRow) -> str | None:
+    if fact.lexical_value:
+        return fact.lexical_value.strip()
+    if fact.resolved_numeric is not None:
+        return str(fact.resolved_numeric)
+    return None
+
+
+def _fiscal_focus(
+    facts: tuple[FactRow, ...],
+    context_id: int,
+) -> tuple[str | None, str | None]:
+    fiscal_year: str | None = None
+    fiscal_period: str | None = None
+    for fact in facts:
+        if fact.context_id != context_id or fact.has_dimensions:
+            continue
+        if classify(fact.concept_namespace).semantic_family != "dei":
+            continue
+        value = _dei_text_value(fact)
+        if not value:
+            continue
+        if fact.concept_local_name == DEI_LOCAL_FISCAL_YEAR:
+            fiscal_year = value
+        elif fact.concept_local_name == DEI_LOCAL_FISCAL_PERIOD:
+            fiscal_period = value
+    return fiscal_year, fiscal_period
+
+
 def resolve_required_reporting_period(
     candidates: tuple[DeiPeriodCandidate, ...],
     filing_cik: str,
+    facts: tuple[FactRow, ...] = (),
 ) -> ReportingPeriod:
     if not candidates:
         raise RequiredPeriodError("no undimensioned dei:DocumentPeriodEndDate fact")
@@ -97,26 +135,29 @@ def resolve_required_reporting_period(
     if len(groups) > 1:
         raise RequiredPeriodError("conflicting DEI DocumentPeriodEndDate contexts")
     chosen = groups[0][0]
-    end = _period_end_lexical(chosen)
-    if chosen.period_kind == "instant":
-        return ReportingPeriod(kind="instant", start=None, end=end)
+    if chosen.period_kind != "duration":
+        raise RequiredPeriodError("required DEI context must be duration for annual 10-K")
     if chosen.start_lexical is None:
         raise RequiredPeriodError("DEI duration context missing start_lexical")
+    end = _period_end_lexical(chosen)
+    fiscal_year, fiscal_period = _fiscal_focus(facts, chosen.context_id)
     return ReportingPeriod(
-        kind="duration",
         start=chosen.start_lexical,
         end=chosen.end_lexical or end,
+        fiscal_year_focus=fiscal_year,
+        fiscal_period_focus=fiscal_period,
     )
 
 
-def period_matches(
+def period_matches_metric(
+    metric_period_type: MetricPeriodType,
     period: ReportingPeriod,
     context_period_kind: str,
     instant_lexical: str | None,
     start_lexical: str | None,
     end_lexical: str | None,
 ) -> bool:
-    if period.kind == "duration":
+    if metric_period_type == "duration":
         if context_period_kind != "duration":
             return False
         return start_lexical == period.start and end_lexical == period.end
