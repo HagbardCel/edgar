@@ -31,7 +31,11 @@ from edgar.financials.oracle import OracleComparison, oracle_comparison_for_obse
 from edgar.financials.sample_index import SampleRow, load_sample_csv
 from edgar.financials.select import ANNUAL_FORMS
 from edgar.financials.source_load import LoadedFiling, load_filing, load_quality_filing_source
-from edgar.financials.taxonomy_availability import load_taxonomy_concepts_for_filing
+from edgar.financials.taxonomy_availability import (
+    FilingTaxonomyAvailability,
+    TaxonomyAvailabilityError,
+    load_filing_taxonomy_availability,
+)
 from edgar.financials.taxonomy_release import filing_taxonomy_release, us_gaap_release_token
 from edgar.storage.objects import write_bytes_atomic, write_json_atomic
 
@@ -167,6 +171,7 @@ def filing_frame_for_source(
     report_period_year: str | None,
     industry_bucket: str,
     declared_concepts: Sequence[tuple[str, str]],
+    taxonomy_availability: FilingTaxonomyAvailability | None = None,
     taxonomy_concepts: Iterable[tuple[str, str]] | None = None,
 ) -> FilingFrame:
     years = {year for year in observation_years if year}
@@ -178,16 +183,21 @@ def filing_frame_for_source(
         fiscal_year = report_period_year
     else:
         fiscal_year = "unknown"
-    namespaces = [namespace for namespace, _local in declared_concepts]
+    if taxonomy_availability is not None:
+        taxonomy_release = taxonomy_availability.filing_taxonomy_release
+        concepts = taxonomy_availability.concepts
+    else:
+        concepts = frozenset(taxonomy_concepts or ())
+        taxonomy_release = filing_taxonomy_release(namespace for namespace, _local in concepts)
     return FilingFrame(
         accession=accession,
         cik=cik,
         form=form,
         fiscal_year=fiscal_year,
         industry_bucket=industry_bucket or "unknown",
-        filing_taxonomy_release=filing_taxonomy_release(namespaces),
+        filing_taxonomy_release=taxonomy_release,
         declared_concepts=frozenset(declared_concepts),
-        taxonomy_concepts=frozenset(taxonomy_concepts or ()),
+        taxonomy_concepts=concepts,
     )
 
 
@@ -242,8 +252,10 @@ def build_quality_document(
     identity_findings: Sequence[Mapping[str, str]] = (),
     oracle_findings: Sequence[Mapping[str, object]] = (),
     oracle_sources: Mapping[str, str] | None = None,
+    filing_taxonomy_sources: Mapping[str, Mapping[str, object]] | None = None,
 ) -> dict[str, object]:
     pinned_oracle = dict(oracle_sources or {})
+    pinned_taxonomy = dict(filing_taxonomy_sources or {})
     cells: dict[tuple[str, str, str, str], QualityCell] = {}
     members: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
 
@@ -354,12 +366,13 @@ def build_quality_document(
 
     return {
         "grain": "metric × fiscal_year × filing_taxonomy_release × industry_bucket",
-        "filing_taxonomy_release_source": "us-gaap concept declarations",
+        "filing_taxonomy_release_source": "captured US-GAAP XSD targetNamespaces in DTS closure",
         "identity_source": "build findings, once per accession in the cell",
-        "decision_applicability_source": "captured filing taxonomy_schema artifacts",
+        "decision_applicability_source": "captured DTS closure XSD schema documents",
         "cells": rows,
         "oracle_findings": _normalize_oracle_findings(oracle_findings),
         "oracle_sources": dict(sorted(pinned_oracle.items())),
+        "filing_taxonomy_sources": dict(sorted(pinned_taxonomy.items())),
         "name_census": {
             "fact_scope": "non_dimensional",
             "by_qname": list(qname_census(census_facts)),
@@ -375,7 +388,7 @@ def render_quality_markdown(document: Mapping[str, object]) -> str:
     lines = [
         "# Quality report",
         "",
-        "Taxonomy release is the filing's US-GAAP declaration release, not the selected concept.",
+        "Taxonomy release is from captured US-GAAP XSD namespaces in the DTS closure.",
         "Status counts partition eligible slots. Wrong-form slots are n_ineligible_wrong_form.",
         "Identity columns copy build findings once per accession in the cell.",
         "",
@@ -463,6 +476,7 @@ def write_quality_report(
     years = _fiscal_years_by_accession(observations)
     accessions = tuple(dict.fromkeys(observation.accession for observation in observations))
     frames: dict[str, FilingFrame] = {}
+    filing_taxonomy_sources: dict[str, dict[str, object]] = {}
     census: list[tuple[str, str, str]] = []
     facts_by_accession: dict[str, dict[int, FactRow]] = {}
     with engine.connect() as conn:
@@ -477,11 +491,18 @@ def write_quality_report(
             sample_row = sample.get(accession)
             if sample_row is not None and sample_row.industry_bucket:
                 industry = sample_row.industry_bucket
-            taxonomy = load_taxonomy_concepts_for_filing(
-                data_root,
-                source.cik,
-                source.accession,
-            )
+            try:
+                taxonomy = load_filing_taxonomy_availability(
+                    data_root,
+                    source.cik,
+                    source.accession,
+                )
+            except TaxonomyAvailabilityError as exc:
+                raise QualityReportError(str(exc)) from exc
+            filing_taxonomy_sources[accession] = {
+                "filing_taxonomy_release": taxonomy.filing_taxonomy_release,
+                "schema_sha256s": list(taxonomy.schema_sha256s),
+            }
             frames[accession] = filing_frame_for_source(
                 source.accession,
                 source.cik,
@@ -490,7 +511,7 @@ def write_quality_report(
                 report_period_year=source.report_period_year,
                 industry_bucket=industry,
                 declared_concepts=source.declared_concepts,
-                taxonomy_concepts=taxonomy,
+                taxonomy_availability=taxonomy,
             )
             for namespace, local_name in source.fact_concepts:
                 census.append((accession, namespace, local_name))
@@ -517,6 +538,7 @@ def write_quality_report(
         identity_findings,
         oracle_findings,
         oracle_sources,
+        filing_taxonomy_sources,
     )
     write_json_atomic(output_json, document)
     markdown_path = output_json.with_suffix(".md")

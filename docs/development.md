@@ -57,8 +57,11 @@ companyfacts JSON with one `ControlledFetcher`. It writes the object store and
 call it and does not open the network.
 
 `edgar build --quality-report` groups slots by metric, fiscal year, filing
-US-GAAP release, and industry bucket. The release comes from concept
-declarations before selection (`unknown` or `mixed` when it is not unique).
+US-GAAP release, and industry bucket. Release and decision applicability come
+from captured DTS closure XSD documents (`uri_bindings`), including
+closure-fetched `external` schemas (`unknown` or `mixed` when US-GAAP release
+tokens are not unique). Unreadable taxonomy evidence fails the report for annual
+filings instead of silently counting as absent.
 Eligible statuses `n_value`, `n_missing`, `n_conflict`, and `n_unsupported`
 partition `n_slot_eligible`. `n_ineligible_wrong_form` counts wrong-form slots
 and is outside that partition. Scope exclusions stay in `n_unsupported`.
@@ -71,9 +74,8 @@ identity checks. Oracle columns are `oracle_agree`, `oracle_differ`,
 each `differ` and `ambiguous` slot with the observation and oracle decimals.
 A companyfacts differ does not change the observation. The quality JSON pins
 `oracle_sources` (CIK → Companyfacts CAS SHA-256) for reproducibility. The
-QName census counts only non-dimensional facts. `n_decision_applicable` uses
-concepts from captured `taxonomy_schema` bundle artifacts, not bounded
-`source.concept_declaration` rows. `n_filings` and `gold_precision` are not
+QName census counts only non-dimensional facts. `filing_taxonomy_sources` pins
+schema CAS SHA-256 values per accession. `n_filings` and `gold_precision` are not
 emitted yet (deferred with independent P2 audit labels). `registry.canonical_metric`
 is not a P1/P2 runtime authority; do not sync it to make `edgar build` work.
 

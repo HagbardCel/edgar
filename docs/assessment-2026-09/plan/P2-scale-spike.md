@@ -15,7 +15,7 @@ parallel extract, an oracle comparator, a quality report, and two short ADRs.
 - `edgar build --check-gold` passes on the six-filing corpus.
 - Walmart extract ≤ 25 s (P0). If not, finish P0.2/P0.3 first — otherwise
   1,000 filings will take weeks.
-- SEC user-agent is set (`EDGAR_USER_AGENT` / existing client settings).
+- SEC user-agent is set (`SEC_USER_AGENT` / existing client settings).
   Stay below the project's default rate. No extra concurrency “to go faster”
   without reading `src/edgar/sec/client.py`.
 
