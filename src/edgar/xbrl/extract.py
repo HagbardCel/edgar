@@ -69,7 +69,7 @@ from edgar.xbrl.config import (
     build_semantic_config,
 )
 from edgar.xbrl.diagnostics import UNSTRUCTURED_CODE, classify_diagnostic
-from edgar.xbrl.locators import LocatorError, element_locator
+from edgar.xbrl.locators import IdIndex, LocatorError, element_locator, id_index
 from edgar.xbrl.records import (
     ArcroleDeclarationRecord,
     ConceptDeclarationRecord,
@@ -99,6 +99,7 @@ from edgar.xbrl.records import (
     ValueStatus,
 )
 from edgar.xbrl.source_records import EXTRACTOR_VERSION, ReportExtraction
+from edgar.xbrl.taxonomy_family import classify as classify_taxonomy_namespace
 from edgar.xbrl.uri import UriIdentityError, normalize_uri
 
 ENGINE_NAME = "arelle"
@@ -317,6 +318,7 @@ class _Extraction:
     resolver: _DocumentUriResolver
     issues: list[SemanticIssueRecord] = field(default_factory=list)
     errors: list[SemanticIssueRecord] = field(default_factory=list)
+    _id_index_cache: dict[int, IdIndex] = field(default_factory=dict)
 
     def incomplete(
         self,
@@ -379,7 +381,16 @@ class _Extraction:
             self.incoherent(UNATTRIBUTABLE_SOURCE_DOCUMENT, f"{what}: {exc}")
             return None
         try:
-            return element_locator(element, document_uri=document_uri)
+            tree = getattr(element, "getroottree", lambda: None)()
+            root = tree.getroot() if tree is not None else None
+            index: IdIndex | None = None
+            if root is not None:
+                key = id(root)
+                index = self._id_index_cache.get(key)
+                if index is None:
+                    index = id_index(root)
+                    self._id_index_cache[key] = index
+            return element_locator(element, document_uri=document_uri, index=index)
         except (LocatorError, ValueError) as exc:
             self.incoherent(SOURCE_LOCATOR_UNAVAILABLE, f"{what}: {exc}")
             return None
@@ -564,10 +575,76 @@ def _resolved_non_numeric(
 # --------------------------------------------------------------------------- #
 
 
-def _concept_declarations(
+def _scan_dts_concept_identities(
     model_xbrl: Any, extraction: _Extraction
+) -> frozenset[ExpandedQName]:
+    """Every usable ``qnameConcepts`` identity; unusable entries fail closed."""
+    identities: set[ExpandedQName] = set()
+    for key, concept in (getattr(model_xbrl, "qnameConcepts", None) or {}).items():
+        identity = _expanded_qname(getattr(concept, "qname", None)) or _expanded_qname(key)
+        if identity is None:
+            extraction.incoherent(
+                INCOHERENT_CONCEPT_DECLARATION,
+                f"concept declaration without a usable QName: {key!r}",
+            )
+            continue
+        identities.add(identity)
+    return frozenset(identities)
+
+
+def _issuer_extension_concepts(model_xbrl: Any) -> frozenset[ExpandedQName]:
+    """Concept identities declared on issuer-origin namespaces (including unused)."""
+    extensions: set[ExpandedQName] = set()
+    for key, concept in (getattr(model_xbrl, "qnameConcepts", None) or {}).items():
+        identity = _expanded_qname(getattr(concept, "qname", None)) or _expanded_qname(key)
+        if identity is None:
+            continue
+        if classify_taxonomy_namespace(identity.namespace_uri).origin == "issuer":
+            extensions.add(identity)
+    return frozenset(extensions)
+
+
+def _compute_base_concepts(
+    *,
+    ordered_facts: Sequence[tuple[int, Any]],
+    relationships: Sequence[RelationshipRecord],
+    dimensions: Sequence[ContextDimensionRecord],
+    issuer_extensions: frozenset[ExpandedQName],
+) -> frozenset[ExpandedQName]:
+    base: set[ExpandedQName] = set(issuer_extensions)
+    for _, fact in ordered_facts:
+        base.add(fact.concept_qname)
+    for relationship in relationships:
+        base.add(relationship.source_concept)
+        base.add(relationship.target_concept)
+    for dimension in dimensions:
+        base.add(dimension.dimension)
+        if dimension.member is not None:
+            base.add(dimension.member)
+    return frozenset(base)
+
+
+def _filter_labels_by_concept(
+    labels: Sequence[ConceptLabelRecord],
+    keep: frozenset[ExpandedQName],
+) -> tuple[ConceptLabelRecord, ...]:
+    return tuple(label for label in labels if label.concept in keep)
+
+
+def _filter_references_by_concept(
+    references: Sequence[ConceptReferenceRecord],
+    keep: frozenset[ExpandedQName],
+) -> tuple[ConceptReferenceRecord, ...]:
+    return tuple(reference for reference in references if reference.concept in keep)
+
+
+def _concept_declarations(
+    model_xbrl: Any,
+    extraction: _Extraction,
+    *,
+    keep: frozenset[ExpandedQName],
 ) -> tuple[ConceptDeclarationRecord, ...]:
-    """Projection-scoped effective declaration of every DTS element identity."""
+    """Report-scoped declarations for concepts in ``keep`` (v6 retained grain)."""
     records: dict[ExpandedQName, ConceptDeclarationRecord] = {}
     for key, concept in (getattr(model_xbrl, "qnameConcepts", None) or {}).items():
         identity = _expanded_qname(getattr(concept, "qname", None)) or _expanded_qname(key)
@@ -576,6 +653,8 @@ def _concept_declarations(
                 INCOHERENT_CONCEPT_DECLARATION,
                 f"concept declaration without a usable QName: {key!r}",
             )
+            continue
+        if identity not in keep:
             continue
         locator = extraction.locator(concept, what=f"concept {identity.clark}")
         if locator is None:
@@ -1915,8 +1994,7 @@ def extract_report_extraction(
         resolver=_DocumentUriResolver(bound_inputs, frozenset(primary_uris)),
     )
 
-    concept_declarations = _concept_declarations(model_xbrl, extraction)
-    declared = frozenset(declaration.concept for declaration in concept_declarations)
+    dts_declared = _scan_dts_concept_identities(model_xbrl, extraction)
     contexts = _context_projection(model_xbrl, extraction)
     units = _unit_projection(model_xbrl, extraction)
     iterator_item_count, ordered_facts = _fact_records(
@@ -1925,7 +2003,16 @@ def extract_report_extraction(
         unit_locators=units.locators,
         extraction=extraction,
     )
-    networks = _relationship_projection(model_xbrl, declared=declared, extraction=extraction)
+    networks = _relationship_projection(model_xbrl, declared=dts_declared, extraction=extraction)
+    base_concepts = _compute_base_concepts(
+        ordered_facts=ordered_facts,
+        relationships=networks.relationships,
+        dimensions=contexts.dimensions,
+        issuer_extensions=_issuer_extension_concepts(model_xbrl),
+    )
+    concept_declarations = _concept_declarations(model_xbrl, extraction, keep=base_concepts)
+    filtered_labels = _filter_labels_by_concept(networks.labels, base_concepts)
+    filtered_references = _filter_references_by_concept(networks.references, base_concepts)
     diagnostics = _diagnostic_records(model_xbrl, extraction.resolver)
     for diagnostic in diagnostics:
         if classify_diagnostic(diagnostic) == "completeness_blocking":
@@ -1957,8 +2044,8 @@ def extract_report_extraction(
             arelle_version=(engine_version if engine_version is not None else arelle_version()),
             extractor_version=extractor_version,
             concept_declarations=concept_declarations,
-            concept_labels=networks.labels,
-            concept_references=networks.references,
+            concept_labels=filtered_labels,
+            concept_references=filtered_references,
             contexts=contexts.contexts,
             context_dimensions=contexts.dimensions,
             units=units.units,

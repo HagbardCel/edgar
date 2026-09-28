@@ -450,4 +450,3 @@ class ControlledFetcher:
 
 
 # Backwards-compatible alias used by acquisition layer naming in the plan.
-SecClient = ControlledFetcher

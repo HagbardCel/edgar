@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any, Literal, get_args
 
@@ -356,27 +356,6 @@ class FilingBundle:
             report_inputs=tuple(report_input_from_dict(r) for r in report_inputs),
             uri_bindings=tuple(UriBinding.from_dict(b) for b in uri_bindings),
         )
-
-
-@dataclass(frozen=True)
-class AcquisitionObservation:
-    """Operational retrieval provenance — outside FilingBundle identity."""
-
-    attempt_id: str
-    accession: str
-    requested_uri: str
-    final_uri: str | None
-    observed_at: datetime
-    status: str
-    content_sha256: str | None = None
-    byte_size: int | None = None
-    http_status: int | None = None
-    error: str | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        if self.observed_at.tzinfo is None:
-            raise ValueError("observed_at must be timezone-aware")
 
 
 def bundle_equality_state(bundle: FilingBundle) -> dict[str, Any]:
