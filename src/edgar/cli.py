@@ -242,19 +242,46 @@ def filings_catalog(
 @filings_app.command("extract")
 def filings_extract(
     bundle_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--bundle-dir", help="Published bundle directory under EDGAR_DATA_ROOT"),
-    ],
+    ] = None,
+    accessions_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--accessions-file",
+            help="Batch extract: one canonical dashed accession per line",
+        ),
+    ] = None,
+    jobs: Annotated[
+        int,
+        typer.Option("--jobs", help="Worker processes for --accessions-file. Default 1."),
+    ] = 1,
     data_root: Annotated[
         Path | None,
         typer.Option("--data-root", help="Override EDGAR_DATA_ROOT"),
     ] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Emit machine-readable JSON")] = False,
 ) -> None:
-    """Catalog (source.*) if needed, extract XBRL + documents, and persist atomically."""
+    """Catalog (source.*) if needed, extract XBRL + documents, and persist atomically.
+
+    ``--bundle-dir`` extracts one published bundle. ``--accessions-file`` extracts
+    each accession in its own process. Batch extract does not download. The parent
+    writes ``${EDGAR_DATA_ROOT}/reports/p2-extract.json`` sorted by accession and
+    exits non-zero if any accession fails. Successful filings stay committed.
+    """
+    if (bundle_dir is None) == (accessions_file is None):
+        typer.echo("pass exactly one of --bundle-dir or --accessions-file", err=True)
+        raise typer.Exit(code=1)
+    if bundle_dir is not None and jobs != 1:
+        typer.echo("--jobs applies only with --accessions-file", err=True)
+        raise typer.Exit(code=1)
     settings = Settings()
     if data_root is not None:
         settings = settings.model_copy(update={"edgar_data_root": data_root})
+    if accessions_file is not None:
+        _filings_extract_batch(settings, accessions_file, jobs, as_json)
+        return
+    assert bundle_dir is not None
     try:
         result = SourceExtractService(settings).extract_published_bundle(bundle_dir)
     except SourceExtractError as exc:
@@ -282,6 +309,43 @@ def filings_extract(
             f"facts={persist.fact_count} blocks={persist.block_count} "
             f"sections={persist.section_count}"
         )
+
+
+def _filings_extract_batch(
+    settings: Settings,
+    accessions_file: Path,
+    jobs: int,
+    as_json: bool,
+) -> None:
+    from edgar.ingestion.accession_file import AccessionFileError, parse_accession_file
+    from edgar.ingestion.batch_extract import run_batch_extract
+
+    try:
+        accessions = parse_accession_file(accessions_file)
+        result = run_batch_extract(
+            data_root=settings.edgar_data_root,
+            database_url=settings.require_database_url(),
+            accessions=accessions,
+            jobs=jobs,
+        )
+    except (AccessionFileError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    summary = {
+        "ok": result.ok,
+        "report": str(result.report_path),
+        "accessions": [record.to_dict() for record in result.records],
+    }
+    if as_json:
+        typer.echo(json.dumps(summary, indent=2, sort_keys=True))
+    else:
+        failed = sum(1 for record in result.records if not record.success)
+        typer.echo(
+            f"batch extract accessions={len(result.records)} failed={failed} "
+            f"report={result.report_path}"
+        )
+    if not result.ok:
+        raise typer.Exit(code=1)
 
 
 @documents_app.command("sections")
@@ -582,11 +646,27 @@ def build_cmd(
         list[str] | None,
         typer.Option("--accession", help="Limit build to accession(s); repeatable"),
     ] = None,
+    quality_report: Annotated[
+        Path | None,
+        typer.Option(
+            "--quality-report",
+            help="Write a JSON quality report and a markdown sibling",
+        ),
+    ] = None,
+    sample_csv: Annotated[
+        Path | None,
+        typer.Option(
+            "--sample-csv",
+            help="Spike sample metadata joined on accession for industry buckets",
+        ),
+    ] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Emit machine-readable summary")] = False,
 ) -> None:
     """Build m0 canonical observations from source.* (default: corpus.toml accessions)."""
     from edgar.financials.build import default_accessions, run_build, write_build_output
     from edgar.financials.cohort import load_m0_cohort
+    from edgar.financials.decisions import load_decisions
+    from edgar.financials.quality import QualityReportError, write_quality_report
 
     settings = Settings()
     try:
@@ -607,7 +687,16 @@ def build_cmd(
             check_gold=check_gold,
         )
         write_build_output(result, output_dir, cohort.metrics, accessions)
-    except (ValueError, FileExistsError, OSError) as exc:
+        if quality_report is not None:
+            write_quality_report(
+                engine,
+                result.observations,
+                load_decisions(registry_dir),
+                sample_csv=sample_csv or (_REPO_ROOT / "fixtures" / "spike" / "p2-sample.csv"),
+                data_root=settings.edgar_data_root,
+                output_json=quality_report,
+            )
+    except (ValueError, FileExistsError, OSError, QualityReportError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     summary = {

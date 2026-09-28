@@ -207,6 +207,90 @@ def _iso(value: object) -> str | None:
     return str(value)
 
 
+@dataclass(frozen=True)
+class QualityFilingSource:
+    """Declaration and period inputs for the quality report. Not an observation."""
+
+    accession: str
+    cik: str
+    form: str
+    report_period_year: str | None
+    declared_namespaces: tuple[str, ...]
+    declared_concepts: tuple[tuple[str, str], ...]
+    fact_concepts: tuple[tuple[str, str], ...]
+
+
+def load_quality_filing_source(conn: Connection, accession: str) -> QualityFilingSource | None:
+    meta = load_filing_metadata(conn, accession)
+    if meta is None:
+        return None
+    period_row = (
+        conn.execute(
+            select(
+                src.source_filing.c.report_period_end,
+                src.source_filing.c.filing_date,
+            ).where(src.source_filing.c.accession == accession)
+        )
+        .mappings()
+        .first()
+    )
+    report_year: str | None = None
+    if period_row is not None:
+        period_end = period_row["report_period_end"]
+        filing_date = period_row["filing_date"]
+        if period_end is not None:
+            report_year = str(period_end.year)
+        elif filing_date is not None:
+            report_year = str(filing_date.year)
+    report_ids = [
+        row[0]
+        for row in conn.execute(
+            select(src.source_xbrl_report.c.id)
+            .where(src.source_xbrl_report.c.filing_id == meta.filing_id)
+            .order_by(src.source_xbrl_report.c.id.asc())
+        )
+    ]
+    if len(report_ids) > 1:
+        raise ValueError(
+            f"accession {accession} has {len(report_ids)} xbrl_report rows; "
+            "quality reporting requires exactly one report per filing"
+        )
+    declared: list[tuple[str, str]] = []
+    fact_concepts: list[tuple[str, str]] = []
+    if report_ids:
+        report_id = report_ids[0]
+        declared = [
+            (row.namespace_uri, row.local_name)
+            for row in conn.execute(
+                select(src.source_concept.c.namespace_uri, src.source_concept.c.local_name)
+                .join(
+                    src.source_concept_declaration,
+                    src.source_concept_declaration.c.concept_id == src.source_concept.c.id,
+                )
+                .where(src.source_concept_declaration.c.report_id == report_id)
+                .distinct()
+            )
+        ]
+        fact_concepts = [
+            (row.namespace_uri, row.local_name)
+            for row in conn.execute(
+                select(src.source_concept.c.namespace_uri, src.source_concept.c.local_name)
+                .join(src.source_fact, src.source_fact.c.concept_id == src.source_concept.c.id)
+                .where(src.source_fact.c.report_id == report_id)
+                .distinct()
+            )
+        ]
+    return QualityFilingSource(
+        accession=accession,
+        cik=meta.cik,
+        form=meta.form,
+        report_period_year=report_year,
+        declared_namespaces=tuple(namespace for namespace, _local in declared),
+        declared_concepts=tuple(declared),
+        fact_concepts=tuple(fact_concepts),
+    )
+
+
 def load_filing_engine(engine: Engine, accession: str) -> LoadedFiling | None:
     with engine.connect() as conn:
         return load_filing(conn, accession)

@@ -14,9 +14,13 @@ see [docs/assessment-2026-09/plan/](docs/assessment-2026-09/plan/)). [ADR
 context; ADR 0014 supersedes its forward implementation order.
 
 Current implementation remains the Phase 2B source layer plus Phase 2C registry
-until P3 consolidation changes it. **Current phase: P1 complete; next: P2 (ADR
-0014).** Follow the P0–P6 plan gates; do not implement P2+ ahead of its exit
-criteria. Phase 2A/2B/2C source invariants remain in force.
+until P3 consolidation changes it. **Current phase: P1 complete. P2 software
+(batch extract, companyfacts oracle, quality report) is implemented. The P2
+measurement exit gate is not met (ADR 0014).** Do not treat that software as
+the scale-spike exit, and do not start P3. Phase 2A/2B/2C source invariants
+remain in force. For P1/P2, `registry/metrics.yml`, `registry/decisions/`, and
+`registry/gold/` are the durable governed inputs. `var/builds/` is regenerable.
+`registry.canonical_metric` is not a P1/P2 runtime authority.
 
 See `docs/README.md` for completed milestones and documentation authority,
 `docs/architecture/README.md` for the adopted target,
@@ -138,7 +142,7 @@ Implement and maintain:
 - document blocks and regulatory sections
 - local PostgreSQL (`source` and `registry` schemas)
 - deterministic offline fixtures
-- CLI workflows (`filings`, `documents sections`, `metrics`, `registry`, `mappings`)
+- CLI workflows (`filings`, `filings extract --accessions-file`, `documents sections`, `metrics`, `registry`, `mappings`, `rules check`, `build`, `build --quality-report`)
 - optional local-LLM development experiments
 
 Do not add without explicit scope change:

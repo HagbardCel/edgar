@@ -31,14 +31,34 @@ test helper `reset_test_database`) then `alembic upgrade head`.
 edgar filings retrieve --accession …
 edgar filings catalog --bundle-dir …
 edgar filings extract --bundle-dir …
+edgar filings extract --accessions-file fixtures/spike/p2-accessions.txt --jobs 1
 edgar documents sections --document-id …
 edgar registry validate
 edgar registry sync
 edgar metrics list|show
 edgar rules check
 edgar build --check-gold --output-dir var/builds/p1
+edgar build --check-gold --quality-report var/reports/p2-quality.json --output-dir var/builds/p1
 edgar mappings list|show|propose|accept|reject|export
 ```
+
+`filings extract --accessions-file` reads one dashed accession per line. It does
+not download. Each worker process extracts one accession. The parent writes
+`${EDGAR_DATA_ROOT}/reports/p2-extract.json` sorted by accession and exits
+non-zero if any accession fails. Successful filings stay committed. Sample
+metadata for the quality report lives in `fixtures/spike/p2-sample.csv`, separate
+from the accession list. The committed list is the six-filing baseline, not the
+500–1,000 census.
+
+`edgar build --quality-report` groups slots by metric, fiscal year, filing
+US-GAAP release, and industry bucket. The release comes from concept
+declarations before selection (`unknown` or `mixed` when it is not unique).
+Oracle columns are `oracle_agree`, `oracle_differ`, `oracle_absent`,
+`oracle_ambiguous`, and `oracle_na`. A companyfacts differ does not change the
+observation. Cached companyfacts bytes, when present, are loaded from the object
+store via `${EDGAR_DATA_ROOT}/companyfacts/CIK##########.sha256`. Build does not
+fetch them. `registry.canonical_metric` is not a P1/P2 runtime authority; do not
+sync it to make `edgar build` work.
 
 ## Tests
 

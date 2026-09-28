@@ -6,7 +6,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 from edgar.domain.identifiers import validate_cik
-from edgar.financials.decimals import NumericFactOccurrence, oim_reduce_group
+from edgar.financials.decimals import NumericFactOccurrence, oim_reduce_group, survivor_rank
 from edgar.financials.decisions import DecisionRegistry, decision_applies_to_filing
 from edgar.financials.models import FactRow, Observation, Support, SupportRef
 from edgar.financials.period import (
@@ -144,8 +144,9 @@ def select_metric(
     for s, f in candidates:
         by_qname[s.source_qname].append((s, f))
 
-    survivors: list[tuple[Support, FactRow, Decimal, str | None, tuple[int, ...]]] = []
-    for _qname, group in by_qname.items():
+    survivors: list[tuple[Decimal, str | None, tuple[SupportRef, ...]]] = []
+    for qname in sorted(by_qname):
+        group = by_qname[qname]
         occs = tuple(
             NumericFactOccurrence(f.fact_id, f.resolved_numeric, f.decimals)
             for _, f in group
@@ -156,41 +157,43 @@ def select_metric(
             base.status = "conflict"
             base.reason = None
             return base
-        rep_support, rep_fact = group[0]
-        survivors.append(
-            (
-                rep_support,
-                rep_fact,
-                reduced.survivor_value,
-                reduced.survivor_decimals,
-                reduced.fact_ids,
+        support_by_fact = {f.fact_id: s for s, f in group}
+        refs = tuple(
+            SupportRef(
+                fact_id=fid,
+                decision_id=support_by_fact[fid].decision_id,
+                relation="exact",
+                tier=1,
+                source_qname=support_by_fact[fid].source_qname,
+                application_method=support_by_fact[fid].application_method,
             )
+            for fid in reduced.fact_ids
+            if fid in support_by_fact
         )
+        survivors.append((reduced.survivor_value, reduced.survivor_decimals, refs))
 
-    values = {sv[2] for sv in survivors}
+    values = {sv[0] for sv in survivors}
     if len(values) > 1:
         base.status = "conflict"
         return base
 
-    value = survivors[0][2]
-    decimals = survivors[0][3]
+    published = min(
+        survivors,
+        key=lambda sv: survivor_rank(
+            sv[1],
+            min((ref.fact_id for ref in sv[2]), default=0),
+        ),
+    )
+    value = published[0]
+    decimals = published[1]
     all_fact_ids: list[int] = []
     all_supports: list[SupportRef] = []
     decision_ids: set[str] = set()
-    for s, _f, _, _, fids in survivors:
-        decision_ids.add(s.decision_id)
-        for fid in fids:
-            all_supports.append(
-                SupportRef(
-                    fact_id=fid,
-                    decision_id=s.decision_id,
-                    relation="exact",
-                    tier=1,
-                    source_qname=s.source_qname,
-                    application_method=s.application_method,
-                )
-            )
-            all_fact_ids.append(fid)
+    for _value, _decimals, refs in survivors:
+        for ref in refs:
+            decision_ids.add(ref.decision_id)
+            all_supports.append(ref)
+            all_fact_ids.append(ref.fact_id)
 
     base.status = "value"
     base.numeric = value

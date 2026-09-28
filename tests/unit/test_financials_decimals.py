@@ -65,6 +65,32 @@ def test_same_decimals_lexical_zero_equivalent() -> None:
     assert oim_reduce_group(group) is None
 
 
+def test_equal_precision_tie_uses_minimum_fact_id() -> None:
+    forward = (
+        NumericFactOccurrence(5, Decimal("100"), "-3"),
+        NumericFactOccurrence(2, Decimal("100"), "-3"),
+    )
+    reverse = (forward[1], forward[0])
+    left = oim_reduce_group(forward)
+    right = oim_reduce_group(reverse)
+    assert left is not None and right is not None
+    assert left.survivor_fact_id == 2
+    assert right.survivor_fact_id == 2
+    assert left.survivor_value == right.survivor_value == Decimal("100")
+    assert left.fact_ids == right.fact_ids == (2, 5)
+
+
+def test_chain_overlap_without_common_intersection_conflicts() -> None:
+    # A overlaps B and B overlaps C, but A does not overlap C.
+    group = (
+        NumericFactOccurrence(1, Decimal("100"), "0"),
+        NumericFactOccurrence(2, Decimal("101"), "-1"),
+        NumericFactOccurrence(3, Decimal("106"), "1"),
+    )
+    assert oim_reduce_group(group) is None
+    assert oim_reduce_group((group[2], group[0], group[1])) is None
+
+
 def test_interval_identity_counterexample() -> None:
     a = fact_interval(Decimal("2500"), "-2")
     b = fact_interval(Decimal("2000"), "-3")

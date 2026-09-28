@@ -192,3 +192,35 @@ def test_broader_only_missing() -> None:
     )
     assert obs.status == "missing"
     assert obs.reason == "broader_only"
+
+
+def test_equal_precision_order_does_not_change_observation() -> None:
+    registry = load_decisions(_REGISTRY)
+    period = ReportingPeriod(start="2023-01-01", end="2023-12-31")
+    local = "RevenueFromContractWithCustomerExcludingAssessedTax"
+    accession = "0001065088-24-000036"
+    cik = "0001065088"
+
+    def _observe(facts: tuple[FactRow, ...]) -> object:
+        supports = resolve_supports(facts, registry, accession, cik)
+        return select_metric(
+            "revenue",
+            "10-K",
+            cik,
+            accession,
+            period,
+            facts,
+            supports,
+            registry,
+            None,
+            metric_period_type="duration",
+        )
+
+    first = _fact(7, local, Decimal("100"), "-3")
+    second = _fact(3, local, Decimal("100"), "-3", context_id=2)
+    left = _observe((first, second))
+    right = _observe((second, first))
+    assert left == right
+    assert left.fact_ids == (3, 7)
+    assert left.numeric == Decimal("100")
+    assert left.decimals == "-3"
