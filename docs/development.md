@@ -39,7 +39,8 @@ edgar registry sync
 edgar metrics list|show
 edgar rules check
 edgar build --check-gold --output-dir var/builds/p1
-edgar build --check-gold --quality-report var/reports/p2-quality.json --output-dir var/builds/p1
+edgar build --accessions-file fixtures/spike/p2-accessions.txt \
+  --quality-report var/reports/p2-quality.json --output-dir var/builds/p2
 edgar mappings list|show|propose|accept|reject|export
 ```
 

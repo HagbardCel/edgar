@@ -1,162 +1,252 @@
-# CIK seeds for P2.2 stratified 10-K sampling. Not a market-wide frame.
-# The builder walks SEC submissions per issuer and selects 10-K / 10-K/A rows.
+# Curated issuer frame for P2.2 (CIK + expected SEC entity name + size).
+# Industry buckets are derived from filed SIC at list-build time.
 
 [[issuer]]
 cik = "0000320193"
-industry_bucket = "technology"
+expected_name = "Apple"
 size = "mega-cap"
 
 [[issuer]]
 cik = "0000789019"
-industry_bucket = "technology"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0001065088"
-industry_bucket = "technology"
-size = "large-cap"
-
-[[issuer]]
-cik = "0000104169"
-industry_bucket = "retail"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0000019617"
-industry_bucket = "banking"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0000021344"
-industry_bucket = "beverages"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0000078003"
-industry_bucket = "manufacturing"
-size = "large-cap"
-
-[[issuer]]
-cik = "0000310158"
-industry_bucket = "manufacturing"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0000200405"
-industry_bucket = "healthcare"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0001551152"
-industry_bucket = "healthcare"
-size = "large-cap"
-
-[[issuer]]
-cik = "0000093410"
-industry_bucket = "energy"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0001018724"
-industry_bucket = "energy"
-size = "large-cap"
-
-[[issuer]]
-cik = "0000004962"
-industry_bucket = "manufacturing"
-size = "mid-cap"
-
-[[issuer]]
-cik = "0000829224"
-industry_bucket = "retail"
-size = "mid-cap"
-
-[[issuer]]
-cik = "0000034088"
-industry_bucket = "manufacturing"
-size = "mid-cap"
-
-[[issuer]]
-cik = "0000001800"
-industry_bucket = "technology"
-size = "mid-cap"
-
-[[issuer]]
-cik = "0000002488"
-industry_bucket = "manufacturing"
-size = "small-cap"
-
-[[issuer]]
-cik = "0000882095"
-industry_bucket = "retail"
-size = "small-cap"
-
-[[issuer]]
-cik = "0000051143"
-industry_bucket = "technology"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0001045810"
-industry_bucket = "technology"
+expected_name = "Microsoft"
 size = "mega-cap"
 
 [[issuer]]
 cik = "0001652044"
-industry_bucket = "technology"
+expected_name = "Alphabet"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0001045810"
+expected_name = "NVIDIA"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0001341439"
+expected_name = "Oracle"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000051143"
+expected_name = "Intel"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0001326801"
+expected_name = "Meta Platforms"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0001108524"
+expected_name = "Salesforce"
 size = "large-cap"
 
 [[issuer]]
-cik = "0000070858"
-industry_bucket = "banking"
+cik = "0001141391"
+expected_name = "Mastercard"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000072971"
-industry_bucket = "banking"
+cik = "0001318605"
+expected_name = "Tesla"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0001163165"
-industry_bucket = "energy"
+cik = "0001065088"
+expected_name = "eBay"
+size = "large-cap"
+
+[[issuer]]
+cik = "0001018724"
+expected_name = "Amazon"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000091584"
-industry_bucket = "healthcare"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0000077476"
-industry_bucket = "healthcare"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0000007283"
-industry_bucket = "manufacturing"
-size = "mega-cap"
-
-[[issuer]]
-cik = "0000018230"
-industry_bucket = "manufacturing"
+cik = "0000104169"
+expected_name = "Walmart"
 size = "mega-cap"
 
 [[issuer]]
 cik = "0000731766"
-industry_bucket = "retail"
+expected_name = "UnitedHealth"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000101829"
-industry_bucket = "retail"
+cik = "0000829224"
+expected_name = "Target"
 size = "large-cap"
 
 [[issuer]]
 cik = "0000354950"
-industry_bucket = "energy"
+expected_name = "Home Depot"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000019617"
+expected_name = "JPMorgan"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000070858"
+expected_name = "Bank of America"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000072971"
+expected_name = "Wells Fargo"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000886982"
+expected_name = "Goldman Sachs"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000813672"
+expected_name = "Citigroup"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000004962"
+expected_name = "American Express"
 size = "large-cap"
 
 [[issuer]]
-cik = "0001108524"
-industry_bucket = "technology"
-size = "mid-cap"
+cik = "0000021344"
+expected_name = "Coca-Cola"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000077476"
+expected_name = "PepsiCo"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000001800"
+expected_name = "Abbott"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000200405"
+expected_name = "Johnson"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000091584"
+expected_name = "Merck"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0001551152"
+expected_name = "AbbVie"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000078003"
+expected_name = "Pfizer"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000882095"
+expected_name = "Gilead"
+size = "large-cap"
+
+[[issuer]]
+cik = "0000007283"
+expected_name = "Procter"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000018230"
+expected_name = "Caterpillar"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000012927"
+expected_name = "Boeing"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000034088"
+expected_name = "Exxon"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000093410"
+expected_name = "Chevron"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0001163165"
+expected_name = "ConocoPhillips"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0001067983"
+expected_name = "Berkshire"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000073124"
+expected_name = "Northrop"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000002488"
+expected_name = "Advanced Micro Devices"
+size = "large-cap"
+
+[[issuer]]
+cik = "0000063908"
+expected_name = "McDonald"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000037996"
+expected_name = "Ford"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000050863"
+expected_name = "General Motors"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000313616"
+expected_name = "FedEx"
+size = "large-cap"
+
+[[issuer]]
+cik = "0000732717"
+expected_name = "AT&T"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000732712"
+expected_name = "Verizon"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000100885"
+expected_name = "Union Pacific"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000040545"
+expected_name = "General Electric"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000033213"
+expected_name = "Elevance"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000004447"
+expected_name = "3M"
+size = "mega-cap"
+
+[[issuer]]
+cik = "0000004904"
+expected_name = "American Airlines"
+size = "large-cap"

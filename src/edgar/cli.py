@@ -703,6 +703,13 @@ def build_cmd(
         list[str] | None,
         typer.Option("--accession", help="Limit build to accession(s); repeatable"),
     ] = None,
+    accessions_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--accessions-file",
+            help="Build only accessions listed in a file (one dashed accession per line)",
+        ),
+    ] = None,
     quality_report: Annotated[
         Path | None,
         typer.Option(
@@ -720,11 +727,20 @@ def build_cmd(
     as_json: Annotated[bool, typer.Option("--json", help="Emit machine-readable summary")] = False,
 ) -> None:
     """Build m0 canonical observations from source.* (default: corpus.toml accessions)."""
-    from edgar.financials.build import default_accessions, run_build, write_build_output
+    from edgar.financials.build import resolve_build_accessions, run_build, write_build_output
     from edgar.financials.cohort import load_m0_cohort
     from edgar.financials.decisions import load_decisions
     from edgar.financials.quality import QualityReportError, write_quality_report
 
+    try:
+        accessions = resolve_build_accessions(
+            _REPO_ROOT,
+            accession=accession,
+            accessions_file=accessions_file,
+        )
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
     settings = Settings()
     try:
         require_database_at_head(settings.require_database_url())
@@ -734,7 +750,6 @@ def build_cmd(
     engine = create_db_engine(settings.require_database_url())
     registry_dir = _REPO_ROOT / "registry"
     cohort = load_m0_cohort(registry_dir)
-    accessions = tuple(accession) if accession else default_accessions(_REPO_ROOT)
     try:
         result = run_build(
             engine,
