@@ -12,6 +12,15 @@ def test_us_gaap_families() -> None:
     assert classify("http://fasb.org/us-gaap/2023").origin == "standard"
 
 
+def test_srt_family() -> None:
+    http = classify("http://fasb.org/srt/2024")
+    assert http.semantic_family == "srt"
+    assert http.origin == "standard"
+    https = classify("https://fasb.org/srt/2024")
+    assert https.semantic_family == "srt"
+    assert https.origin == "standard"
+
+
 def test_dei_families() -> None:
     assert classify("http://xbrl.us/dei/2009-01-31").semantic_family == "dei"
     assert classify("http://xbrl.sec.gov/dei/2023").semantic_family == "dei"

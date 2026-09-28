@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import tomllib
+from collections import Counter
 from pathlib import Path
 
 from edgar.storage.objects import ObjectStore
@@ -13,16 +14,12 @@ from edgar.xbrl.semantic import run_offline_extract
 from edgar.xbrl.source_wire import report_extraction_to_dict
 
 INVARIANT = frozenset({"contexts", "dimensions", "units", "measures", "facts", "relationships"})
-ALLOWED_DELTA = frozenset(
-    {
-        "concepts",
-        "declarations",
-        "labels",
-        "references",
-        "issues",
-        "extractor_version",
-    }
-)
+BASELINE_EXTRACTOR = "source-extract-v5"
+CURRENT_EXTRACTOR = "source-extract-v6"
+
+
+def _issue_code_counts(issues: list[dict[str, object]]) -> Counter[str]:
+    return Counter(str(issue["code"]) for issue in issues)
 
 
 def main() -> int:
@@ -42,15 +39,36 @@ def main() -> int:
             failed = True
             continue
         baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        if baseline.get("extractor_version") != BASELINE_EXTRACTOR:
+            print(
+                f"{accession}: baseline extractor_version "
+                f"{baseline.get('extractor_version')!r} != {BASELINE_EXTRACTOR!r}"
+            )
+            failed = True
         bundle_parent = root / "bundles" / cik / accession
         opaque = next(bundle_parent.iterdir())
         loaded = load_bundle_ref(data_root=root, bundle_dir=opaque)
         result = run_offline_extract(loaded.bundle, store)
         current = report_extraction_to_dict(result.report)
+        if current.get("extractor_version") != CURRENT_EXTRACTOR:
+            print(
+                f"{accession}: current extractor_version "
+                f"{current.get('extractor_version')!r} != {CURRENT_EXTRACTOR!r}"
+            )
+            failed = True
         for name in INVARIANT:
             if current[name] != baseline[name]:
                 print(f"{accession}: invariant {name} changed")
                 failed = True
+        baseline_issues = _issue_code_counts(baseline.get("issues", []))
+        current_issues = _issue_code_counts(current.get("issues", []))
+        added = sorted(set(current_issues) - set(baseline_issues))
+        removed = sorted(set(baseline_issues) - set(current_issues))
+        if added:
+            print(f"{accession}: new issue codes {added}")
+            failed = True
+        if removed:
+            print(f"{accession}: removed issue codes {removed}")
         print(
             f"{accession}: concepts {len(baseline['concepts'])} -> {len(current['concepts'])} "
             f"declarations {len(baseline['declarations'])} -> {len(current['declarations'])} "

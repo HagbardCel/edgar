@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 import lxml.etree as etree
 
 from edgar.xbrl.config import FACT_LEXICAL_VERSION, build_semantic_config
@@ -146,14 +144,3 @@ def test_locator_rejects_index_for_wrong_root() -> None:
         assert "different document root" in str(exc)
     else:
         raise AssertionError("expected LocatorError for mismatched IdIndex")
-
-
-def test_locator_index_performance_smoke() -> None:
-    parts = "".join(f'<e id="id{i}"/>' for i in range(1000))
-    root = etree.fromstring(f"<x>{parts}</x>".encode())
-    index = id_index(root)
-    start = time.perf_counter()
-    for child in root:
-        element_locator(child, document_uri=_DOC, index=index)
-    elapsed = time.perf_counter() - start
-    assert elapsed < 1.0

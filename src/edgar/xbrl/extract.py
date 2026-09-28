@@ -649,10 +649,7 @@ def _concept_declarations(
     for key, concept in (getattr(model_xbrl, "qnameConcepts", None) or {}).items():
         identity = _expanded_qname(getattr(concept, "qname", None)) or _expanded_qname(key)
         if identity is None:
-            extraction.incoherent(
-                INCOHERENT_CONCEPT_DECLARATION,
-                f"concept declaration without a usable QName: {key!r}",
-            )
+            # Already diagnosed by _scan_dts_concept_identities().
             continue
         if identity not in keep:
             continue

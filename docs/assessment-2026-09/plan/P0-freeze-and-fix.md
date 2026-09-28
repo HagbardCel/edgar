@@ -32,6 +32,10 @@ P0.1) and faster extraction (after P0.2).
 
 ## Work items
 
+**Sequencing.** Accept ADR 0014 (P0.1) before landing P0.3 declaration-grain
+changes. P0.2 (locator index) may proceed in parallel with the ADR draft, but
+`source-extract-v6` must not merge until the ADR is **Accepted**.
+
 ### P0.1 — Adopt the direction (blocks P1+)
 
 This is a documentation and governance change. A senior reviewer must accept
@@ -135,8 +139,9 @@ identical. If you cannot keep output identical, stop and ask.
   locators as today (unique `id` → `unqualified_id`).
 - New test: two elements with the same `id` both fall back to
   `expanded_element_path`.
-- Optional micro-benchmark in the test (not CI-failing): 500 calls on a 1k
-  element tree finish in well under a second.
+- Do **not** add a wall-clock assertion to the unit suite. Optional timing
+  belongs in `scripts/p0_walmart_timing.py` (warm-up plus three runs; record
+  median, min, and max).
 
 **Validation gate P0.2a**
 
@@ -187,7 +192,9 @@ semantic_family first (special cases):
 
 origin = standard when semantic_family is us-gaap|dei|srt, OR the host
 (http or https) is xbrl.sec.gov, fasb.org, or xbrl.us.
-origin = issuer otherwise (filer-owned hosts).
+origin = issuer otherwise (negative classification: filer-owned hosts until
+P3 package provenance replaces the host heuristic). `issuer` does **not** prove
+filer ownership.
 
 semantic_family = other when origin is standard and the namespace is
 not one of the three families (country, cyd, ecd, ffd, exch, …).
@@ -220,22 +227,27 @@ Do **not** use a fixed-point keep-set (declaration kept because a resource
 is kept, resource kept because the declaration is in the keep-set). That
 can retain most of the 17k unused US-GAAP concepts.
 
-Define the grain in one pass, no fixed point:
+**Pipeline order (v6).** Identity scan and relationship projection run against
+the full usable DTS identity set before `base_concepts` exists:
 
 ```text
+qnameConcepts → identity scan (fail-closed on unusable QName; once only)
+contexts / dimensions / units / facts
+relationship_projection(declared=dts_declared) → relationships, labels, references
 base_concepts =
     fact concepts
   ∪ relationship endpoints
-  ∪ all issuer-extension declarations
-    (origin(namespace) == "issuer")
-    # standard-but-other (CYD, country, …) is not issuer
+  ∪ filed dimension axes
+  ∪ filed explicit members
+  ∪ issuer-origin declarations (origin == "issuer")
 
-persisted labels/references =
-    resources whose subject ∈ base_concepts
-
-persisted declarations =
-    base_concepts
+persisted declarations = qnameConcepts entries whose identity ∈ base_concepts
+persisted labels/references = resources whose subject ∈ base_concepts
+ReportExtraction.concepts = retained declaration grain (v6 contract)
 ```
+
+Unusable `qnameConcepts` entries must preserve v5 fail-closed behavior without
+duplicate fatal diagnostics.
 
 A filing-specific resource that genuinely needs another standard concept
 must be added through an **explicit later resource policy**, not by
@@ -256,29 +268,41 @@ Label/reference counts follow `base_concepts`, not the full taxonomy.
 
 **Tests**
 
-- Unit: `taxonomy_family` on the 2009 / 2011 / modern URIs listed above.
-- Unit: a small in-memory or rich-xbrl fixture where a standard concept is
-  declared but unused is omitted; a used standard concept is kept; an unused
-  extension is kept; a 2009 `xbrl.us` unused standard concept is **not**
-  kept as an issuer extension; an unused `xbrl.sec.gov/cyd` concept is
-  dropped, not kept as issuer.
-- Contract / corpus: review changed declaration counts. **Do not** silently
-  refresh goldens. The PR description lists old vs new counts per accession.
+- Unit: `taxonomy_family` on the 2009 / modern URIs listed above (including
+  `fasb.org/srt/` HTTP and HTTPS).
+- Unit: extraction-level keep-set fixture (`tests/unit/test_extract_v6_declaration_grain.py`):
+  used standard retained; unused standard dropped; unused issuer retained;
+  dimension axis and explicit member retained when only filed on a context;
+  unused `http://xbrl.us/us-gaap/2009-01-31` and unused `xbrl.sec.gov/cyd`
+  dropped (not treated as issuer extensions).
+- Contract / corpus: structural baseline (below). **Do not** silently refresh
+  goldens. The PR description lists old vs new counts per accession and
+  issue-code deltas per accession.
 
-**Validation gate P0.3**
+**Pinned six-filing baseline (structural acceptance).**
 
-```bash
-uv run pytest -q -m "not network" tests/contract/test_arelle_report_extraction.py
-uv run pytest -q -m "not network" tests/unit/test_source_extract_adapt.py
-# after extract of the six corpus filings:
-#   facts, contexts, units, relationships unchanged vs previous persist
-#   concept_declaration and unused-standard label/reference counts fall
-#   concept_declaration count per full report << 18500
-```
+1. On pre-v6 code, capture `source-extract-v5` wire JSON for all six corpus
+   accessions under `var/p0-baseline/<git-sha>/` (`scripts/p0_corpus_baseline.py`).
+2. After v6, `scripts/p0_compare_baseline.py` must assert:
+   - baseline `extractor_version == source-extract-v5`
+   - current `extractor_version == source-extract-v6`
+   - invariants unchanged: `contexts`, `dimensions`, `units`, `measures`,
+     `facts`, `relationships`
+   - no **new** issue codes vs baseline (removed codes listed for review)
+   - declaration / label / reference count deltas listed per accession
 
 If any fact, context, unit, or relationship locator or value changed,
 revert and fix. The allowed extract delta is **declaration cardinality
 and filtered label/reference counts**, not facts/contexts/units/relationships.
+
+**Validation gate P0.3**
+
+```bash
+uv run pytest -q tests/unit/test_extract_v6_declaration_grain.py tests/unit/test_taxonomy_family.py
+uv run pytest -q -m "not network" tests/contract/test_arelle_report_extraction.py
+uv run pytest -q -m "not network" tests/unit/test_source_extract_adapt.py
+# scripts/p0_compare_baseline.py var/p0-baseline/<v5-sha>/
+```
 
 ---
 

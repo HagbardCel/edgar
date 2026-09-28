@@ -1,27 +1,34 @@
 # Architecture
 
 Documentation scope: this file describes the **implemented baseline** (Phase 2B
-`source.*` + Phase 2C registry). The **adopted target** is in the
-[target package](architecture/README.md) and [ADR 0012](adr/0012-adopt-bounded-financial-architecture.md).
-See the [documentation index](README.md) for status and authority.
+`source.*` plus Phase 2C registry mirror and historical mapping ledger). The
+[target package](architecture/README.md) records the M0–M4 architecture adopted
+by [ADR 0012](adr/0012-adopt-bounded-financial-architecture.md) (historical
+context). **Forward implementation sequencing and mapping write authority** are
+governed by [ADR 0014](adr/0014-adopt-lean-mapping-sequence.md) and
+`docs/assessment-2026-09/plan/`. See the [documentation index](README.md) for
+status and authority.
 
-**Status:** Phase 2C canonical registry and mapping ledger (on the Phase 2B
-`source.*` baseline). **P0 is complete; P1 will add resolve/select on
-`source.*` for the walking skeleton** ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md)).
+**Status:** Phase 2C registry facilities on the Phase 2B `source.*` baseline.
+**P0 is complete; P1 will add resolve/select on `source.*` for the walking
+skeleton** ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md)).
 
 ## Mission
 
 Preserve immutable SEC filing evidence, extract deterministic document structure
 and XBRL semantics into `source.*`, and enable offline replay. Canonical metric
-**definitions** live in Git `registry/metrics.yml`; mapping **decisions** live
-in `registry.mapping_assertion`. Canonical metric observations remain deferred
-until M3 under the adopted migration. See [`normalization.md`](normalization.md) and
+**definitions** live in Git `registry/metrics.yml`. **Existing** mapping decisions
+persist in `registry.mapping_assertion` (historical ledger state). **New** P1+
+mapping decisions are recorded in Git per ADR 0014. Canonical metric observations
+remain deferred until the P4+ gate in the lean plan. See
+[`normalization.md`](normalization.md) and
 [ADR 0010](adr/0010-curated-semantic-registry.md).
 
 Persistence detail: [`docs/data-model.md`](data-model.md). Source extraction
 decision: [ADR 0011](adr/0011-source-extraction.md). Historical Phase-1 projection
 ADR: [ADR 0008](adr/0008-lean-xbrl-semantic-projection.md) (superseded).
-Adopted forward plan: [ADR 0012](adr/0012-adopt-bounded-financial-architecture.md).
+Forward plan: [ADR 0014](adr/0014-adopt-lean-mapping-sequence.md); ADR 0012
+remains historical architecture context.
 
 ## Layering
 

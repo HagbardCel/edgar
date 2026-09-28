@@ -84,7 +84,8 @@ Retain the historical tree under `semantic-registry/` as an archive only.
 
 ## Phase 2C invariants (canonical registry and mapping ledger)
 
-Phase 2C is complete. Continue to maintain:
+Phase 2C is complete. Continue to maintain operational ledger state and CLI
+until P3 consolidation:
 
 - Git-authoritative `registry/metrics.yml` (reported metric contracts)
 - `definition_hash` (mapping-review hash) and semantic registry hash
@@ -96,6 +97,11 @@ Phase 2C is complete. Continue to maintain:
 - `edgar registry validate|sync`, `edgar metrics list|show`, `edgar mappings list|show|propose|accept|reject|export`
 - Live affected facts via `contains()`; no durable `source_fact_ids`
 
+New P1+ mapping decisions are recorded in Git decision records ([ADR
+0014](docs/adr/0014-adopt-lean-mapping-sequence.md)). Existing
+`registry.mapping_assertion` rows remain readable; `propose`/`accept` are not
+the write authority for new decisions.
+
 ## Phase 2B invariants (source cutover)
 
 Phase 2B is complete. Continue to maintain:
@@ -106,12 +112,16 @@ Phase 2B is complete. Continue to maintain:
 - No Phase-1 projection/attempt tables, dual-writes, or projection CLI commands
 - Phase-1 DBs must be recreated (no in-place upgrade from deleted 0001–0004)
 
-Do not add without the owning M-phase gate (see ADR 0012 / migration-plan):
+Do not add without the owning P-phase gate (see [ADR
+0014](docs/adr/0014-adopt-lean-mapping-sequence.md) and
+`docs/assessment-2026-09/plan/`):
 
-- `semantic.*` / `metric_observation` or canonical fact acceptance (M3+)
-- automated mapping candidates or precedence among current rules (M2+)
+- `semantic.*` / `metric_observation` or canonical observation publication
+  (P4+ per the lean plan; not ahead of exit criteria)
+- automated mapping candidate generation or precedence machinery beyond the
+  current P-phase scope
 - LLM auto-approval of mappings (never for ambiguous claims)
-- SQLMesh or observation-selection policy (M3+/deferred)
+- SQLMesh or observation-selection policy (deferred until the owning P phase)
 
 ---
 
