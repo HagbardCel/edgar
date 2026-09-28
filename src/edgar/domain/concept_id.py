@@ -27,8 +27,3 @@ def clark_qname(namespace_uri: str, local_name: str) -> str:
 def concept_id(namespace_uri: str, local_name: str) -> UUID:
     """Stable UUIDv5 for an exact expanded QName."""
     return uuid5(EDGAR_CONCEPT_NAMESPACE_UUID, clark_qname(namespace_uri, local_name))
-
-
-def concept_id_str(namespace_uri: str, local_name: str) -> str:
-    """Stable concept id as a canonical UUID string."""
-    return str(concept_id(namespace_uri, local_name))
