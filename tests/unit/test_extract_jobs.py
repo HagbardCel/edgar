@@ -42,12 +42,7 @@ def test_parser_rejects_blank_comments_malformed_and_duplicates(text: str) -> No
 
 
 def test_parser_reads_frozen_spike_baseline() -> None:
-    path = (
-        Path(__file__).resolve().parents[2]
-        / "fixtures"
-        / "spike"
-        / "p2-accessions-baseline.txt"
-    )
+    path = Path(__file__).resolve().parents[2] / "fixtures" / "spike" / "p2-accessions-baseline.txt"
     accessions = parse_accession_file(path)
     assert len(accessions) == 6
     assert len(set(accessions)) == 6
