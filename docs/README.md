@@ -1,6 +1,10 @@
 # Documentation
 
-The [target architecture package](architecture/README.md) is the **adopted** forward plan ([ADR 0012](adr/0012-adopt-bounded-financial-architecture.md)). **Current implementation phase: M0 — complete; next: M1A.** Phase 2B/2C remain live production behavior until M1A/M2 change them. Consolidating documents does not authorize later-phase implementation ahead of its gate.
+The [target architecture package](architecture/README.md) records the historical
+M0–M4 recommendation ([ADR 0012](adr/0012-adopt-bounded-financial-architecture.md)).
+**Current implementation sequence: P0 complete; next: P1** ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md),
+[assessment plan](assessment-2026-09/plan/)). Phase 2B/2C remain live production
+behavior until P3 consolidation changes them.
 
 ## What is implemented
 
@@ -24,11 +28,12 @@ Current production truth is the code, tests and implemented contracts above. The
 - **Phase 2A:** the Git JSON semantic registry closed with 20 historical v1 contracts and three reviewed real-corpus rules. `semantic-registry/` is now an archive, never production authority. Do not infer current ledger contents from those rules.
 - **Phase 2B:** FilingBundle → `filings catalog|extract` → native `ReportExtraction` → `source.*` is the sole live source path. `0001_source_v2` replaced the old baseline. No dual writes or projection-attempt tables. Phase-1 databases cannot upgrade through the deleted migration lineage; see development guidance, with explicit authorization before resetting user data.
 - **Phase 2C:** `registry/metrics.yml` authors current contracts; `registry.canonical_metric` mirrors them; `registry.mapping_assertion` records append-only decisions (`0002_registry`). Propose/accept require YAML/mirror agreement and definition-hash checks; rejected is terminal; affected facts are queried live. The inspected YAML has 39 metrics. Constructed-fixture coverage includes validate → sync → propose → accept → export; this is not financial observation selection.
-- **Adopted target:** [M0–M4 migration](architecture/migration-plan.md) via [ADR 0012](adr/0012-adopt-bounded-financial-architecture.md). **M0 is complete** (adoption, inventory/restore proof, bounded benchmark, review profile, static validation). [ADR 0013](adr/0013-publication-critical-taxonomy-evidence.md) clarifies that bounded official-taxonomy evidence required by named M0 benchmark cases is M1A scope; generalized taxonomy continuity remains M5. No applicability/selection or canonical financial observation publication is implemented. Current Phase 2A/2B/2C invariants remain in force until M1A/M2 explicitly change them. **Next phase: M1A.**
+- **Lean sequence (forward):** [P0–P6 plan](assessment-2026-09/plan/) via [ADR 0014](adr/0014-adopt-lean-mapping-sequence.md). **P0 is complete** (locator index, declaration grain `source-extract-v6`, ADR 0014). P1 adds resolve/select on `source.*` for the walking skeleton. Historical [M0–M4 migration](architecture/migration-plan.md) ([ADR 0012](adr/0012-adopt-bounded-financial-architecture.md)) remains reference only for superseded items.
 
 ## Plans and evidence
 
-- [Target and migration entry point](architecture/README.md): selected and deferred decisions, source model, mapping/review, selection and testing.
+- [September 2026 assessment implementation plan](assessment-2026-09/plan/) (P0–P6; governing forward work per ADR 0014).
+- [Target and migration entry point](architecture/README.md): historical M0–M4 package; selected and deferred decisions.
 - [Feedback assessment](architecture/feedback-assessment.md): accepted feedback and disagreements.
 - [Consolidation record](architecture/documentation-consolidation.md): useful requirements retained from seven removed plans, reasons for removal and exact Git recovery instructions.
 - [August code assessment](reviews/2026-08-22-project-assessment.md) and [lineage review](reviews/2026-08-31-xbrl-lineage-review.md): retained diagnostic evidence, not current plans or newly verified results.
