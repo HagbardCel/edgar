@@ -74,8 +74,9 @@ registry/gold/*.yml           ─┘
         │
   edgar build            reads source.* (existing PostgreSQL)
         │
-        ├─ metalinks.parse(bundle)     # definitions + statement roles
         ├─ resolve(facts, decisions)   # supports
+        # MetaLinks.parse(bundle) is implemented for P1.6 tests; build does not
+        # require bundle access (PostgreSQL source.* is sufficient for selection).
         ├─ select(supports, contexts)  # 10-K / 10-K/A only
         └─ validate(observations)      # findings
         │
