@@ -60,7 +60,7 @@ def parse_taxonomy_schema_bytes(data: bytes) -> tuple[str, frozenset[tuple[str, 
     if not target:
         raise TaxonomyAvailabilityError("taxonomy schema is missing targetNamespace")
     concepts: set[tuple[str, str]] = set()
-    for elem in root.iter(f"{{{_XSD_NS}}}element"):
+    for elem in root.findall(f"{{{_XSD_NS}}}element"):
         name = elem.get("name")
         if name:
             concepts.add((target, name))

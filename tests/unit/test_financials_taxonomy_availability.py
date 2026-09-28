@@ -113,6 +113,23 @@ def test_schema_parser_collects_target_namespace_elements() -> None:
     assert concepts == frozenset({(_NS_GAAP, "Foo"), (_NS_GAAP, "Bar")})
 
 
+def test_schema_parser_ignores_nested_local_elements() -> None:
+    schema = f"""<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="{_NS_GAAP}"
+           elementFormDefault="qualified">
+  <xs:element name="Foo" type="xs:string"/>
+  <xs:complexType name="Something">
+    <xs:sequence>
+      <xs:element name="Bar"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>
+""".encode()
+    _target, concepts = parse_taxonomy_schema_bytes(schema)
+    assert concepts == frozenset({(_NS_GAAP, "Foo")})
+
+
 def test_external_closure_schema_makes_us_gaap_concepts_available(tmp_path: Path) -> None:
     store = ObjectStore(tmp_path)
     issuer = store.put_bytes(_schema(_NS_ISSUER, ("IssuerRevenue",)))

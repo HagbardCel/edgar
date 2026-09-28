@@ -1,7 +1,9 @@
 """Quality report over filing × metric slots.
 
-Taxonomy release is a property of the filing, taken from US-GAAP declarations
-before selection. Eligible observation statuses partition ``n_slot_eligible``.
+Taxonomy release for P2 measurement comes from captured DTS closure XSD
+``targetNamespace`` values (see ``taxonomy_availability``), not from bounded
+``source.concept_declaration`` rows or selected observations. Eligible
+observation statuses partition ``n_slot_eligible``.
 ``wrong_form`` is ``n_ineligible_wrong_form`` and sits outside that partition.
 Oracle labels partition ``n_slots`` separately and never change the observation.
 
@@ -128,11 +130,10 @@ def slot_decision_applicable(
     metric: str,
     registry: DecisionRegistry,
 ) -> bool:
-    """Eligible slot whose exact US-GAAP decision matches a declared concept.
+    """Eligible slot whose exact US-GAAP decision matches a global taxonomy concept.
 
-    Matching uses captured taxonomy schema concepts (not bounded
-    ``source.concept_declaration`` rows) and ``concept_matches_decision``,
-    including ``exclude_qnames``.
+    Matching uses captured DTS closure XSD global element declarations and
+    ``concept_matches_decision``, including ``exclude_qnames``.
     """
     if frame.form not in ANNUAL_FORMS:
         return False
