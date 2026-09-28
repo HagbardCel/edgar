@@ -1,0 +1,17 @@
+id: cash_excluding_restricted_cash.us-gaap.CashAndCashEquivalentsAtCarryingValue
+metric: cash_excluding_restricted_cash
+source:
+  family: us-gaap
+  local_name: CashAndCashEquivalentsAtCarryingValue
+relation: exact
+scope: {}
+status: accepted
+method: curated
+rationale: P1 walking skeleton exact mapping for CashAndCashEquivalentsAtCarryingValue.
+evidence:
+- kind: curated
+  source: registry/metrics.yml
+reviewed:
+  by: p1-bootstrap
+  'on': '2026-09-28'
+contract_hash: 42e3ef09680a26ef55429b0399e28e69f1a13239cae0651b0186430a22a83313

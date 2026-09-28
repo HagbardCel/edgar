@@ -1,0 +1,17 @@
+id: research_and_development.us-gaap.ResearchAndDevelopmentExpense
+metric: research_and_development
+source:
+  family: us-gaap
+  local_name: ResearchAndDevelopmentExpense
+relation: exact
+scope: {}
+status: accepted
+method: curated
+rationale: P1 walking skeleton exact mapping for ResearchAndDevelopmentExpense.
+evidence:
+- kind: curated
+  source: registry/metrics.yml
+reviewed:
+  by: p1-bootstrap
+  'on': '2026-09-28'
+contract_hash: e5b4f8a848048271775b69574922fbce07155aad136ec0bf14a2c9c0f00fb738

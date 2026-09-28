@@ -40,6 +40,28 @@ Exit numbers (from [08](../08-migration-plan-assessment.md) and
 - Knowledge clocks, publication notices, review-profile machinery.
 - Running `annual-v1` on 10-Qs as if they were annual slots (P5).
 
+## Implementation contract (frozen at P1.0)
+
+The following rules govern the P1 implementation; they supersede ambiguous wording
+in older sections of this file where they differ.
+
+- **Build metric universe:** only the eight keys in `registry/gold/cohorts/m0.yml`
+  `metrics` list produce observation rows; the full `metrics.yml` registry remains
+  authoritative for contracts.
+- **Default accessions:** the six accessions in `fixtures/corpus.toml` in file
+  order; `--accession` overrides. Gold `--check-gold` evaluates only assertions
+  whose accession is in the build request.
+- **Form guard first:** if `form` is not `10-K` or `10-K/A`, emit
+  `unsupported` / `wrong_form` for every m0 metric without required-period lookup,
+  fact load, resolve, or identities.
+- **Gold never selects:** reporting period comes from DEI required context on
+  10-K filings only; gold compares outputs afterward (matrix covers `value`,
+  `missing` with explicit `reason`, `decision_scope`, and `wrong_form`).
+- **OIM:** group duplicates by `source_qname` after slot gates; `OimResolution`
+  exposes `survivor_value` for publication and `consistent_interval` for identities.
+- **Atomic export:** write to a sibling temp directory, then rename to `--output-dir`
+  (destination must not exist).
+
 ## Architecture of this phase (only)
 
 ```text

@@ -1,0 +1,17 @@
+id: revenue.us-gaap.GrossProfit.rejected
+metric: revenue
+source:
+  family: us-gaap
+  local_name: GrossProfit
+relation: exact
+scope: {}
+status: rejected
+method: curated
+rationale: P1 walking skeleton exact mapping for GrossProfit.
+evidence:
+- kind: curated
+  source: registry/metrics.yml
+reviewed:
+  by: p1-bootstrap
+  'on': '2026-09-28'
+contract_hash: ba6bdf8e41ec0789a0acdb855b971aed4bca023c6b76b5eca531e7d76cd683d1

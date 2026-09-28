@@ -35,6 +35,8 @@ edgar documents sections --document-id …
 edgar registry validate
 edgar registry sync
 edgar metrics list|show
+edgar rules check
+edgar build --check-gold --output-dir var/builds/p1
 edgar mappings list|show|propose|accept|reject|export
 ```
 

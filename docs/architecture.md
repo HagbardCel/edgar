@@ -10,8 +10,13 @@ governed by [ADR 0014](adr/0014-adopt-lean-mapping-sequence.md) and
 status and authority.
 
 **Status:** Phase 2C registry facilities on the Phase 2B `source.*` baseline.
-**P0 is complete; P1 will add resolve/select on `source.*` for the walking
-skeleton** ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md)).
+**P1 walking skeleton is implemented** (`edgar build`, Git decisions, m0 gold);
+**P2 is next** ([ADR 0014](adr/0014-adopt-lean-mapping-sequence.md)).
+
+P1 is not an incomplete implementation of the older SQLMesh /
+`registry.mapping_assertion` write path. ADR 0014 sets the current authority:
+Git decision records, Python selection over `source.*`, rebuildable artifacts
+under `var/builds/`, and no durable observation tables in P1.
 
 ## Mission
 

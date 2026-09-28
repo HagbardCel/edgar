@@ -15,7 +15,7 @@ runner = CliRunner()
 def test_registry_validate_prints_count_and_semantic_hash() -> None:
     result = runner.invoke(app, ["registry", "validate"])
     assert result.exit_code == 0, result.output
-    assert "metrics=39" in result.output
+    assert "metrics=41" in result.output
     assert "semantic_registry_hash=" in result.output
 
 
@@ -24,7 +24,7 @@ def test_metrics_list_json_includes_semantic_hash_and_canonical_keys() -> None:
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["semantic_registry_hash"]
-    assert payload["count"] == 39
+    assert payload["count"] == 41
     keys = {row["key"] for row in payload["metrics"]}
     assert keys == EXPECTED_CANONICAL_METRIC_KEYS
 

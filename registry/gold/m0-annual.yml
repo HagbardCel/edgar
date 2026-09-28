@@ -1,0 +1,133 @@
+assertions:
+  - id: ebay_fy2022_revenue
+    accession: "0001065088-23-000006"
+    metric: revenue
+    period: {kind: duration, start: "2022-01-01", end: "2022-12-31"}
+    status: value
+    numeric: "9795000000"
+
+  - id: ebay_fy2022_total_assets
+    accession: "0001065088-23-000006"
+    metric: total_assets
+    period: {kind: instant, end: "2022-12-31"}
+    status: value
+    numeric: "20850000000"
+
+  - id: ebay_fy2022_operating_cash_flow
+    accession: "0001065088-23-000006"
+    metric: operating_cash_flow
+    period: {kind: duration, start: "2022-01-01", end: "2022-12-31"}
+    status: value
+    numeric: "2254000000"
+
+  - id: ebay_fy2023_revenue
+    accession: "0001065088-24-000036"
+    metric: revenue
+    period: {kind: duration, start: "2023-01-01", end: "2023-12-31"}
+    status: value
+    numeric: "10112000000"
+
+  - id: ebay_fy2023_total_assets
+    accession: "0001065088-24-000036"
+    metric: total_assets
+    period: {kind: instant, end: "2023-12-31"}
+    status: value
+    numeric: "21620000000"
+
+  - id: ebay_fy2023_operating_cash_flow
+    accession: "0001065088-24-000036"
+    metric: operating_cash_flow
+    period: {kind: duration, start: "2023-01-01", end: "2023-12-31"}
+    status: value
+    numeric: "2426000000"
+
+  - id: ebay_fy2023_operating_income
+    accession: "0001065088-24-000036"
+    metric: operating_income
+    period: {kind: duration, start: "2023-01-01", end: "2023-12-31"}
+    status: value
+    numeric: "1941000000"
+
+  - id: ebay_fy2023_rnd
+    accession: "0001065088-24-000036"
+    metric: research_and_development
+    period: {kind: duration, start: "2023-01-01", end: "2023-12-31"}
+    status: value
+    numeric: "1544000000"
+
+  - id: ebay_fy2023_net_income_parent
+    accession: "0001065088-24-000036"
+    metric: net_income_attributable_to_parent
+    period: {kind: duration, start: "2023-01-01", end: "2023-12-31"}
+    status: value
+    numeric: "2767000000"
+
+  - id: ebay_fy2023_cash
+    accession: "0001065088-24-000036"
+    metric: cash_excluding_restricted_cash
+    period: {kind: instant, end: "2023-12-31"}
+    status: value
+    numeric: "1985000000"
+
+  - id: ebay_fy2023_ppe
+    accession: "0001065088-24-000036"
+    metric: cash_purchases_of_ppe
+    period: {kind: duration, start: "2023-01-01", end: "2023-12-31"}
+    status: value
+    numeric: "456000000"
+
+  - id: walmart_fy2024_revenue
+    accession: "0000104169-24-000056"
+    metric: revenue
+    period: {kind: duration, start: "2023-02-01", end: "2024-01-31"}
+    status: value
+    numeric: "642637000000"
+
+  - id: walmart_fy2024_total_assets
+    accession: "0000104169-24-000056"
+    metric: total_assets
+    period: {kind: instant, end: "2024-01-31"}
+    status: value
+    numeric: "252399000000"
+
+  - id: walmart_fy2024_operating_cash_flow
+    accession: "0000104169-24-000056"
+    metric: operating_cash_flow
+    period: {kind: duration, start: "2023-02-01", end: "2024-01-31"}
+    status: value
+    numeric: "35726000000"
+
+  - id: walmart_fy2024_cash
+    accession: "0000104169-24-000056"
+    metric: cash_excluding_restricted_cash
+    period: {kind: instant, end: "2024-01-31"}
+    status: value
+    numeric: "9867000000"
+
+  - id: walmart_fy2024_rnd
+    accession: "0000104169-24-000056"
+    metric: research_and_development
+    period: {kind: duration, start: "2023-02-01", end: "2024-01-31"}
+    status: missing
+    reason: null
+
+  - id: ebay_10ka_revenue
+    accession: "0001065088-24-000094"
+    metric: revenue
+    period: {kind: duration, start: "2023-01-01", end: "2023-12-31"}
+    status: missing
+    reason: null
+
+  - id: jpm_2024q2_revenue
+    accession: "0000019617-24-000453"
+    metric: revenue
+    period: {kind: duration, start: "2024-04-01", end: "2024-06-30"}
+    status: unsupported
+    reason: wrong_form
+
+  - id: ko_2024q2_revenue
+    accession: "0000021344-24-000044"
+    metric: revenue
+    period: {kind: duration, start: "2024-04-01", end: "2024-06-30"}
+    status: unsupported
+    reason: wrong_form

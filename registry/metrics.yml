@@ -231,6 +231,24 @@ metrics:
         when that amount is a narrower residual
       - comprehensive income attributable to parent
 
+  - key: cash_excluding_restricted_cash
+    name: Cash excluding restricted cash
+    kind: reported
+    statement: balance_sheet
+    period_type: instant
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Cash and cash equivalents held at the reporting date, excluding
+      restricted cash presented separately or outside this line.
+    includes:
+      - cash and cash equivalents at carrying value when restricted cash is excluded
+      - cash and cash equivalents without restricted cash
+    excludes:
+      - cash and cash equivalents that include restricted cash in the same line
+      - restricted cash and cash equivalents presented separately
+      - total cash including restricted cash when that is a broader measure
+
   - key: cash_and_cash_equivalents
     name: Cash and cash equivalents
     kind: reported
@@ -540,6 +558,25 @@ metrics:
       - purchases of marketable securities
       - capitalized software classified outside PP&E purchases when presented
         separately and not as capex
+
+  - key: cash_purchases_of_ppe
+    name: Cash purchases of property, plant and equipment
+    kind: reported
+    statement: cash_flow
+    period_type: duration
+    value_kind: numeric
+    unit_dimension: monetary
+    definition: >
+      Cash paid during the reporting period to acquire property, plant, and
+      equipment only.
+    includes:
+      - payments to acquire property plant and equipment
+      - cash outflows for PP&E purchases in the investing section
+    excludes:
+      - capital expenditure for similar long-lived productive assets beyond PP&E
+      - acquisitions of businesses
+      - purchases of intangible assets unless presented as PP&E purchases
+      - capitalized software when presented separately from PP&E
 
   - key: depreciation_and_amortization
     name: Depreciation and amortization

@@ -1,0 +1,29 @@
+metrics:
+  - revenue
+  - total_assets
+  - operating_cash_flow
+  - operating_income
+  - research_and_development
+  - net_income_attributable_to_parent
+  - cash_excluding_restricted_cash
+  - cash_purchases_of_ppe
+slots:
+  - ebay_fy2022_revenue
+  - ebay_fy2022_total_assets
+  - ebay_fy2022_operating_cash_flow
+  - ebay_fy2023_revenue
+  - ebay_fy2023_total_assets
+  - ebay_fy2023_operating_cash_flow
+  - ebay_fy2023_operating_income
+  - ebay_fy2023_rnd
+  - ebay_fy2023_net_income_parent
+  - ebay_fy2023_cash
+  - ebay_fy2023_ppe
+  - walmart_fy2024_revenue
+  - walmart_fy2024_total_assets
+  - walmart_fy2024_operating_cash_flow
+  - walmart_fy2024_cash
+  - walmart_fy2024_rnd
+  - ebay_10ka_revenue
+  - jpm_2024q2_revenue
+  - ko_2024q2_revenue

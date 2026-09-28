@@ -1,0 +1,114 @@
+from decimal import Decimal
+from pathlib import Path
+
+from edgar.financials.decisions import load_decisions
+from edgar.financials.models import FactRow, UnitMeasureRow
+from edgar.financials.period import ReportingPeriod
+from edgar.financials.resolve import resolve_supports
+from edgar.financials.select import select_metric
+
+_REGISTRY = Path(__file__).resolve().parents[2] / "registry"
+USD = UnitMeasureRow("numerator", 1, "http://www.xbrl.org/2003/iso4217", "USD")
+NS = "http://fasb.org/us-gaap/2024"
+
+
+def _fact(
+    fact_id: int,
+    local: str,
+    value: Decimal,
+    decimals: str,
+    *,
+    context_id: int = 1,
+    start: str = "2023-01-01",
+    end: str = "2023-12-31",
+    instant: str | None = None,
+    duration: bool = True,
+) -> FactRow:
+    return FactRow(
+        fact_id=fact_id,
+        concept_namespace=NS,
+        concept_local_name=local,
+        source_qname=f"{{{NS}}}{local}",
+        context_id=context_id,
+        value_status="valid",
+        resolved_numeric=value,
+        is_nil=False,
+        decimals=decimals,
+        entity_scheme="http://www.sec.gov/CIK",
+        entity_identifier="0000104169",
+        period_kind="duration" if duration else "instant",
+        instant_lexical=instant,
+        start_lexical=start if duration else None,
+        end_lexical=end if duration else None,
+        has_dimensions=False,
+        unit_measures=(USD,),
+    )
+
+
+def test_walmart_cash_oim_survivor() -> None:
+    registry = load_decisions(_REGISTRY)
+    period = ReportingPeriod(kind="instant", start=None, end="2024-01-31")
+    facts = (
+        _fact(1, "CashAndCashEquivalentsAtCarryingValue", Decimal("9867000000"), "-6", instant="2024-01-31", duration=False),
+        _fact(2, "CashAndCashEquivalentsAtCarryingValue", Decimal("9900000000"), "-8", instant="2024-01-31", duration=False, context_id=2),
+    )
+    supports = resolve_supports(facts, registry, "0000104169-24-000056", "0000104169")
+    obs = select_metric(
+        "cash_excluding_restricted_cash",
+        "10-K",
+        "0000104169",
+        "0000104169-24-000056",
+        period,
+        facts,
+        supports,
+        registry,
+        None,
+    )
+    assert obs.status == "value"
+    assert obs.numeric == Decimal("9867000000")
+
+
+def test_10q_wrong_form() -> None:
+    registry = load_decisions(_REGISTRY)
+    obs = select_metric(
+        "revenue",
+        "10-Q",
+        "0000019617",
+        "0000019617-24-000453",
+        None,
+        (),
+        (),
+        registry,
+        None,
+    )
+    assert obs.status == "unsupported"
+    assert obs.reason == "wrong_form"
+
+
+def test_broader_only_missing() -> None:
+    registry = load_decisions(_REGISTRY)
+    period = ReportingPeriod(kind="duration", start="2023-02-01", end="2024-01-31")
+    facts = (
+        _fact(
+            1,
+            "Revenues",
+            Decimal("100"),
+            "-3",
+            start="2023-02-01",
+            end="2024-01-31",
+        ),
+    )
+    supports = resolve_supports(facts, registry, "0000104169-24-000056", "0000104169")
+    obs = select_metric(
+        "revenue",
+        "10-K",
+        "0000104169",
+        "0000104169-24-000056",
+        period,
+        facts,
+        supports,
+        registry,
+        None,
+    )
+    assert obs.status == "missing"
+    assert obs.reason == "broader_only"

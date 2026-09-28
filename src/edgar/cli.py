@@ -47,12 +47,16 @@ documents_app = typer.Typer(help="Document section inspection (source.*).")
 metrics_app = typer.Typer(help="Canonical metric registry workflows (Git-authoritative YAML).")
 registry_app = typer.Typer(help="Canonical metric YAML validation and database sync.")
 mappings_app = typer.Typer(help="Mapping decision ledger workflows (registry.mapping_assertion).")
+rules_app = typer.Typer(help="Git mapping decision record checks.")
+build_app = typer.Typer(help="Rebuildable canonical observation builds (P1).")
 app.add_typer(filings_app, name="filings")
 app.add_typer(db_app, name="db")
 app.add_typer(documents_app, name="documents")
 app.add_typer(metrics_app, name="metrics")
 app.add_typer(registry_app, name="registry")
 app.add_typer(mappings_app, name="mappings")
+app.add_typer(rules_app, name="rules")
+app.add_typer(build_app, name="build")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
@@ -543,6 +547,89 @@ def mappings_export(
             typer.echo(text, nl=False)
     else:
         typer.echo(dump_markdown(reports), nl=False)
+
+
+@rules_app.command("check")
+def rules_check(
+    registry_dir: Annotated[
+        Path | None,
+        typer.Option("--registry-dir", help="Path to registry/ (defaults to repo registry/)"),
+    ] = None,
+) -> None:
+    """Validate Git decision records and m0 invariants."""
+    from edgar.financials.rules_check import run_rules_check
+
+    root = registry_dir or (_REPO_ROOT / "registry")
+    findings = run_rules_check(root)
+    errors = [f for f in findings if f.level == "error"]
+    for finding in findings:
+        typer.echo(f"{finding.level}: {finding.message}", err=finding.level == "error")
+    if errors:
+        raise typer.Exit(code=1)
+
+
+@build_app.callback(invoke_without_command=True)
+def build_cmd(
+    data_root: Annotated[
+        Path | None,
+        typer.Option("--data-root", help="Override EDGAR_DATA_ROOT"),
+    ] = None,
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Build output directory (must not exist)"),
+    ] = Path("var/builds/p1"),
+    check_gold: Annotated[
+        bool,
+        typer.Option("--check-gold", help="Compare observations to registry/gold"),
+    ] = False,
+    accession: Annotated[
+        list[str] | None,
+        typer.Option("--accession", help="Limit build to accession(s); repeatable"),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit machine-readable summary")] = False,
+) -> None:
+    """Build m0 canonical observations from source.* (default: corpus.toml accessions)."""
+    from edgar.financials.build import default_accessions, run_build, write_build_output
+    from edgar.financials.cohort import load_m0_cohort
+
+    settings = Settings()
+    if data_root is not None:
+        settings = settings.model_copy(update={"edgar_data_root": data_root})
+    try:
+        require_database_at_head(settings.require_database_url())
+    except DatabaseRevisionMismatch as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    engine = create_db_engine(settings.require_database_url())
+    registry_dir = _REPO_ROOT / "registry"
+    cohort = load_m0_cohort(registry_dir)
+    accessions = tuple(accession) if accession else default_accessions(_REPO_ROOT)
+    try:
+        result = run_build(
+            engine,
+            registry_dir,
+            _REPO_ROOT,
+            accessions,
+            check_gold=check_gold,
+        )
+        write_build_output(result, output_dir, cohort.metrics, accessions)
+    except (ValueError, FileExistsError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    summary = {
+        "observations": len(result.observations),
+        "findings": len(result.findings),
+        "output_dir": str(output_dir),
+        "gold_assertions_checked": result.gold_assertions_checked,
+    }
+    if as_json:
+        typer.echo(json.dumps(summary))
+    else:
+        typer.echo(
+            f"build complete observations={summary['observations']} "
+            f"findings={summary['findings']} gold_assertions_checked="
+            f"{summary['gold_assertions_checked']} -> {output_dir}"
+        )
 
 
 if __name__ == "__main__":
