@@ -116,8 +116,9 @@ Do not add without the owning P-phase gate (see [ADR
 0014](docs/adr/0014-adopt-lean-mapping-sequence.md) and
 `docs/assessment-2026-09/plan/`):
 
-- `semantic.*` / `metric_observation` or canonical observation publication
-  (P4+ per the lean plan; not ahead of exit criteria)
+- durable `semantic.*` / `metric_observation` persistence or an unplanned production
+  publication store (P1 may produce rebuildable canonical observation outputs under
+  `var/builds/` per the lean plan; later durable storage follows the P2/P3 decision)
 - automated mapping candidate generation or precedence machinery beyond the
   current P-phase scope
 - LLM auto-approval of mappings (never for ambiguous claims)
@@ -408,9 +409,10 @@ selection. Later phases may add:
 - separate direct, derived, and proxy observations
 - dataset exposure of mapping uncertainty
 
-No LLM may auto-approve an ambiguous mapping. Canonical observation publication
-follows the P1–P6 plan ([ADR 0014](docs/adr/0014-adopt-lean-mapping-sequence.md));
-do not implement `semantic.*` / `metric_observation` ahead of the owning P phase.
+No LLM may auto-approve an ambiguous mapping. P1 may compute rebuildable canonical
+observations under `var/builds/` per [ADR 0014](docs/adr/0014-adopt-lean-mapping-sequence.md);
+do not add durable `semantic.*` / `metric_observation` persistence ahead of the owning
+later P phase after the P2/P3 storage decision.
 
 ---
 

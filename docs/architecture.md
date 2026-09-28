@@ -19,8 +19,10 @@ Preserve immutable SEC filing evidence, extract deterministic document structure
 and XBRL semantics into `source.*`, and enable offline replay. Canonical metric
 **definitions** live in Git `registry/metrics.yml`. **Existing** mapping decisions
 persist in `registry.mapping_assertion` (historical ledger state). **New** P1+
-mapping decisions are recorded in Git per ADR 0014. Canonical metric observations
-remain deferred until the P4+ gate in the lean plan. See
+mapping decisions are recorded in Git per ADR 0014. P1 may produce rebuildable
+canonical observation outputs under `var/builds/`; durable observation persistence or
+a production publication store remains deferred to the owning later P phase after the
+P2/P3 storage decision. See
 [`normalization.md`](normalization.md) and
 [ADR 0010](adr/0010-curated-semantic-registry.md).
 

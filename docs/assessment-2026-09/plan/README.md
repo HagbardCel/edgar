@@ -1,9 +1,8 @@
 # Implementation sequence
 
-**Status:** specification for the recommended sequence in
-[08](../08-migration-plan-assessment.md). **Not adopted.** Do not start P1+ until
-the P0.1 ADR is accepted. P0.2 (locator fix) is an extraction bugfix and may
-proceed under current invariants.
+**Status:** adopted forward implementation sequence under [ADR
+0014](../../adr/0014-adopt-lean-mapping-sequence.md). **P0 complete; P1 is the next
+implementation phase.** This directory is the authoritative plan referenced by ADR 0014.
 
 These files are written for a developer who knows Python and SQL, but not this
 repository's history. Follow them in order. Do not skip a phase exit gate.
@@ -82,7 +81,7 @@ These are not optional. They come from [01](../01-goals-and-principles.md) and
    opt-in.
 9. **A parser or extractor change that alters persisted output bumps
    `EXTRACTOR_VERSION`** (`src/edgar/xbrl/source_records.py`, currently
-   `source-extract-v5`).
+   `source-extract-v6`).
 10. **Do not edit an already-applied Alembic migration.** Add a new revision.
 11. **Do not commit `.env`, credentials, or uncontrolled filing corpora.**
 12. **Run the commands you claim.** Paste the output into the PR.

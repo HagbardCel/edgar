@@ -192,9 +192,9 @@ semantic_family first (special cases):
 
 origin = standard when semantic_family is us-gaap|dei|srt, OR the host
 (http or https) is xbrl.sec.gov, fasb.org, or xbrl.us.
-origin = issuer otherwise (negative classification: filer-owned hosts until
-P3 package provenance replaces the host heuristic). `issuer` does **not** prove
-filer ownership.
+origin = issuer otherwise (`issuer` is the conservative fallback for namespaces not
+recognized as standard; it commonly captures filer-extension namespaces but does not
+establish filer ownership; P3 package provenance replaces the host heuristic).
 
 semantic_family = other when origin is standard and the namespace is
 not one of the three families (country, cyd, ecd, ffd, exch, …).
@@ -363,8 +363,8 @@ rg -n "next: M1A|Do not implement M2/M3/M4" AGENTS.md
 make check
 ```
 
-Expected: ruff, format, pyright, `edgar registry validate`, 398 offline tests,
-108 database tests — all pass.
+Expected: `make check` passes (ruff, format, pyright, `edgar registry validate`, all
+offline and database tests).
 
 Plus a recorded timing:
 

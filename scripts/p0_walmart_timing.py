@@ -6,8 +6,9 @@ import statistics
 import time
 from pathlib import Path
 
+from edgar.corpus_acceptance import resolve_published_bundle
+from edgar.storage.bundles import BundleRepository
 from edgar.storage.objects import ObjectStore
-from edgar.xbrl.extraction_receipt import load_bundle_ref
 from edgar.xbrl.semantic import run_offline_extract
 
 CIK = "0000104169"
@@ -16,15 +17,17 @@ ACCESSION = "0000104169-24-000056"
 
 def main() -> None:
     root = Path("var").resolve()
-    bundle_parent = root / "bundles" / CIK / ACCESSION
-    opaque = next(bundle_parent.iterdir())
-    loaded = load_bundle_ref(data_root=root, bundle_dir=opaque)
     store = ObjectStore(root)
-    run_offline_extract(loaded.bundle, store)
+    repo = BundleRepository(root, store)
+    resolution = resolve_published_bundle(repo, CIK, ACCESSION)
+    if resolution.error is not None or resolution.bundle is None:
+        raise SystemExit(f"bundle resolution failed: {resolution.error_code}: {resolution.error}")
+    bundle = resolution.bundle
+    run_offline_extract(bundle, store)
     samples: list[float] = []
     for _ in range(3):
         start = time.perf_counter()
-        result = run_offline_extract(loaded.bundle, store)
+        result = run_offline_extract(bundle, store)
         elapsed = time.perf_counter() - start
         samples.append(elapsed)
         print(
