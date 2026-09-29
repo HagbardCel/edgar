@@ -1,0 +1,53 @@
+cik	expected_name	sec_name	sec_sic	derived_bucket	status
+0000001800	Abbott	ABBOTT LABORATORIES	2834	healthcare	ok
+0000002488	Advanced Micro Devices	ADVANCED MICRO DEVICES INC	3674	technology	ok
+0000004962	American Express	AMERICAN EXPRESS CO	6199	banking	ok
+0000006201	American Airlines	American Airlines Group Inc.	4512	other	ok
+0000012927	Boeing	BOEING CO	3721	manufacturing	ok
+0000018230	Caterpillar	CATERPILLAR INC	3531	manufacturing	ok
+0000019617	JPMorgan	JPMORGAN CHASE & CO	6021	banking	ok
+0000021344	COCA COLA	COCA COLA CO	2080	beverages	ok
+0000027419	Target	TARGET CORP	5331	retail	ok
+0000034088	Exxon	EXXON MOBIL CORP	2911	energy	ok
+0000037996	Ford	FORD MOTOR CO	3711	manufacturing	ok
+0000040545	General Electric	GENERAL ELECTRIC CO	3600	manufacturing	ok
+0000050863	Intel	INTEL CORP	3674	technology	ok
+0000051143	International Business	INTERNATIONAL BUSINESS MACHINES CORP	3570	technology	ok
+0000063908	McDonald	MCDONALDS CORP	5812	retail	ok
+0000066740	3M	3M CO	3841	manufacturing	ok
+0000070858	Bank of America	BANK OF AMERICA CORP /DE/	6021	banking	ok
+0000072971	Wells Fargo	WELLS FARGO & COMPANY/MN	6021	banking	ok
+0000077476	PepsiCo	PEPSICO INC	2080	beverages	ok
+0000078003	Pfizer	PFIZER INC	2834	healthcare	ok
+0000080424	Procter	PROCTER & GAMBLE Co	2840	healthcare	ok
+0000093410	Chevron	CHEVRON CORP	2911	energy	ok
+0000100885	Union Pacific	UNION PACIFIC CORP	4011	other	ok
+0000104169	Walmart	Walmart Inc.	5331	retail	ok
+0000200406	Johnson	JOHNSON & JOHNSON	2834	healthcare	ok
+0000310158	Merck	Merck & Co., Inc.	2834	healthcare	ok
+0000320193	Apple	Apple Inc.	3571	technology	ok
+0000354950	Home Depot	HOME DEPOT, INC.	5211	retail	ok
+0000731766	UnitedHealth	UNITEDHEALTH GROUP INC	6324	banking	ok
+0000732712	Verizon	VERIZON COMMUNICATIONS INC	4813	other	ok
+0000732717	AT&T	AT&T INC.	4813	other	ok
+0000789019	Microsoft	MICROSOFT CORP	7372	technology	ok
+0000829224	Starbucks	STARBUCKS CORP	5810	retail	ok
+0000831001	Citigroup	CITIGROUP INC	6021	banking	ok
+0000882095	Gilead	GILEAD SCIENCES, INC.	2836	healthcare	ok
+0000886982	Goldman Sachs	GOLDMAN SACHS GROUP INC	6211	banking	ok
+0001018724	Amazon	AMAZON COM INC	5961	retail	ok
+0001045810	NVIDIA	NVIDIA CORP	3674	technology	ok
+0001048911	FedEx	FEDEX CORP	4513	other	ok
+0001065088	eBay	EBAY INC	7389	other	ok
+0001067983	Berkshire	BERKSHIRE HATHAWAY INC	6331	banking	ok
+0001108524	Salesforce	Salesforce, Inc.	7372	technology	ok
+0001133421	Northrop	NORTHROP GRUMMAN CORP /DE/	3812	manufacturing	ok
+0001141391	Mastercard	Mastercard Inc	7389	other	ok
+0001156039	Elevance	Elevance Health, Inc.	6324	banking	ok
+0001163165	ConocoPhillips	CONOCOPHILLIPS	2911	energy	ok
+0001318605	Tesla	Tesla, Inc.	3711	manufacturing	ok
+0001326801	Meta Platforms	Meta Platforms, Inc.	7370	technology	ok
+0001341439	Oracle	ORACLE CORP	7372	technology	ok
+0001467858	General Motors	General Motors Co	3711	manufacturing	ok
+0001551152	AbbVie	AbbVie Inc.	2834	healthcare	ok
+0001652044	Alphabet	Alphabet Inc.	7370	technology	ok

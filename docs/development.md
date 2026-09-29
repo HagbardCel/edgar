@@ -31,15 +31,16 @@ test helper `reset_test_database`) then `alembic upgrade head`.
 edgar filings retrieve --accession …
 edgar filings catalog --bundle-dir …
 edgar filings extract --bundle-dir …
-edgar filings extract --accessions-file fixtures/spike/p2-accessions.txt --jobs 1
-edgar filings companyfacts --accessions-file fixtures/spike/p2-accessions.txt
+edgar filings extract --accessions-file fixtures/spike/p2-accessions-baseline.txt --jobs 1
+edgar filings companyfacts --accessions-file fixtures/spike/p2-accessions-baseline.txt
 edgar documents sections --document-id …
 edgar registry validate
 edgar registry sync
 edgar metrics list|show
 edgar rules check
 edgar build --check-gold --output-dir var/builds/p1
-edgar build --check-gold --quality-report var/reports/p2-quality.json --output-dir var/builds/p1
+edgar build --accessions-file fixtures/spike/p2-accessions.txt \
+  --quality-report var/reports/p2-quality.json --output-dir var/builds/p2
 edgar mappings list|show|propose|accept|reject|export
 ```
 

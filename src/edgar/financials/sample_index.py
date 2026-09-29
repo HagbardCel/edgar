@@ -13,6 +13,7 @@ _COLUMNS = (
     "fiscal_year",
     "sic",
     "industry_bucket",
+    "issuer_size",
     "taxonomy_era_note",
 )
 
@@ -25,6 +26,7 @@ class SampleRow:
     fiscal_year: str
     sic: str
     industry_bucket: str
+    issuer_size: str
     taxonomy_era_note: str
 
 
@@ -51,6 +53,7 @@ def load_sample_csv(path: Path) -> dict[str, SampleRow]:
                 fiscal_year=(raw.get("fiscal_year") or "").strip(),
                 sic=(raw.get("sic") or "").strip(),
                 industry_bucket=industry,
+                issuer_size=(raw.get("issuer_size") or "").strip(),
                 taxonomy_era_note=(raw.get("taxonomy_era_note") or "").strip(),
             )
     return rows

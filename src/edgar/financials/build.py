@@ -6,6 +6,7 @@ import csv
 import json
 import subprocess
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,6 +38,24 @@ class BuildResult:
 def default_accessions(repo_root: Path) -> tuple[str, ...]:
     manifest = load_corpus_manifest(repo_root / "fixtures" / "corpus.toml")
     return tuple(f.accession for f in manifest.filings)
+
+
+def resolve_build_accessions(
+    repo_root: Path,
+    *,
+    accession: Sequence[str] | None,
+    accessions_file: Path | None,
+) -> tuple[str, ...]:
+    """Resolve build population from corpus default, CLI accessions, or a file."""
+    from edgar.ingestion.accession_file import parse_accession_file
+
+    if accession and accessions_file is not None:
+        raise ValueError("pass at most one of --accession and --accessions-file")
+    if accessions_file is not None:
+        return parse_accession_file(accessions_file)
+    if accession:
+        return tuple(accession)
+    return default_accessions(repo_root)
 
 
 def run_build(
