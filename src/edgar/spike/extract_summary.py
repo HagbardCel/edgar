@@ -14,6 +14,10 @@ AMENDMENT_FORM = "10-K/A"
 PRIMARY_SUCCESS_RATE_MIN = 0.90
 
 
+class ExtractPopulationError(ValueError):
+    """Extract report accessions do not match the sample CSV population."""
+
+
 @dataclass(frozen=True)
 class FormExtractCounts:
     attempted: int
@@ -38,27 +42,49 @@ class ExtractSummary:
         return rate is not None and rate >= minimum
 
 
-def _form_for_accession(sample: Mapping[str, SampleRow], accession: str) -> str | None:
+def assert_extract_population_matches_sample(
+    extract_records: Sequence[Mapping[str, object]],
+    sample_csv: Path,
+) -> None:
+    sample = load_sample_csv(sample_csv)
+    report_accessions: set[str] = set()
+    for record in extract_records:
+        accession = str(record.get("accession") or "").strip()
+        if not accession:
+            raise ExtractPopulationError("extract report row missing accession")
+        if accession in report_accessions:
+            raise ExtractPopulationError(f"duplicate accession in extract report: {accession}")
+        report_accessions.add(accession)
+    sample_accessions = set(sample.keys())
+    if report_accessions != sample_accessions:
+        missing = sorted(sample_accessions - report_accessions)
+        extra = sorted(report_accessions - sample_accessions)
+        raise ExtractPopulationError(
+            f"extract report population mismatch: missing={missing[:5]} "
+            f"extra={extra[:5]} (showing up to 5 each)",
+        )
+
+
+def _form_for_accession(sample: Mapping[str, SampleRow], accession: str) -> str:
     row = sample.get(accession)
     if row is None:
-        return None
+        raise ExtractPopulationError(f"accession {accession} missing from sample csv")
     form = row.form.strip()
-    return form or None
+    if not form:
+        raise ExtractPopulationError(f"accession {accession} has empty form in sample csv")
+    return form
 
 
 def summarize_extract_by_form(
     extract_records: Sequence[Mapping[str, object]],
     sample_csv: Path,
 ) -> ExtractSummary:
+    assert_extract_population_matches_sample(extract_records, sample_csv)
     sample = load_sample_csv(sample_csv)
     by_form: dict[str, list[bool]] = {}
     for record in extract_records:
         accession = str(record.get("accession") or "").strip()
-        if not accession:
-            continue
         form = _form_for_accession(sample, accession)
-        if form is None:
-            form = "unknown"
         success = bool(record.get("success"))
         by_form.setdefault(form, []).append(success)
 

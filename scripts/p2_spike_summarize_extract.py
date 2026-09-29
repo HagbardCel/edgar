@@ -13,6 +13,11 @@ from edgar.spike.extract_summary import (
     load_extract_records,
     summarize_extract_by_form,
 )
+from edgar.spike.report_numbers import (
+    optional_report_float,
+    optional_report_int,
+    parse_report_int_field,
+)
 
 
 def main() -> None:
@@ -46,7 +51,7 @@ def main() -> None:
     parser.add_argument(
         "--retrieve-report",
         type=Path,
-        help="JSON from p2_spike_retrieve.py for object-store bytes per retrieved filing",
+        help="Cumulative JSON from p2_spike_retrieve.py",
     )
     args = parser.parse_args()
     records = load_extract_records(args.report)
@@ -54,18 +59,23 @@ def main() -> None:
     attempted = len(records)
     successes = [row for row in records if row.get("success")]
     failures = [row for row in records if not row.get("success")]
-    walls = [float(row["wall_seconds"]) for row in successes if row.get("wall_seconds") is not None]
-    facts = [int(row["fact_count"]) for row in successes if row.get("fact_count") is not None]
-    decls = [
-        int(row["declaration_count"])
-        for row in successes
-        if row.get("declaration_count") is not None
-    ]
-    rels = [
-        int(row["relationship_count"])
-        for row in successes
-        if row.get("relationship_count") is not None
-    ]
+    walls: list[float] = []
+    facts: list[int] = []
+    decls: list[int] = []
+    rels: list[int] = []
+    for row in successes:
+        wall = optional_report_float(row, "wall_seconds")
+        if wall is not None:
+            walls.append(wall)
+        fact = optional_report_int(row, "fact_count")
+        if fact is not None:
+            facts.append(fact)
+        decl = optional_report_int(row, "declaration_count")
+        if decl is not None:
+            decls.append(decl)
+        rel = optional_report_int(row, "relationship_count")
+        if rel is not None:
+            rels.append(rel)
     failure_classes = Counter(str(row.get("failure_class") or "unknown") for row in failures)
     print(f"all_attempted={attempted} all_succeeded={len(successes)} all_failed={len(failures)}")
     print(
@@ -97,10 +107,10 @@ def main() -> None:
     if args.storage_before and args.storage_after:
         before = json.loads(args.storage_before.read_text(encoding="utf-8"))
         after = json.loads(args.storage_after.read_text(encoding="utf-8"))
-        obj_before = int(before.get("object_store_bytes") or 0)
-        obj_after = int(after.get("object_store_bytes") or 0)
-        pg_before = int(before.get("postgres_source_registry_bytes") or 0)
-        pg_after = int(after.get("postgres_source_registry_bytes") or 0)
+        obj_before = parse_report_int_field(before, "object_store_bytes")
+        obj_after = parse_report_int_field(after, "object_store_bytes")
+        pg_before = parse_report_int_field(before, "postgres_source_registry_bytes")
+        pg_after = parse_report_int_field(after, "postgres_source_registry_bytes")
         obj_delta = obj_after - obj_before
         pg_delta = pg_after - pg_before
         print(f"object_store_bytes_added={obj_delta}")
@@ -108,7 +118,11 @@ def main() -> None:
         retrieved_count = 0
         if args.retrieve_report and args.retrieve_report.is_file():
             retrieve = json.loads(args.retrieve_report.read_text(encoding="utf-8"))
-            retrieved_count = int(retrieve.get("retrieved") or 0)
+            retrieved_count = parse_report_int_field(
+                retrieve,
+                "cumulative_retrieved",
+                fallback_field="retrieved",
+            )
         if retrieved_count > 0:
             print(f"object_store_bytes_per_retrieved_filing={obj_delta / retrieved_count:.0f}")
         if len(successes):

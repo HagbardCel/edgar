@@ -14,7 +14,8 @@ Preflight every CIK/name pair (fail closed before historical submissions walks):
 
 ```bash
 uv run python scripts/p2_validate_spike_seeds.py \
-  --seeds fixtures/spike/p2-stratification-seeds.toml
+  --seeds fixtures/spike/p2-stratification-seeds.toml \
+  --output fixtures/spike/p2-seed-validation.tsv
 ```
 
 Build the list:
@@ -41,7 +42,8 @@ Retrieve in bounded batches (`--limit` is **new acquisition attempts**, not succ
 
 ```bash
 uv run python scripts/p2_spike_retrieve.py --limit 50
-# repeat until not_attempted=0; failures are recorded in var/reports/p2-retrieve.json
+# repeat until not_attempted=0; cumulative ledger in var/reports/p2-retrieve.json
+# use --retry-failed to re-attempt prior failures after investigation
 uv run edgar filings extract \
   --accessions-file fixtures/spike/p2-accessions.txt \
   --jobs 4
@@ -80,7 +82,7 @@ uv run python scripts/p2_spike_taxonomy_coverage.py \
 
 `--accessions-file` selects which filings `run_build` processes. Without it, `edgar build` still defaults to `fixtures/corpus.toml` (six filings).
 
-Post-extraction taxonomy stratification: the coverage script checks that distinct `filing_taxonomy_release` values in the quality report span legacy `xbrl.us`/2009-era, 2011-transition, and modern FASB/SEC namespace families.
+Post-extraction taxonomy stratification: the coverage script classifies `filing_taxonomy_release` tokens (for example `2009-01-31`, `2011-01-31`, `2024`) into 2009-era, 2011-transition, and modern (calendar year ≥ 2018) buckets.
 
 ## CI baseline
 

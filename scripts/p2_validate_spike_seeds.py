@@ -57,7 +57,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("var/reports/p2-seed-validation.tsv"),
+        default=Path("fixtures/spike/p2-seed-validation.tsv"),
     )
     args = parser.parse_args()
     settings = Settings()

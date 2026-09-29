@@ -34,7 +34,7 @@ size = "mega-cap"
 
 [[issuer]]
 cik = "0000051143"
-expected_name = "IBM"
+expected_name = "International Business"
 size = "mega-cap"
 
 [[issuer]]
@@ -124,7 +124,7 @@ size = "large-cap"
 
 [[issuer]]
 cik = "0000021344"
-expected_name = "Coca-Cola"
+expected_name = "COCA COLA"
 size = "mega-cap"
 
 [[issuer]]
@@ -138,12 +138,12 @@ expected_name = "Abbott"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000200405"
+cik = "0000200406"
 expected_name = "Johnson"
 size = "mega-cap"
 
 [[issuer]]
-cik = "0000091584"
+cik = "0000310158"
 expected_name = "Merck"
 size = "mega-cap"
 
@@ -163,7 +163,7 @@ expected_name = "Gilead"
 size = "large-cap"
 
 [[issuer]]
-cik = "0000007283"
+cik = "0000080424"
 expected_name = "Procter"
 size = "mega-cap"
 

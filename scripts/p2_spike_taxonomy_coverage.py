@@ -3,6 +3,9 @@
 Reads a quality-report JSON produced by ``edgar build --quality-report`` and
 prints whether distinct US-GAAP release tokens span the required eras.
 
+Release tokens are path segments such as ``2024`` or ``2009-01-31`` (see
+``filing_taxonomy_release`` in the quality pipeline).
+
 Usage:
   uv run python scripts/p2_spike_taxonomy_coverage.py \\
     --quality-report var/reports/p2-quality.json
@@ -14,6 +17,8 @@ import argparse
 import json
 from pathlib import Path
 
+from edgar.spike.taxonomy_era import era_flags_from_release_tokens
+
 
 def _collect_release_tokens(quality_payload: dict[str, object]) -> set[str]:
     tokens: set[str] = set()
@@ -24,21 +29,9 @@ def _collect_release_tokens(quality_payload: dict[str, object]) -> set[str]:
         if not isinstance(cell, dict):
             continue
         release = cell.get("filing_taxonomy_release")
-        if isinstance(release, str) and release.strip() and release != "unknown":
+        if isinstance(release, str) and release.strip() and release not in {"unknown", "mixed"}:
             tokens.add(release.strip())
     return tokens
-
-
-def _era_flags(tokens: set[str]) -> dict[str, bool]:
-    joined = " ".join(sorted(tokens)).lower()
-    return {
-        "xbrl_us_2009_era": any(marker in joined for marker in ("2009", "xbrl.us", "us-gaap-2009")),
-        "transition_2011_era": any(marker in joined for marker in ("2011", "us-gaap-2011")),
-        "modern_fasb_sec": any(
-            marker in joined
-            for marker in ("fasb.org", "xbrl.sec.gov", "us-gaap-202", "us-gaap-2018")
-        ),
-    }
 
 
 def main() -> None:
@@ -48,7 +41,7 @@ def main() -> None:
     payload = json.loads(args.quality_report.read_text(encoding="utf-8"))
     tokens = _collect_release_tokens(payload)
     print(f"distinct_filing_taxonomy_releases={sorted(tokens)}")
-    flags = _era_flags(tokens)
+    flags = era_flags_from_release_tokens(tokens)
     for key, present in flags.items():
         print(f"{key}={'yes' if present else 'no'}")
     if not all(flags.values()):
