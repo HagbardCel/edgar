@@ -18,7 +18,7 @@ Whether filings have been retrieved is runtime state under `EDGAR_DATA_ROOT`. Re
 Requires `SEC_USER_AGENT` (see `docs/development.md`).
 
 ```bash
-uv run python scripts/p2_validate_spike_seeds.py
+uv run python scripts/p2_validate_spike_seeds.py  # updates p2-seed-validation.tsv
 uv run python scripts/p2_build_spike_accession_list.py \
   --seeds fixtures/spike/p2-stratification-seeds.toml \
   --target-min 500 --target-max 1000
